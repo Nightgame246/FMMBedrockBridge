@@ -1,0 +1,18 @@
+# Maven build output
+target/
+
+# Claude Code - local reference repos (separate git repos, not part of this project)
+references/
+
+# Claude Code - session state file (updated after each session, local only)
+CLAUDE_SESSION.md
+CLAUDE.md
+
+# IDE
+.idea/
+*.iml
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db

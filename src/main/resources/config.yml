@@ -1,0 +1,18 @@
+# FMMBedrockBridge Configuration
+
+# Enable/Disable the bridge
+enabled: true
+
+# Debug mode - logs entity spawn/despawn events
+debug: false
+
+# Entity view distance for Bedrock players (in blocks)
+# Models outside this range won't be sent to Bedrock clients
+entity-view-distance: 50
+
+# Resource Pack settings
+resource-pack:
+  # Auto-generate Bedrock resource pack from FMM models on startup
+  auto-generate: true
+  # Output path for the generated Bedrock pack
+  output-path: "bedrock-pack"
