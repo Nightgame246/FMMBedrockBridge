@@ -1,0 +1,14 @@
+name: FMMBedrockBridge
+version: ${project.version}
+main: de.crazypandas.fmmbedrockbridge.FMMBedrockBridge
+api-version: '1.21'
+description: Bridge between FreeMinecraftModels and Geyser/Bedrock for custom model display
+author: Fabi
+website: https://crazypandas.de
+
+depend:
+  - FreeMinecraftModels
+
+softdepend:
+  - floodgate
+  - GeyserUtils
