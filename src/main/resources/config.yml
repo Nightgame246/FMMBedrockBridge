@@ -10,9 +10,11 @@ debug: false
 # Models outside this range won't be sent to Bedrock clients
 entity-view-distance: 50
 
-# Resource Pack settings
-resource-pack:
-  # Auto-generate Bedrock resource pack from FMM models on startup
-  auto-generate: true
-  # Output path for the generated Bedrock pack
-  output-path: "bedrock-pack"
+# Converter settings
+converter:
+  # Namespace for Bedrock custom entity IDs (e.g. "fmmbridge:wolf_model")
+  namespace: "fmmbridge"
+  # Output folder for converted skin files (geometry.json + texture.png)
+  # These need to be copied into your GeyserUtils skins folder:
+  # /extensions/GeyserUtils/skins/<modelId>/
+  output-path: "bedrock-skins"

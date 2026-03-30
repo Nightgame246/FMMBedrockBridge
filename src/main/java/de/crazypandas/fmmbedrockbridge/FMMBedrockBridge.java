@@ -1,6 +1,8 @@
 package de.crazypandas.fmmbedrockbridge;
 
 import de.crazypandas.fmmbedrockbridge.bridge.BedrockEntityBridge;
+import de.crazypandas.fmmbedrockbridge.commands.FMMBridgeCommand;
+import de.crazypandas.fmmbedrockbridge.converter.BedrockModelConverter;
 import de.crazypandas.fmmbedrockbridge.tracker.FMMEntityTracker;
 import org.bukkit.plugin.java.JavaPlugin;
 
@@ -44,13 +46,20 @@ public class FMMBedrockBridge extends JavaPlugin {
         }
 
         // Phase 1+2: Start FMM entity tracker with Bedrock bridge
-        BedrockEntityBridge bridge = new BedrockEntityBridge(floodgateAvailable, geyserUtilsAvailable);
-        entityTracker = new FMMEntityTracker(bridge);
+        entityTracker = new FMMEntityTracker(null);
+        BedrockEntityBridge bridge = new BedrockEntityBridge(floodgateAvailable, geyserUtilsAvailable, entityTracker);
+        entityTracker.setBridge(bridge);
         entityTracker.start();
+        getServer().getPluginManager().registerEvents(bridge, this);
+
+        // Phase 3: Register converter command
+        BedrockModelConverter converter = new BedrockModelConverter();
+        FMMBridgeCommand cmd = new FMMBridgeCommand(converter);
+        getCommand("fmmbridge").setExecutor(cmd);
+        getCommand("fmmbridge").setTabCompleter(cmd);
 
         log.info("GeyserUtils: " + (geyserUtilsAvailable ? "found" : "NOT FOUND"));
 
-        // TODO Phase 2: Initialize entity bridge manager
         // TODO Phase 3: Resource pack conversion
 
         log.info("FMMBedrockBridge v" + getDescription().getVersion() + " enabled!");

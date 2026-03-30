@@ -8,6 +8,7 @@ import de.crazypandas.fmmbedrockbridge.FMMBedrockBridge;
 import de.crazypandas.fmmbedrockbridge.bridge.BedrockEntityBridge;
 import org.bukkit.scheduler.BukkitRunnable;
 
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.logging.Logger;
@@ -20,7 +21,7 @@ public class FMMEntityTracker extends BukkitRunnable {
 
     private static final Logger log = FMMBedrockBridge.getInstance().getLogger();
     private final Set<ModeledEntity> knownEntities = new HashSet<>();
-    private final BedrockEntityBridge bridge;
+    private BedrockEntityBridge bridge;
 
     public FMMEntityTracker(BedrockEntityBridge bridge) {
         this.bridge = bridge;
@@ -59,14 +60,18 @@ public class FMMEntityTracker extends BukkitRunnable {
         log.info("[FMM SPAWN] type=" + type
                 + " entityID=" + entity.getEntityID()
                 + " location=" + formatLocation(entity));
-        bridge.onEntitySpawn(entity);
+        if (bridge != null) {
+            bridge.onEntitySpawn(entity);
+        }
     }
 
     private void onEntityDespawn(ModeledEntity entity) {
         String type = getEntityType(entity);
         log.info("[FMM DESPAWN] type=" + type
                 + " entityID=" + entity.getEntityID());
-        bridge.onEntityDespawn(entity);
+        if (bridge != null) {
+            bridge.onEntityDespawn(entity);
+        }
     }
 
     private String getEntityType(ModeledEntity entity) {
@@ -92,5 +97,13 @@ public class FMMEntityTracker extends BukkitRunnable {
         if (!isCancelled()) cancel();
         knownEntities.clear();
         log.info("FMMEntityTracker stopped.");
+    }
+
+    public Set<ModeledEntity> getKnownEntities() {
+        return Collections.unmodifiableSet(knownEntities);
+    }
+
+    public void setBridge(BedrockEntityBridge bridge) {
+        this.bridge = bridge;
     }
 }
