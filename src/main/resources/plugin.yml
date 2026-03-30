@@ -12,3 +12,15 @@ depend:
 softdepend:
   - floodgate
   - GeyserUtils
+
+commands:
+  fmmbridge:
+    description: FMMBedrockBridge admin commands
+    usage: /fmmbridge convert [modelId|all]
+    permission: fmmbedrockbridge.admin
+    permission-message: You don't have permission to use this command.
+
+permissions:
+  fmmbedrockbridge.admin:
+    description: Access to FMMBedrockBridge admin commands
+    default: op
