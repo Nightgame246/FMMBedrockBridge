@@ -13,6 +13,8 @@ GEMINI.md
 .idea/
 *.iml
 .vscode/
+.codex
+notiz an fabi
 
 # OS
 .DS_Store
