@@ -1,19 +1,26 @@
 package de.crazypandas.fmmbedrockbridge.commands;
 
+import com.magmaguy.freeminecraftmodels.dataconverter.FileModelConverter;
 import de.crazypandas.fmmbedrockbridge.converter.BedrockModelConverter;
+import org.bukkit.Bukkit;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.command.TabCompleter;
+import org.bukkit.plugin.Plugin;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 public class FMMBridgeCommand implements CommandExecutor, TabCompleter {
 
     private final BedrockModelConverter converter;
+    private final Plugin plugin;
 
-    public FMMBridgeCommand(BedrockModelConverter converter) {
+    public FMMBridgeCommand(BedrockModelConverter converter, Plugin plugin) {
         this.converter = converter;
+        this.plugin = plugin;
     }
 
     @Override
@@ -31,17 +38,26 @@ public class FMMBridgeCommand implements CommandExecutor, TabCompleter {
         if (args[0].equalsIgnoreCase("convert")) {
             if (args.length < 2 || args[1].equalsIgnoreCase("all")) {
                 sender.sendMessage("§6[FMMBridge] §7Converting all models...");
-                converter.convertAll();
-                sender.sendMessage("§6[FMMBridge] §aDone! Check server logs for details.");
+                Map<String, FileModelConverter> models = new HashMap<>(FileModelConverter.getConvertedFileModels());
+                Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
+                    converter.convertAll(models);
+                    Bukkit.getScheduler().runTask(plugin,
+                            () -> sender.sendMessage("§6[FMMBridge] §aDone! Check server logs for details."));
+                });
             } else {
                 String modelId = args[1];
                 sender.sendMessage("§6[FMMBridge] §7Converting model: " + modelId);
-                try {
-                    converter.convert(modelId);
-                    sender.sendMessage("§6[FMMBridge] §aDone! Output: plugins/FMMBedrockBridge/bedrock-skins/" + modelId + "/");
-                } catch (Exception e) {
-                    sender.sendMessage("§c[FMMBridge] Error: " + e.getMessage());
-                }
+                Map<String, FileModelConverter> models = new HashMap<>(FileModelConverter.getConvertedFileModels());
+                Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
+                    try {
+                        converter.convert(modelId, models);
+                        Bukkit.getScheduler().runTask(plugin, () ->
+                                sender.sendMessage("§6[FMMBridge] §aDone! Output: plugins/FMMBedrockBridge/bedrock-skins/" + modelId + "/"));
+                    } catch (Exception e) {
+                        Bukkit.getScheduler().runTask(plugin,
+                                () -> sender.sendMessage("§c[FMMBridge] Error: " + e.getMessage()));
+                    }
+                });
             }
             return true;
         }

@@ -7,14 +7,21 @@ import de.crazypandas.fmmbedrockbridge.FMMBedrockBridge;
 import org.bukkit.Bukkit;
 import org.bukkit.plugin.Plugin;
 
+import javax.imageio.ImageIO;
+import java.awt.*;
+import java.awt.image.BufferedImage;
 import java.io.*;
 import java.nio.file.*;
 import java.util.*;
+import java.util.List;
 import java.util.logging.Logger;
 
 /**
  * Converts FMM models (.bbmodel) to Bedrock geometry + texture files
  * compatible with the GeyserUtils skin system.
+ *
+ * Handles multi-texture models by creating a texture atlas
+ * (textures stacked vertically) and adjusting UV coordinates.
  *
  * Output per model:
  *   <output-path>/<modelId>/geometry.json
@@ -24,9 +31,6 @@ public class BedrockModelConverter {
 
     private static final Logger log = FMMBedrockBridge.getInstance().getLogger();
     private static final Gson GSON = new Gson();
-
-    // Bone name prefixes that should not be included in the Bedrock model
-    private static final Set<String> SKIP_PREFIXES = Set.of("b_", "hitbox", "tag_", "m_");
 
     private final File outputBase;
 
@@ -38,8 +42,7 @@ public class BedrockModelConverter {
     /**
      * Convert all loaded FMM models.
      */
-    public void convertAll() {
-        Map<String, FileModelConverter> models = FileModelConverter.getConvertedFileModels();
+    public void convertAll(Map<String, FileModelConverter> models) {
         if (models.isEmpty()) {
             log.warning("[Converter] No FMM models found.");
             return;
@@ -47,7 +50,7 @@ public class BedrockModelConverter {
         log.info("[Converter] Converting " + models.size() + " FMM model(s)...");
         for (String modelId : models.keySet()) {
             try {
-                convert(modelId);
+                convert(modelId, models);
             } catch (Exception e) {
                 log.severe("[Converter] Failed to convert model '" + modelId + "': " + e.getMessage());
             }
@@ -65,8 +68,8 @@ public class BedrockModelConverter {
     /**
      * Convert a single FMM model by ID.
      */
-    public void convert(String modelId) throws IOException {
-        FileModelConverter fmm = FileModelConverter.getConvertedFileModels().get(modelId);
+    public void convert(String modelId, Map<String, FileModelConverter> models) throws IOException {
+        FileModelConverter fmm = models.get(modelId);
         if (fmm == null) {
             log.warning("[Converter] Model not found: " + modelId);
             return;
@@ -84,45 +87,110 @@ public class BedrockModelConverter {
             bbmodel = GSON.fromJson(reader, Map.class);
         }
 
+        // Get resolution from .bbmodel (UV coordinate space)
+        Map<?, ?> resolution = (Map<?, ?>) bbmodel.get("resolution");
+        double texWidth = 64;
+        double texHeight = 64;
+        if (resolution != null) {
+            texWidth = toDouble(resolution.get("width"));
+            texHeight = toDouble(resolution.get("height"));
+        }
+
+        // Get texture list from .bbmodel
+        List<?> bbTextures = (List<?>) bbmodel.get("textures");
+        int textureCount = bbTextures != null ? bbTextures.size() : 1;
+
         // Get texture dimensions from FMM
         List<ParsedTexture> parsedTextures = fmm.getParsedTextures();
         if (parsedTextures.isEmpty()) {
             log.warning("[Converter] No textures found for model: " + modelId);
             return;
         }
-        ParsedTexture firstTexture = parsedTextures.get(0);
-        double texWidth = firstTexture.getTextureWidth();
-        double texHeight = firstTexture.getTextureHeight();
 
         // Create output folder
         File outDir = new File(outputBase, modelId);
         outDir.mkdirs();
 
-        // Generate and write geometry.json
-        String geoJson = BedrockGeometryGenerator.generate(modelId, bbmodel, texWidth, texHeight);
+        // Generate and write geometry.json (with atlas-aware UV offsets)
+        String geoJson = BedrockGeometryGenerator.generate(modelId, bbmodel, texWidth, texHeight, textureCount);
         File geoFile = new File(outDir, "geometry.json");
         Files.writeString(geoFile.toPath(), geoJson);
 
-        // Copy texture from FMM's output
-        File textureFile = getFmmTextureFile(modelId, firstTexture.getFilename());
-        if (textureFile != null && textureFile.exists()) {
-            Files.copy(textureFile.toPath(), new File(outDir, "texture.png").toPath(),
-                    StandardCopyOption.REPLACE_EXISTING);
+        // Build texture atlas: stack all textures vertically
+        File atlasFile = new File(outDir, "texture.png");
+        if (textureCount > 1) {
+            buildTextureAtlas(modelId, parsedTextures, bbTextures, atlasFile, (int) texWidth, (int) texHeight);
         } else {
-            log.warning("[Converter] Texture file not found for model: " + modelId
-                    + " (expected: " + (textureFile != null ? textureFile.getAbsolutePath() : "null") + ")");
+            // Single texture: just copy it
+            File textureFile = getFmmTextureFile(modelId, parsedTextures.get(0).getFilename());
+            if (textureFile != null && textureFile.exists()) {
+                Files.copy(textureFile.toPath(), atlasFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
+            } else {
+                log.warning("[Converter] Texture file not found for model: " + modelId);
+            }
         }
 
         Path skinsDir = outDir.toPath();
         Path packDir = FMMBedrockBridge.getInstance().getDataFolder().toPath().resolve("bedrock-pack");
         BedrockResourcePackGenerator.generate(modelId, skinsDir, packDir);
 
-        log.info("[Converter] Converted: " + modelId + " → " + outDir.getAbsolutePath());
+        log.info("[Converter] Converted: " + modelId
+                + " (textures=" + textureCount
+                + ", uvSpace=" + (int) texWidth + "x" + (int) texHeight
+                + ", atlasHeight=" + (int) (texHeight * textureCount) + ")");
+    }
+
+    /**
+     * Builds a texture atlas by stacking all textures vertically.
+     * Each texture slot is scaled to match the UV resolution space.
+     */
+    private void buildTextureAtlas(String modelId, List<ParsedTexture> parsedTextures,
+                                    List<?> bbTextures, File outputFile,
+                                    int uvWidth, int uvHeight) throws IOException {
+        int totalHeight = uvHeight * parsedTextures.size();
+        BufferedImage atlas = new BufferedImage(uvWidth, totalHeight, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g = atlas.createGraphics();
+        g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
+
+        for (int i = 0; i < parsedTextures.size(); i++) {
+            ParsedTexture pt = parsedTextures.get(i);
+            File texFile = getFmmTextureFile(modelId, pt.getFilename());
+
+            if (texFile == null || !texFile.exists()) {
+                // Try matching by bbmodel texture name
+                if (bbTextures != null && i < bbTextures.size()) {
+                    Map<?, ?> bbTex = (Map<?, ?>) bbTextures.get(i);
+                    String name = (String) bbTex.get("name");
+                    if (name != null) {
+                        texFile = getFmmTextureFile(modelId, name);
+                    }
+                }
+            }
+
+            if (texFile != null && texFile.exists()) {
+                BufferedImage texImage = ImageIO.read(texFile);
+                // Draw scaled to UV space slot
+                g.drawImage(texImage, 0, i * uvHeight, uvWidth, uvHeight, null);
+                log.info("[Converter] Atlas slot " + i + ": " + texFile.getName()
+                        + " (" + texImage.getWidth() + "x" + texImage.getHeight()
+                        + " → " + uvWidth + "x" + uvHeight + ")");
+            } else {
+                log.warning("[Converter] Texture " + i + " not found for model " + modelId
+                        + " (filename: " + pt.getFilename() + ")");
+                // Fill with magenta for visibility
+                g.setColor(Color.MAGENTA);
+                g.fillRect(0, i * uvHeight, uvWidth, uvHeight);
+            }
+        }
+
+        g.dispose();
+        ImageIO.write(atlas, "PNG", outputFile);
+        log.info("[Converter] Texture atlas created: " + uvWidth + "x" + totalHeight
+                + " (" + parsedTextures.size() + " textures)");
     }
 
     /**
      * Finds the texture PNG that FMM wrote during its own startup.
-     * Path: plugins/FreeMinecraftModels/output/FreeMinecraftModels/assets/freeminecraftmodels/textures/entity/<modelId>/<filename>
      */
     private File getFmmTextureFile(String modelId, String filename) {
         Plugin fmmPlugin = Bukkit.getPluginManager().getPlugin("FreeMinecraftModels");
@@ -136,5 +204,10 @@ public class BedrockModelConverter {
                 "entity" + File.separator +
                 modelId + File.separator +
                 filename);
+    }
+
+    private static double toDouble(Object o) {
+        if (o instanceof Number n) return n.doubleValue();
+        return 0;
     }
 }

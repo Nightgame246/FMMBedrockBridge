@@ -93,7 +93,7 @@ public final class BedrockResourcePackGenerator {
     private static Map<String, Object> createEntityDefinition(String modelId) {
         Map<String, Object> description = new LinkedHashMap<>();
         description.put("identifier", "fmmbridge:" + modelId);
-        description.put("materials", Map.of("default", "entity_alphatest_change_color"));
+        description.put("materials", Map.of("default", "entity_alphatest_change_color_one_sided"));
         description.put("textures", Map.of("default", "textures/entity/" + modelId));
         description.put("geometry", Map.of("default", "geometry.fmmbridge." + modelId));
         description.put("render_controllers", List.of("controller.render.fmmbridge_" + modelId));
