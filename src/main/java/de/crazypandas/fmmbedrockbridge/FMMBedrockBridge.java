@@ -17,6 +17,7 @@ public class FMMBedrockBridge extends JavaPlugin {
     private boolean fmmAvailable = false;
 
     private FMMEntityTracker entityTracker;
+    private BedrockEntityBridge bridge;
 
     @Override
     public void onEnable() {
@@ -45,16 +46,25 @@ public class FMMBedrockBridge extends JavaPlugin {
             log.warning("GeyserUtils not found! Bedrock entity bridging will not work.");
         }
 
-        // Phase 1+2: Start FMM entity tracker with Bedrock bridge
+        // Start FMM entity tracker with Bedrock bridge
         entityTracker = new FMMEntityTracker(null);
-        BedrockEntityBridge bridge = new BedrockEntityBridge(floodgateAvailable, geyserUtilsAvailable, entityTracker);
+        bridge = new BedrockEntityBridge(floodgateAvailable, geyserUtilsAvailable, entityTracker);
         entityTracker.setBridge(bridge);
         entityTracker.start();
         getServer().getPluginManager().registerEvents(bridge, this);
 
+        boolean packetEventsAvailable = getServer().getPluginManager().getPlugin("packetevents") != null
+                || getServer().getPluginManager().getPlugin("PacketEvents") != null;
+        if (packetEventsAvailable && geyserUtilsAvailable) {
+            bridge.start();
+            log.info("PacketEvents: found — fake entity bridge active");
+        } else if (!packetEventsAvailable) {
+            log.warning("PacketEvents not found — Bedrock entity bridging requires PacketEvents!");
+        }
+
         // Phase 3: Register converter command
         BedrockModelConverter converter = new BedrockModelConverter();
-        FMMBridgeCommand cmd = new FMMBridgeCommand(converter);
+        FMMBridgeCommand cmd = new FMMBridgeCommand(converter, this);
         getCommand("fmmbridge").setExecutor(cmd);
         getCommand("fmmbridge").setTabCompleter(cmd);
 
@@ -69,6 +79,7 @@ public class FMMBedrockBridge extends JavaPlugin {
 
     @Override
     public void onDisable() {
+        if (bridge != null) bridge.shutdown();
         if (entityTracker != null) entityTracker.shutdown();
         log.info("FMMBedrockBridge disabled.");
     }
