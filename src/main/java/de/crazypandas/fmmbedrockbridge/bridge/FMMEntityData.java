@@ -88,6 +88,8 @@ public class FMMEntityData {
             EntityUtils.sendCustomHitBox(player, packetEntity.getEntityId(), hitboxHeight, hitboxWidth);
             // Send custom name so Bedrock players see the EliteMobs name, not the mob type
             sendNameToViewer(player);
+            // Register animation properties and send initial animation state
+            registerAndSendInitialAnimation(player);
             log.info("[BRIDGE] Sent spawn packet + hitbox for " + bedrockEntityId
                     + " (fakeId=" + packetEntity.getEntityId() + ") to " + player.getName());
         }, 2L);
@@ -130,6 +132,36 @@ public class FMMEntityData {
     }
 
     /**
+     * Registers animation properties with GeyserUtils and sends the initial animation state.
+     * Must be called after the entity spawn packet is sent.
+     */
+    private void registerAndSendInitialAnimation(Player player) {
+        if (sortedAnimationNames == null || sortedAnimationNames.isEmpty()) return;
+
+        int fakeId = packetEntity.getEntityId();
+        int slotCount = BedrockAnimationControllerGenerator.getPropertySlotCount(sortedAnimationNames.size());
+
+        // Register each property slot with GeyserUtils
+        for (int i = 0; i < slotCount; i++) {
+            String propertyId = "fmmbridge:anim" + i;
+            EntityUtils.registerProperty(player, fakeId, propertyId, Integer.class);
+        }
+
+        // Send initial animation state (usually "idle")
+        String currentAnim = AnimationStateTracker.getCurrentAnimationName(modeledEntity);
+        if (currentAnim != null) {
+            int animIndex = sortedAnimationNames.indexOf(currentAnim);
+            if (animIndex >= 0) {
+                int[] bitmask = BedrockAnimationControllerGenerator.getAnimationBitmask(animIndex);
+                String propertyId = "fmmbridge:anim" + bitmask[0];
+                EntityUtils.sendIntProperty(player, fakeId, propertyId, bitmask[1]);
+                lastAnimationName = currentAnim;
+                log.info("[BRIDGE] Sent initial animation '" + currentAnim + "' (bitmask=" + bitmask[1] + ") for " + bedrockEntityId);
+            }
+        }
+    }
+
+    /**
      * Checks if the FMM animation state changed and sends property updates to Bedrock viewers.
      * Uses GeyserUtils bitmask properties (same approach as GeyserModelEngine).
      */
@@ -146,19 +178,31 @@ public class FMMEntityData {
         int animIndex = sortedAnimationNames.indexOf(currentAnim);
         if (animIndex < 0) return;
 
-        // Calculate bitmask for this animation
-        int[] bitmask = BedrockAnimationControllerGenerator.getAnimationBitmask(animIndex);
-        int propertyIndex = bitmask[0];
-        int bitmaskValue = bitmask[1];
+        // Calculate bitmask for new animation
+        int[] newBitmask = BedrockAnimationControllerGenerator.getAnimationBitmask(animIndex);
 
-        // Send property update to all viewers
-        String propertyId = "fmmbridge:anim" + propertyIndex;
-        for (Player viewer : viewers) {
-            if (!viewer.isOnline()) continue;
-            // First clear the old animation (set to 0), then set new one
-            EntityUtils.sendIntProperty(viewer, packetEntity.getEntityId(), propertyId, bitmaskValue);
+        // Clear old animation bitmask, then set new one
+        int[] oldBitmask = null;
+        if (lastAnimationName != null) {
+            int oldIndex = sortedAnimationNames.indexOf(lastAnimationName);
+            if (oldIndex >= 0) {
+                oldBitmask = BedrockAnimationControllerGenerator.getAnimationBitmask(oldIndex);
+            }
         }
 
+        for (Player viewer : viewers) {
+            if (!viewer.isOnline()) continue;
+            int fakeId = packetEntity.getEntityId();
+            // Stop old animation
+            if (oldBitmask != null) {
+                EntityUtils.sendIntProperty(viewer, fakeId, "fmmbridge:anim" + oldBitmask[0], 0);
+            }
+            // Start new animation
+            EntityUtils.sendIntProperty(viewer, fakeId, "fmmbridge:anim" + newBitmask[0], newBitmask[1]);
+        }
+
+        log.info("[BRIDGE] Animation changed: " + lastAnimationName + " → " + currentAnim
+                + " (bitmask=" + newBitmask[1] + ") for " + bedrockEntityId);
         lastAnimationName = currentAnim;
     }
 
