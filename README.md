@@ -45,7 +45,7 @@ FMM spawns DynamicEntity (wraps LivingEntity)
 | 3 | Java to Bedrock resource pack conversion + Geyser Extension | Done |
 | 4 | Hitbox, material, interact redirect, visible_bounds, multi-texture atlas | Done |
 | 4.5 | Model scale, texture atlas quality, nametags, performance fixes | Done |
-| 5 | Animation sync (idle, walk, attack, death) | Planned |
+| 5 | Animation conversion + runtime sync (idle, walk, attack, death) | Done (testing) |
 | 6 | Polish: BossBar interception, particle effects, EliteMobs UI | Planned |
 
 ## Deployment
@@ -109,6 +109,9 @@ The Geyser Extension will:
 | `PacketEntity` | Fake packet-only PIG entity (ID 300-400M) via PacketEvents, handles spawn/teleport/destroy/name-metadata packets |
 | `BedrockModelConverter` | Reads `.bbmodel` source files, generates `geometry.json` + texture atlas via `BedrockGeometryGenerator` |
 | `BedrockGeometryGenerator` | Converts .bbmodel to Bedrock .geo.json with multi-texture atlas UV mapping and dynamic visible_bounds |
+| `BedrockAnimationConverter` | Converts .bbmodel animations to Bedrock .animation.json format |
+| `BedrockAnimationControllerGenerator` | Generates Bedrock animation controller state machines with bitmask-based property queries |
+| `AnimationStateTracker` | Polls FMM animation state via reflection (idle/walk/attack/death/custom) |
 | `BedrockResourcePackGenerator` | Generates entity definitions, render controllers, `manifest.json`; zips the full pack |
 
 ### Geyser Extension (`geyser-extension/`)

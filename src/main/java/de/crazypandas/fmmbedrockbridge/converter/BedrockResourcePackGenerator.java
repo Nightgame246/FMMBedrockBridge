@@ -9,6 +9,7 @@ import java.io.Writer;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -30,7 +31,13 @@ public final class BedrockResourcePackGenerator {
 
         Files.createDirectories(packDir);
         writeManifest(packDir.resolve("manifest.json"));
-        writeJson(packDir.resolve("entity").resolve(normalizedModelId + ".json"), createEntityDefinition(normalizedModelId, modelScale));
+
+        // Check if animation files exist
+        boolean hasAnimations = Files.exists(skinsDir.resolve("animations.json"));
+        List<String> animationNames = hasAnimations ? readAnimationNames(skinsDir.resolve("animations.json")) : List.of();
+
+        writeJson(packDir.resolve("entity").resolve(normalizedModelId + ".json"),
+                createEntityDefinition(normalizedModelId, modelScale, animationNames));
         writeJson(packDir.resolve("render_controllers").resolve(normalizedModelId + ".json"),
                 createRenderController(normalizedModelId));
 
@@ -43,6 +50,20 @@ public final class BedrockResourcePackGenerator {
         Files.copy(skinsDir.resolve("texture.png"),
                 packDir.resolve("textures").resolve("entity").resolve(normalizedModelId + ".png"),
                 StandardCopyOption.REPLACE_EXISTING);
+
+        // Copy animation files if present
+        if (hasAnimations) {
+            Files.createDirectories(packDir.resolve("animations"));
+            Files.copy(skinsDir.resolve("animations.json"),
+                    packDir.resolve("animations").resolve(normalizedModelId + ".animation.json"),
+                    StandardCopyOption.REPLACE_EXISTING);
+        }
+        if (Files.exists(skinsDir.resolve("animation_controllers.json"))) {
+            Files.createDirectories(packDir.resolve("animation_controllers"));
+            Files.copy(skinsDir.resolve("animation_controllers.json"),
+                    packDir.resolve("animation_controllers").resolve(normalizedModelId + ".animation_controllers.json"),
+                    StandardCopyOption.REPLACE_EXISTING);
+        }
     }
 
     public static Path zip(Path packDir) throws IOException {
@@ -90,7 +111,7 @@ public final class BedrockResourcePackGenerator {
         writeJson(manifestPath, root);
     }
 
-    private static Map<String, Object> createEntityDefinition(String modelId, double modelScale) {
+    private static Map<String, Object> createEntityDefinition(String modelId, double modelScale, List<String> animationNames) {
         Map<String, Object> description = new LinkedHashMap<>();
         description.put("identifier", "fmmbridge:" + modelId);
         description.put("materials", Map.of("default", "entity_alphatest_change_color_one_sided"));
@@ -99,9 +120,28 @@ public final class BedrockResourcePackGenerator {
         description.put("render_controllers", List.of("controller.render.fmmbridge_" + modelId));
         description.put("spawn_egg", Map.of("base_color", "#000000", "overlay_color", "#FFFFFF"));
 
+        // Animation references
+        if (!animationNames.isEmpty()) {
+            Map<String, String> animations = new LinkedHashMap<>();
+            List<String> controllerRefs = new ArrayList<>();
+            for (String animName : animationNames) {
+                animations.put(animName, "animation.fmmbridge." + modelId + "." + animName);
+                controllerRefs.add("controller.animation.fmmbridge." + modelId + "." + animName);
+            }
+            description.put("animations", animations);
+
+            // Combine render controller + animation controllers
+            List<Object> allControllers = new ArrayList<>(controllerRefs);
+            description.put("animation_controllers", allControllers);
+        }
+
         // Scale to match FMM's Java-side visual size (0.4 × 4.0 = 1.6)
+        Map<String, Object> scripts = new LinkedHashMap<>();
         if (modelScale != 1.0) {
-            description.put("scripts", Map.of("scale", String.valueOf(modelScale)));
+            scripts.put("scale", String.valueOf(modelScale));
+        }
+        if (!scripts.isEmpty()) {
+            description.put("scripts", scripts);
         }
 
         Map<String, Object> clientEntity = new LinkedHashMap<>();
@@ -126,6 +166,31 @@ public final class BedrockResourcePackGenerator {
         root.put("format_version", "1.8.0");
         root.put("render_controllers", renderControllers);
         return root;
+    }
+
+    /**
+     * Reads animation names from a Bedrock .animation.json file.
+     */
+    private static List<String> readAnimationNames(Path animationFile) {
+        try {
+            String json = Files.readString(animationFile);
+            Map<?, ?> parsed = GSON.fromJson(json, Map.class);
+            Map<?, ?> animations = (Map<?, ?>) parsed.get("animations");
+            if (animations == null) return List.of();
+
+            List<String> names = new ArrayList<>();
+            for (Object key : animations.keySet()) {
+                String fullId = (String) key;
+                // Extract animation name from "animation.fmmbridge.modelId.animName"
+                String[] parts = fullId.split("\\.");
+                if (parts.length >= 4) {
+                    names.add(parts[parts.length - 1]);
+                }
+            }
+            return names;
+        } catch (Exception e) {
+            return List.of();
+        }
     }
 
     private static void writeJson(Path path, Object content) throws IOException {

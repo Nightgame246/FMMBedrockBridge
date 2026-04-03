@@ -128,6 +128,19 @@ public class BedrockModelConverter {
         File geoFile = new File(outDir, "geometry.json");
         Files.writeString(geoFile.toPath(), geoJson);
 
+        // Generate and write animation files
+        String animJson = BedrockAnimationConverter.convert(modelId, bbmodel);
+        List<String> animNames = BedrockAnimationConverter.getAnimationNames(bbmodel);
+        if (animJson != null) {
+            Files.writeString(new File(outDir, "animations.json").toPath(), animJson);
+            String controllerJson = BedrockAnimationControllerGenerator.generate(modelId, animNames);
+            if (controllerJson != null) {
+                Files.writeString(new File(outDir, "animation_controllers.json").toPath(), controllerJson);
+            }
+            log.info("[Converter] Animations: " + animNames.size() + " for " + modelId
+                    + " (" + String.join(", ", animNames) + ")");
+        }
+
         // Build texture atlas: stack all textures vertically
         File atlasFile = new File(outDir, "texture.png");
         if (textureCount > 1) {
