@@ -25,12 +25,12 @@ public final class BedrockResourcePackGenerator {
     private BedrockResourcePackGenerator() {
     }
 
-    public static void generate(String modelId, Path skinsDir, Path packDir) throws IOException {
+    public static void generate(String modelId, Path skinsDir, Path packDir, double modelScale) throws IOException {
         String normalizedModelId = modelId.toLowerCase(Locale.ROOT);
 
         Files.createDirectories(packDir);
         writeManifest(packDir.resolve("manifest.json"));
-        writeJson(packDir.resolve("entity").resolve(normalizedModelId + ".json"), createEntityDefinition(normalizedModelId));
+        writeJson(packDir.resolve("entity").resolve(normalizedModelId + ".json"), createEntityDefinition(normalizedModelId, modelScale));
         writeJson(packDir.resolve("render_controllers").resolve(normalizedModelId + ".json"),
                 createRenderController(normalizedModelId));
 
@@ -90,7 +90,7 @@ public final class BedrockResourcePackGenerator {
         writeJson(manifestPath, root);
     }
 
-    private static Map<String, Object> createEntityDefinition(String modelId) {
+    private static Map<String, Object> createEntityDefinition(String modelId, double modelScale) {
         Map<String, Object> description = new LinkedHashMap<>();
         description.put("identifier", "fmmbridge:" + modelId);
         description.put("materials", Map.of("default", "entity_alphatest_change_color_one_sided"));
@@ -98,6 +98,11 @@ public final class BedrockResourcePackGenerator {
         description.put("geometry", Map.of("default", "geometry.fmmbridge." + modelId));
         description.put("render_controllers", List.of("controller.render.fmmbridge_" + modelId));
         description.put("spawn_egg", Map.of("base_color", "#000000", "overlay_color", "#FFFFFF"));
+
+        // Scale to match FMM's Java-side visual size (0.4 × 4.0 = 1.6)
+        if (modelScale != 1.0) {
+            description.put("scripts", Map.of("scale", String.valueOf(modelScale)));
+        }
 
         Map<String, Object> clientEntity = new LinkedHashMap<>();
         clientEntity.put("description", description);

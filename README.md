@@ -43,9 +43,10 @@ FMM spawns DynamicEntity (wraps LivingEntity)
 | 1 | FMM entity spawn/despawn detection (polling) | Done |
 | 2 | Bedrock entity bridging via GeyserUtils | Done |
 | 3 | Java to Bedrock resource pack conversion + Geyser Extension | Done |
-| 4 | Hitbox, material, interact redirect, visible_bounds, multi-texture atlas | Done (testing) |
+| 4 | Hitbox, material, interact redirect, visible_bounds, multi-texture atlas | Done |
+| 4.5 | Model scale, texture atlas quality, nametags, performance fixes | Done |
 | 5 | Animation sync (idle, walk, attack, death) | Planned |
-| 6 | Nametags / EliteMobs UI for Bedrock | Planned |
+| 6 | Polish: BossBar interception, particle effects, EliteMobs UI | Planned |
 
 ## Deployment
 
@@ -104,8 +105,8 @@ The Geyser Extension will:
 |-------|------|
 | `FMMEntityTracker` | Polls `ModeledEntityManager.getAllEntities()` every second, diffs for spawns/despawns |
 | `BedrockEntityBridge` | Manages fake PacketEntities for Bedrock players, packet suppression for real entities, interact redirect, viewer distance tracking |
-| `FMMEntityData` | Per-entity state: wraps ModeledEntity + PacketEntity + viewer set, handles addViewer/removeViewer lifecycle |
-| `PacketEntity` | Fake packet-only PIG entity (ID 300-400M) via PacketEvents, handles spawn/teleport/destroy packets |
+| `FMMEntityData` | Per-entity state: wraps ModeledEntity + PacketEntity + viewer set, handles addViewer/removeViewer lifecycle, sends nametag metadata |
+| `PacketEntity` | Fake packet-only PIG entity (ID 300-400M) via PacketEvents, handles spawn/teleport/destroy/name-metadata packets |
 | `BedrockModelConverter` | Reads `.bbmodel` source files, generates `geometry.json` + texture atlas via `BedrockGeometryGenerator` |
 | `BedrockGeometryGenerator` | Converts .bbmodel to Bedrock .geo.json with multi-texture atlas UV mapping and dynamic visible_bounds |
 | `BedrockResourcePackGenerator` | Generates entity definitions, render controllers, `manifest.json`; zips the full pack |

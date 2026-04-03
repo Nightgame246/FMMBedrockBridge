@@ -18,3 +18,8 @@ converter:
   # These need to be copied into your GeyserUtils skins folder:
   # /extensions/GeyserUtils/skins/<modelId>/
   output-path: "bedrock-skins"
+  # Scale factor for Bedrock models. FMM internally scales Java models by ~1.6x
+  # (ARMOR_STAND_HEAD_SIZE_MULTIPLIER=0.4 × MODEL_SCALE=4.0). Bedrock models
+  # use raw .bbmodel coordinates, so this factor compensates the difference.
+  # Adjust if models appear too small or too large on Bedrock.
+  model-scale: 1.6

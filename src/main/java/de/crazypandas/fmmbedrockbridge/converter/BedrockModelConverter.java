@@ -33,10 +33,12 @@ public class BedrockModelConverter {
     private static final Gson GSON = new Gson();
 
     private final File outputBase;
+    private final double modelScale;
 
     public BedrockModelConverter() {
         String configPath = FMMBedrockBridge.getInstance().getConfig().getString("converter.output-path", "bedrock-skins");
         this.outputBase = new File(FMMBedrockBridge.getInstance().getDataFolder(), configPath);
+        this.modelScale = FMMBedrockBridge.getInstance().getConfig().getDouble("converter.model-scale", 1.6);
     }
 
     /**
@@ -111,15 +113,25 @@ public class BedrockModelConverter {
         File outDir = new File(outputBase, modelId);
         outDir.mkdirs();
 
+        // Determine native texture dimensions for atlas quality
+        int atlasSlotWidth = (int) texWidth;
+        int atlasSlotHeight = (int) texHeight;
+        if (textureCount > 1) {
+            int[] nativeDims = findMaxNativeTextureDimensions(modelId, parsedTextures, bbTextures, (int) texWidth, (int) texHeight);
+            atlasSlotWidth = nativeDims[0];
+            atlasSlotHeight = nativeDims[1];
+        }
+
         // Generate and write geometry.json (with atlas-aware UV offsets)
-        String geoJson = BedrockGeometryGenerator.generate(modelId, bbmodel, texWidth, texHeight, textureCount);
+        String geoJson = BedrockGeometryGenerator.generate(modelId, bbmodel, texWidth, texHeight, textureCount,
+                atlasSlotWidth, atlasSlotHeight);
         File geoFile = new File(outDir, "geometry.json");
         Files.writeString(geoFile.toPath(), geoJson);
 
         // Build texture atlas: stack all textures vertically
         File atlasFile = new File(outDir, "texture.png");
         if (textureCount > 1) {
-            buildTextureAtlas(modelId, parsedTextures, bbTextures, atlasFile, (int) texWidth, (int) texHeight);
+            buildTextureAtlas(modelId, parsedTextures, bbTextures, atlasFile, atlasSlotWidth, atlasSlotHeight);
         } else {
             // Single texture: just copy it
             File textureFile = getFmmTextureFile(modelId, parsedTextures.get(0).getFilename());
@@ -132,61 +144,81 @@ public class BedrockModelConverter {
 
         Path skinsDir = outDir.toPath();
         Path packDir = FMMBedrockBridge.getInstance().getDataFolder().toPath().resolve("bedrock-pack");
-        BedrockResourcePackGenerator.generate(modelId, skinsDir, packDir);
+        BedrockResourcePackGenerator.generate(modelId, skinsDir, packDir, modelScale);
+
+        // Write model-config.json so the Geyser extension can read the scale
+        writeModelConfig(outDir);
 
         log.info("[Converter] Converted: " + modelId
                 + " (textures=" + textureCount
                 + ", uvSpace=" + (int) texWidth + "x" + (int) texHeight
-                + ", atlasHeight=" + (int) (texHeight * textureCount) + ")");
+                + ", atlas=" + atlasSlotWidth + "x" + (atlasSlotHeight * textureCount) + ")");
+    }
+
+    /**
+     * Finds the maximum native texture dimensions across all textures.
+     * Used to build the atlas at native resolution instead of UV resolution.
+     */
+    private int[] findMaxNativeTextureDimensions(String modelId, List<ParsedTexture> parsedTextures,
+                                                  List<?> bbTextures, int fallbackWidth, int fallbackHeight) {
+        int maxW = fallbackWidth;
+        int maxH = fallbackHeight;
+        for (int i = 0; i < parsedTextures.size(); i++) {
+            File texFile = findTextureFile(modelId, parsedTextures.get(i).getFilename(), bbTextures, i);
+            if (texFile != null && texFile.exists()) {
+                try {
+                    BufferedImage img = ImageIO.read(texFile);
+                    maxW = Math.max(maxW, img.getWidth());
+                    maxH = Math.max(maxH, img.getHeight());
+                } catch (IOException ignored) {}
+            }
+        }
+        return new int[]{maxW, maxH};
     }
 
     /**
      * Builds a texture atlas by stacking all textures vertically.
-     * Each texture slot is scaled to match the UV resolution space.
+     * Each texture slot uses the specified dimensions (native resolution).
      */
     private void buildTextureAtlas(String modelId, List<ParsedTexture> parsedTextures,
                                     List<?> bbTextures, File outputFile,
-                                    int uvWidth, int uvHeight) throws IOException {
-        int totalHeight = uvHeight * parsedTextures.size();
-        BufferedImage atlas = new BufferedImage(uvWidth, totalHeight, BufferedImage.TYPE_INT_ARGB);
+                                    int slotWidth, int slotHeight) throws IOException {
+        int totalHeight = slotHeight * parsedTextures.size();
+        BufferedImage atlas = new BufferedImage(slotWidth, totalHeight, BufferedImage.TYPE_INT_ARGB);
         Graphics2D g = atlas.createGraphics();
         g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
 
         for (int i = 0; i < parsedTextures.size(); i++) {
-            ParsedTexture pt = parsedTextures.get(i);
-            File texFile = getFmmTextureFile(modelId, pt.getFilename());
-
-            if (texFile == null || !texFile.exists()) {
-                // Try matching by bbmodel texture name
-                if (bbTextures != null && i < bbTextures.size()) {
-                    Map<?, ?> bbTex = (Map<?, ?>) bbTextures.get(i);
-                    String name = (String) bbTex.get("name");
-                    if (name != null) {
-                        texFile = getFmmTextureFile(modelId, name);
-                    }
-                }
-            }
+            File texFile = findTextureFile(modelId, parsedTextures.get(i).getFilename(), bbTextures, i);
 
             if (texFile != null && texFile.exists()) {
                 BufferedImage texImage = ImageIO.read(texFile);
-                // Draw scaled to UV space slot
-                g.drawImage(texImage, 0, i * uvHeight, uvWidth, uvHeight, null);
+                g.drawImage(texImage, 0, i * slotHeight, slotWidth, slotHeight, null);
                 log.info("[Converter] Atlas slot " + i + ": " + texFile.getName()
                         + " (" + texImage.getWidth() + "x" + texImage.getHeight()
-                        + " → " + uvWidth + "x" + uvHeight + ")");
+                        + " → " + slotWidth + "x" + slotHeight + ")");
             } else {
                 log.warning("[Converter] Texture " + i + " not found for model " + modelId
-                        + " (filename: " + pt.getFilename() + ")");
-                // Fill with magenta for visibility
+                        + " (filename: " + parsedTextures.get(i).getFilename() + ")");
                 g.setColor(Color.MAGENTA);
-                g.fillRect(0, i * uvHeight, uvWidth, uvHeight);
+                g.fillRect(0, i * slotHeight, slotWidth, slotHeight);
             }
         }
 
         g.dispose();
         ImageIO.write(atlas, "PNG", outputFile);
-        log.info("[Converter] Texture atlas created: " + uvWidth + "x" + totalHeight
+        log.info("[Converter] Texture atlas: " + slotWidth + "x" + totalHeight
                 + " (" + parsedTextures.size() + " textures)");
+    }
+
+    private File findTextureFile(String modelId, String filename, List<?> bbTextures, int index) {
+        File texFile = getFmmTextureFile(modelId, filename);
+        if ((texFile == null || !texFile.exists()) && bbTextures != null && index < bbTextures.size()) {
+            Map<?, ?> bbTex = (Map<?, ?>) bbTextures.get(index);
+            String name = (String) bbTex.get("name");
+            if (name != null) texFile = getFmmTextureFile(modelId, name);
+        }
+        return texFile;
     }
 
     /**
@@ -204,6 +236,11 @@ public class BedrockModelConverter {
                 "entity" + File.separator +
                 modelId + File.separator +
                 filename);
+    }
+
+    private void writeModelConfig(File outDir) throws IOException {
+        Map<String, Object> config = Map.of("model_scale", modelScale);
+        Files.writeString(new File(outDir, "model-config.json").toPath(), GSON.toJson(config));
     }
 
     private static double toDouble(Object o) {

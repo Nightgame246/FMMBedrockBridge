@@ -21,15 +21,20 @@ public class BedrockGeometryGenerator {
     private static final List<String> SKIP_PREFIXES = List.of("b_", "hitbox", "tag_", "m_");
 
     /**
-     * @param modelId        Model identifier
-     * @param bbmodel        Parsed .bbmodel JSON
-     * @param texWidth       UV space width (from .bbmodel resolution)
-     * @param texHeight      UV space height per texture slot (from .bbmodel resolution)
-     * @param textureCount   Number of textures in the model
+     * @param modelId          Model identifier
+     * @param bbmodel          Parsed .bbmodel JSON
+     * @param uvWidth          UV space width (from .bbmodel resolution)
+     * @param uvHeight         UV space height per texture slot (from .bbmodel resolution)
+     * @param textureCount     Number of textures in the model
+     * @param atlasSlotWidth   Actual atlas slot width (native texture resolution)
+     * @param atlasSlotHeight  Actual atlas slot height (native texture resolution)
      */
-    public static String generate(String modelId, Map<?, ?> bbmodel, double texWidth, double texHeight, int textureCount) {
-        // Total atlas height = texHeight * textureCount
-        double atlasHeight = texHeight * textureCount;
+    public static String generate(String modelId, Map<?, ?> bbmodel, double uvWidth, double uvHeight, int textureCount,
+                                   int atlasSlotWidth, int atlasSlotHeight) {
+        // UV scale factors: map from UV space to actual atlas pixel space
+        double uScale = atlasSlotWidth / uvWidth;
+        double vScale = atlasSlotHeight / uvHeight;
+        double atlasHeight = (double) atlasSlotHeight * textureCount;
 
         // Build element map: UUID → element data
         Map<String, Map<?, ?>> elementMap = new HashMap<>();
@@ -46,7 +51,7 @@ public class BedrockGeometryGenerator {
         List<JsonObject> bones = new ArrayList<>();
         List<?> outliner = (List<?>) bbmodel.get("outliner");
         if (outliner != null) {
-            traverseOutliner(outliner, null, elementMap, bones, texWidth, texHeight);
+            traverseOutliner(outliner, null, elementMap, bones, uScale, vScale, atlasSlotHeight);
         }
 
         // Calculate visible_bounds from actual cube coordinates
@@ -58,7 +63,7 @@ public class BedrockGeometryGenerator {
 
         JsonObject description = new JsonObject();
         description.addProperty("identifier", "geometry.fmmbridge." + modelId);
-        description.addProperty("texture_width", (int) texWidth);
+        description.addProperty("texture_width", atlasSlotWidth);
         description.addProperty("texture_height", (int) atlasHeight);
         // visible_bounds in blocks (pixels / 16), with padding
         double boundsWidth = Math.max(bounds[1] - bounds[0], bounds[5] - bounds[4]) / 16.0 + 2;
@@ -88,7 +93,7 @@ public class BedrockGeometryGenerator {
     private static void traverseOutliner(List<?> items, String parentName,
                                           Map<String, Map<?, ?>> elementMap,
                                           List<JsonObject> bones,
-                                          double texWidth, double texHeight) {
+                                          double uScale, double vScale, int atlasSlotHeight) {
         for (Object item : items) {
             if (item instanceof Map<?, ?> group) {
                 String boneName = (String) group.get("name");
@@ -133,7 +138,7 @@ public class BedrockGeometryGenerator {
                             if (element != null) {
                                 String type = (String) element.get("type");
                                 if (!"locator".equals(type) && !"null_object".equals(type)) {
-                                    JsonObject cube = buildCube(element, texWidth, texHeight);
+                                    JsonObject cube = buildCube(element, uScale, vScale, atlasSlotHeight);
                                     if (cube != null) cubesArray.add(cube);
                                 }
                             }
@@ -144,7 +149,7 @@ public class BedrockGeometryGenerator {
                     bones.add(bone);
 
                     // Recurse into child bone groups
-                    traverseOutliner(children, safeName, elementMap, bones, texWidth, texHeight);
+                    traverseOutliner(children, safeName, elementMap, bones, uScale, vScale, atlasSlotHeight);
                 } else {
                     bones.add(bone);
                 }
@@ -152,7 +157,7 @@ public class BedrockGeometryGenerator {
         }
     }
 
-    private static JsonObject buildCube(Map<?, ?> element, double texWidth, double texHeight) {
+    private static JsonObject buildCube(Map<?, ?> element, double uScale, double vScale, int atlasSlotHeight) {
         List<?> fromList = (List<?>) element.get("from");
         List<?> toList = (List<?>) element.get("to");
         if (fromList == null || toList == null) return null;
@@ -221,12 +226,19 @@ public class BedrockGeometryGenerator {
                 double u2 = toDouble(uv.get(2));
                 double v2 = toDouble(uv.get(3));
 
+                // Scale UV from .bbmodel UV space to actual atlas pixel space
+                // Round to integer pixel boundaries to prevent seam artifacts
+                double scaledU1 = Math.round(u1 * uScale);
+                double scaledV1 = Math.round(v1 * vScale);
+                double scaledU2 = Math.round(u2 * uScale);
+                double scaledV2 = Math.round(v2 * vScale);
+
                 // Offset V coordinate by texture slot position in atlas
-                double vOffset = textureIndex * texHeight;
+                double vOffset = textureIndex * atlasSlotHeight;
 
                 JsonObject faceUV = new JsonObject();
-                faceUV.add("uv", toJsonArray(u1, v1 + vOffset));
-                faceUV.add("uv_size", toJsonArray(u2 - u1, v2 - v1));
+                faceUV.add("uv", toJsonArray(scaledU1, scaledV1 + vOffset));
+                faceUV.add("uv_size", toJsonArray(scaledU2 - scaledU1, scaledV2 - scaledV1));
                 uvObj.add(face, faceUV);
             }
             cube.add("uv", uvObj);

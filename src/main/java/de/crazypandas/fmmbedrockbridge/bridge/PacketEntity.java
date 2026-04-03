@@ -3,6 +3,8 @@ package de.crazypandas.fmmbedrockbridge.bridge;
 import com.github.retrooper.packetevents.PacketEvents;
 import com.github.retrooper.packetevents.manager.server.ServerVersion;
 import com.github.retrooper.packetevents.protocol.entity.EntityPositionData;
+import com.github.retrooper.packetevents.protocol.entity.data.EntityData;
+import com.github.retrooper.packetevents.protocol.entity.data.EntityDataTypes;
 import com.github.retrooper.packetevents.protocol.entity.type.EntityType;
 import com.github.retrooper.packetevents.protocol.entity.type.EntityTypes;
 import com.github.retrooper.packetevents.protocol.teleport.RelativeFlag;
@@ -10,12 +12,11 @@ import com.github.retrooper.packetevents.util.Vector3d;
 import com.github.retrooper.packetevents.wrapper.PacketWrapper;
 import com.github.retrooper.packetevents.wrapper.play.server.*;
 import io.github.retrooper.packetevents.util.SpigotConversionUtil;
+import net.kyori.adventure.text.Component;
 import org.bukkit.Location;
 import org.bukkit.entity.Player;
 
-import java.util.Collection;
-import java.util.Collections;
-import java.util.UUID;
+import java.util.*;
 import java.util.concurrent.ThreadLocalRandom;
 
 /**
@@ -115,6 +116,32 @@ public class PacketEntity {
 
     public void sendDestroyPacket(Player player) {
         sendDestroyPacket(Collections.singletonList(player));
+    }
+
+    /**
+     * Sends entity metadata with custom name to the specified players.
+     * Geyser translates Java entity metadata to Bedrock nametag automatically.
+     *
+     * @param customName The display name component, or null to clear
+     * @param visible    Whether the nametag should be visible
+     * @param players    Target players
+     */
+    public void sendNameMetadata(Component customName, boolean visible, Collection<Player> players) {
+        List<EntityData<?>> metadata = new ArrayList<>();
+        // Entity metadata index 2: Custom Name (Optional<Component>)
+        metadata.add(new EntityData<>(2, EntityDataTypes.OPTIONAL_ADV_COMPONENT,
+                customName != null ? Optional.of(customName) : Optional.empty()));
+        // Entity metadata index 3: Is Custom Name Visible (Boolean)
+        metadata.add(new EntityData<>(3, EntityDataTypes.BOOLEAN, visible));
+
+        WrapperPlayServerEntityMetadata packet = new WrapperPlayServerEntityMetadata(id, metadata);
+        for (Player player : players) {
+            PacketEvents.getAPI().getPlayerManager().sendPacket(player, packet);
+        }
+    }
+
+    public void sendNameMetadata(Component customName, boolean visible, Player player) {
+        sendNameMetadata(customName, visible, Collections.singletonList(player));
     }
 
     public void remove(Collection<Player> viewers) {
