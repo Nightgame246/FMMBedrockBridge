@@ -445,8 +445,18 @@ public class FMMBridgeExtension implements Extension {
     }
 
     private void generatePackFiles(String modelId, Path geometryPath, Path texturePath, Path packDir, double modelScale) throws IOException {
+        // Find model directory (parent of geometry.json)
+        Path modelDir = geometryPath.getParent();
+
+        // Check for animation files
+        Path animPath = modelDir.resolve("animations.json");
+        Path controllerPath = modelDir.resolve("animation_controllers.json");
+        boolean hasAnimations = Files.exists(animPath) && Files.exists(controllerPath);
+        List<String> animationNames = hasAnimations ? readAnimationNames(animPath) : List.of();
+
         writeManifest(packDir.resolve("manifest.json"));
-        writeJson(packDir.resolve("entity").resolve(modelId + ".json"), createEntityDefinition(modelId, modelScale));
+        writeJson(packDir.resolve("entity").resolve(modelId + ".json"),
+                createEntityDefinition(modelId, modelScale, animationNames));
         writeJson(packDir.resolve("render_controllers").resolve(modelId + ".json"), createRenderController(modelId));
 
         Files.createDirectories(packDir.resolve("models").resolve("entity"));
@@ -458,6 +468,19 @@ public class FMMBridgeExtension implements Extension {
         Files.copy(texturePath,
                 packDir.resolve("textures").resolve("entity").resolve(modelId + ".png"),
                 StandardCopyOption.REPLACE_EXISTING);
+
+        // Copy animation files if present
+        if (hasAnimations) {
+            Files.createDirectories(packDir.resolve("animations"));
+            Files.copy(animPath,
+                    packDir.resolve("animations").resolve(modelId + ".animation.json"),
+                    StandardCopyOption.REPLACE_EXISTING);
+            Files.createDirectories(packDir.resolve("animation_controllers"));
+            Files.copy(controllerPath,
+                    packDir.resolve("animation_controllers").resolve(modelId + ".animation_controllers.json"),
+                    StandardCopyOption.REPLACE_EXISTING);
+            this.logger().info("FMMBridgeExtension: " + modelId + " has " + animationNames.size() + " animations");
+        }
     }
 
     private void writeManifest(Path manifestPath) throws IOException {
@@ -484,7 +507,7 @@ public class FMMBridgeExtension implements Extension {
         writeJson(manifestPath, root);
     }
 
-    private Map<String, Object> createEntityDefinition(String modelId, double modelScale) {
+    private Map<String, Object> createEntityDefinition(String modelId, double modelScale, List<String> animationNames) {
         Map<String, Object> description = new LinkedHashMap<>();
         description.put("identifier", "fmmbridge:" + modelId);
         description.put("materials", Map.of("default", "entity_alphatest_change_color_one_sided"));
@@ -493,9 +516,25 @@ public class FMMBridgeExtension implements Extension {
         description.put("render_controllers", List.of("controller.render.fmmbridge_" + modelId));
         description.put("spawn_egg", Map.of("base_color", "#000000", "overlay_color", "#FFFFFF"));
 
+        // Animation references
+        if (!animationNames.isEmpty()) {
+            Map<String, String> animations = new LinkedHashMap<>();
+            java.util.List<String> controllerRefs = new java.util.ArrayList<>();
+            for (String animName : animationNames) {
+                animations.put(animName, "animation.fmmbridge." + modelId + "." + animName);
+                controllerRefs.add("controller.animation.fmmbridge." + modelId + "." + animName);
+            }
+            description.put("animations", animations);
+            description.put("animation_controllers", controllerRefs);
+        }
+
         // Scale to match FMM's Java-side visual size
+        Map<String, Object> scripts = new LinkedHashMap<>();
         if (modelScale != 1.0) {
-            description.put("scripts", Map.of("scale", String.valueOf(modelScale)));
+            scripts.put("scale", String.valueOf(modelScale));
+        }
+        if (!scripts.isEmpty()) {
+            description.put("scripts", scripts);
         }
 
         Map<String, Object> clientEntity = new LinkedHashMap<>();
@@ -520,6 +559,29 @@ public class FMMBridgeExtension implements Extension {
         root.put("format_version", "1.8.0");
         root.put("render_controllers", controllers);
         return root;
+    }
+
+    private List<String> readAnimationNames(Path animationFile) {
+        try {
+            String json = Files.readString(animationFile);
+            Map<?, ?> parsed = GSON.fromJson(json, Map.class);
+            Map<?, ?> animations = (Map<?, ?>) parsed.get("animations");
+            if (animations == null) return List.of();
+
+            java.util.List<String> names = new java.util.ArrayList<>();
+            for (Object key : animations.keySet()) {
+                String fullId = (String) key;
+                // Extract animation name from "animation.fmmbridge.modelId.animName"
+                String[] parts = fullId.split("\\.");
+                if (parts.length >= 4) {
+                    names.add(parts[parts.length - 1]);
+                }
+            }
+            return names;
+        } catch (Exception e) {
+            this.logger().warning("FMMBridge: Could not read animation names from " + animationFile + ": " + e.getMessage());
+            return List.of();
+        }
     }
 
     private void writeJson(Path path, Object content) throws IOException {

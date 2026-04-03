@@ -4,6 +4,7 @@ import com.github.retrooper.packetevents.PacketEvents;
 import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerDestroyEntities;
 import com.magmaguy.freeminecraftmodels.customentity.ModeledEntity;
 import de.crazypandas.fmmbedrockbridge.FMMBedrockBridge;
+import de.crazypandas.fmmbedrockbridge.converter.BedrockAnimationControllerGenerator;
 import me.zimzaza4.geyserutils.spigot.api.EntityUtils;
 import net.kyori.adventure.text.Component;
 import org.bukkit.Bukkit;
@@ -11,8 +12,7 @@ import org.bukkit.Location;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
 
-import java.util.Collections;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Logger;
 
@@ -36,12 +36,17 @@ public class FMMEntityData {
     private final Set<Player> viewers = ConcurrentHashMap.newKeySet();
     private boolean destroyed = false;
 
+    // Animation tracking
+    private List<String> sortedAnimationNames;  // sorted list of animation names for this model
+    private String lastAnimationName = null;    // last sent animation state
+
     public FMMEntityData(ModeledEntity modeledEntity, Entity realEntity, String bedrockEntityId, BedrockEntityBridge bridge) {
         this.modeledEntity = modeledEntity;
         this.realEntity = realEntity;
         this.bedrockEntityId = bedrockEntityId;
         this.bridge = bridge;
         this.packetEntity = new PacketEntity(realEntity.getLocation());
+        this.sortedAnimationNames = bridge.getAnimationNames(bedrockEntityId);
     }
 
     /**
@@ -112,13 +117,49 @@ public class FMMEntityData {
     }
 
     /**
-     * Syncs the fake entity position to the real entity's current location.
+     * Syncs the fake entity position and animation state to the real entity.
      */
     public void syncPosition() {
         if (destroyed || viewers.isEmpty()) return;
 
         Location realLoc = realEntity.getLocation();
         packetEntity.teleport(realLoc, viewers);
+
+        // Sync animation state
+        syncAnimation();
+    }
+
+    /**
+     * Checks if the FMM animation state changed and sends property updates to Bedrock viewers.
+     * Uses GeyserUtils bitmask properties (same approach as GeyserModelEngine).
+     */
+    private void syncAnimation() {
+        if (sortedAnimationNames == null || sortedAnimationNames.isEmpty()) return;
+
+        String currentAnim = AnimationStateTracker.getCurrentAnimationName(modeledEntity);
+        if (currentAnim == null) return;
+
+        // Only send update when state actually changes
+        if (currentAnim.equals(lastAnimationName)) return;
+
+        // Find animation index in sorted list
+        int animIndex = sortedAnimationNames.indexOf(currentAnim);
+        if (animIndex < 0) return;
+
+        // Calculate bitmask for this animation
+        int[] bitmask = BedrockAnimationControllerGenerator.getAnimationBitmask(animIndex);
+        int propertyIndex = bitmask[0];
+        int bitmaskValue = bitmask[1];
+
+        // Send property update to all viewers
+        String propertyId = "fmmbridge:anim" + propertyIndex;
+        for (Player viewer : viewers) {
+            if (!viewer.isOnline()) continue;
+            // First clear the old animation (set to 0), then set new one
+            EntityUtils.sendIntProperty(viewer, packetEntity.getEntityId(), propertyId, bitmaskValue);
+        }
+
+        lastAnimationName = currentAnim;
     }
 
     /**

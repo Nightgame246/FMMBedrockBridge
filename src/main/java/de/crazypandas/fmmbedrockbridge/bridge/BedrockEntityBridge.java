@@ -9,6 +9,7 @@ import com.github.retrooper.packetevents.protocol.packettype.PacketType;
 import com.github.retrooper.packetevents.wrapper.play.client.WrapperPlayClientInteractEntity;
 import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerSpawnEntity;
 import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerEntityMetadata;
+import com.google.gson.Gson;
 import com.magmaguy.freeminecraftmodels.customentity.DynamicEntity;
 import com.magmaguy.freeminecraftmodels.customentity.ModeledEntity;
 import de.crazypandas.fmmbedrockbridge.FMMBedrockBridge;
@@ -25,10 +26,10 @@ import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.scheduler.BukkitTask;
 import org.geysermc.floodgate.api.FloodgateApi;
 
+import java.io.File;
 import java.lang.reflect.Field;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Set;
+import java.nio.file.Files;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Logger;
 
@@ -65,6 +66,9 @@ public class BedrockEntityBridge implements Listener {
 
     /** Maps fake entity IDs to real entity IDs for interact redirection */
     private final Map<Integer, Integer> fakeToRealEntityId = new ConcurrentHashMap<>();
+
+    /** Cached animation names per bedrock entity ID (loaded from converter output) */
+    private final Map<String, List<String>> animationNamesCache = new ConcurrentHashMap<>();
 
     private BukkitTask syncTask;
     private PacketListenerAbstract packetListener;
@@ -276,6 +280,42 @@ public class BedrockEntityBridge implements Listener {
 
     private String getBedrockEntityId(ModeledEntity modeledEntity) {
         return "fmmbridge:" + modeledEntity.getEntityID().toLowerCase(Locale.ROOT);
+    }
+
+    /**
+     * Returns the sorted animation names for a bedrock entity ID.
+     * Reads from the converter output (animations.json) and caches the result.
+     */
+    public List<String> getAnimationNames(String bedrockEntityId) {
+        return animationNamesCache.computeIfAbsent(bedrockEntityId, id -> {
+            String modelId = id.replace("fmmbridge:", "");
+            String configPath = FMMBedrockBridge.getInstance().getConfig().getString("converter.output-path", "bedrock-skins");
+            File animFile = new File(FMMBedrockBridge.getInstance().getDataFolder(),
+                    configPath + File.separator + modelId + File.separator + "animations.json");
+            if (!animFile.exists()) return List.of();
+
+            try {
+                String json = Files.readString(animFile.toPath());
+                Map<?, ?> parsed = new Gson().fromJson(json, Map.class);
+                Map<?, ?> animations = (Map<?, ?>) parsed.get("animations");
+                if (animations == null) return List.of();
+
+                List<String> names = new ArrayList<>();
+                for (Object key : animations.keySet()) {
+                    String fullId = (String) key;
+                    String[] parts = fullId.split("\\.");
+                    if (parts.length >= 4) {
+                        names.add(parts[parts.length - 1]);
+                    }
+                }
+                Collections.sort(names);
+                log.info("[BRIDGE] Loaded " + names.size() + " animation names for " + modelId);
+                return names;
+            } catch (Exception e) {
+                log.warning("[BRIDGE] Could not read animation names for " + modelId + ": " + e.getMessage());
+                return List.of();
+            }
+        });
     }
 
     /**
