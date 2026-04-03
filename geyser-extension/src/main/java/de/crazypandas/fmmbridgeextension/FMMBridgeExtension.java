@@ -104,8 +104,8 @@ public class FMMBridgeExtension implements Extension {
                 t.setDaemon(true);
                 return t;
             });
-            downstreamMonitor.scheduleAtFixedRate(this::checkAllDownstreams, 2, 1, TimeUnit.SECONDS);
-            this.logger().info("FMMBridge: Downstream monitor started (fixes GeyserUtils server-switch issue)");
+            downstreamMonitor.scheduleAtFixedRate(this::checkAllDownstreams, 2, 5, TimeUnit.SECONDS);
+            this.logger().info("FMMBridge: Downstream monitor started (every 5s)");
         }
     }
 
@@ -180,8 +180,6 @@ public class FMMBridgeExtension implements Extension {
         for (GeyserConnection connection : GeyserApi.api().onlineConnections()) {
             try {
                 checkDownstream(connection);
-                // Diagnostic: log CUSTOM_ENTITIES cache state for this connection
-                logCacheState(connection);
             } catch (Exception e) {
                 this.logger().error("FMMBridge: Error checking downstream for " + connection + ": " + e.getMessage(), e);
             }
@@ -261,17 +259,10 @@ public class FMMBridgeExtension implements Extension {
 
         if (lastTime == null) {
             this.logger().info("FMMBridge: Initial connection — registering GeyserUtils downstream listener");
-        } else {
-            this.logger().info("FMMBridge: Periodic re-registration of GeyserUtils downstream listener");
         }
 
         registerPacketListenerMethod.invoke(geyserUtilsInstance, connection);
-        this.logger().info("FMMBridge: registerPacketListener() called successfully");
 
-        // After registering the listener, manually send a minecraft:register packet
-        // to the backend to announce the geyserutils:main channel.
-        // GeyserUtils' listener injects the channel into outgoing minecraft:register packets,
-        // but the login register packet was already sent before the listener was ready.
         sendChannelRegistration(connection);
     }
 
@@ -346,7 +337,7 @@ public class FMMBridgeExtension implements Extension {
             sendMethod.setAccessible(true);
             sendMethod.invoke(tcpSession, packet);
 
-            this.logger().info("FMMBridge: Sent minecraft:register for geyserutils:main channel");
+            // Channel registration sent successfully
         } catch (Exception e) {
             this.logger().warning("FMMBridge: Failed to send channel registration: " + e.getClass().getSimpleName() + ": " + e.getMessage());
         }
@@ -372,19 +363,36 @@ public class FMMBridgeExtension implements Extension {
             return;
         }
 
+        // Read model scale from config file (written by Spigot-side converter)
+        double modelScale = readModelScale(modelDir);
+
         try {
             if (registerCustomEntityWithDebug(modelId)) {
                 registeredModels.add(modelId);
-                this.logger().info("FMMBridgeExtension: Registered model " + modelId + " for Bedrock");
+                this.logger().info("FMMBridgeExtension: Registered model " + modelId + " for Bedrock (scale=" + modelScale + ")");
             } else {
                 this.logger().warning("FMMBridgeExtension: Failed to register model " + modelId);
                 return;
             }
-            generatePackFiles(modelId, geometryPath, texturePath, packDir);
+            generatePackFiles(modelId, geometryPath, texturePath, packDir, modelScale);
             this.logger().info("Prepared Bedrock assets for " + modelId);
         } catch (Exception e) {
             this.logger().error("Failed to prepare model " + modelId + ": " + e.getMessage(), e);
         }
+    }
+
+    private double readModelScale(Path modelDir) {
+        Path configPath = modelDir.resolve("model-config.json");
+        if (!Files.exists(configPath)) return 1.6; // default FMM scale
+        try {
+            String json = Files.readString(configPath);
+            Map<?, ?> config = GSON.fromJson(json, Map.class);
+            Object scale = config.get("model_scale");
+            if (scale instanceof Number) return ((Number) scale).doubleValue();
+        } catch (Exception e) {
+            this.logger().warning("FMMBridge: Could not read model-config.json from " + modelDir + ": " + e.getMessage());
+        }
+        return 1.6;
     }
 
     private boolean registerCustomEntityWithDebug(String modelId) {
@@ -436,9 +444,9 @@ public class FMMBridgeExtension implements Extension {
                 .invoke(null, "fmmbridge:" + modelId);
     }
 
-    private void generatePackFiles(String modelId, Path geometryPath, Path texturePath, Path packDir) throws IOException {
+    private void generatePackFiles(String modelId, Path geometryPath, Path texturePath, Path packDir, double modelScale) throws IOException {
         writeManifest(packDir.resolve("manifest.json"));
-        writeJson(packDir.resolve("entity").resolve(modelId + ".json"), createEntityDefinition(modelId));
+        writeJson(packDir.resolve("entity").resolve(modelId + ".json"), createEntityDefinition(modelId, modelScale));
         writeJson(packDir.resolve("render_controllers").resolve(modelId + ".json"), createRenderController(modelId));
 
         Files.createDirectories(packDir.resolve("models").resolve("entity"));
@@ -476,7 +484,7 @@ public class FMMBridgeExtension implements Extension {
         writeJson(manifestPath, root);
     }
 
-    private Map<String, Object> createEntityDefinition(String modelId) {
+    private Map<String, Object> createEntityDefinition(String modelId, double modelScale) {
         Map<String, Object> description = new LinkedHashMap<>();
         description.put("identifier", "fmmbridge:" + modelId);
         description.put("materials", Map.of("default", "entity_alphatest_change_color_one_sided"));
@@ -484,6 +492,11 @@ public class FMMBridgeExtension implements Extension {
         description.put("geometry", Map.of("default", "geometry.fmmbridge." + modelId));
         description.put("render_controllers", List.of("controller.render.fmmbridge_" + modelId));
         description.put("spawn_egg", Map.of("base_color", "#000000", "overlay_color", "#FFFFFF"));
+
+        // Scale to match FMM's Java-side visual size
+        if (modelScale != 1.0) {
+            description.put("scripts", Map.of("scale", String.valueOf(modelScale)));
+        }
 
         Map<String, Object> clientEntity = new LinkedHashMap<>();
         clientEntity.put("description", description);

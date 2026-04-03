@@ -5,6 +5,7 @@ import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerDe
 import com.magmaguy.freeminecraftmodels.customentity.ModeledEntity;
 import de.crazypandas.fmmbedrockbridge.FMMBedrockBridge;
 import me.zimzaza4.geyserutils.spigot.api.EntityUtils;
+import net.kyori.adventure.text.Component;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.entity.Entity;
@@ -80,6 +81,8 @@ public class FMMEntityData {
             float hitboxHeight = (float) Math.max(realEntity.getHeight(), 0.5);
             float hitboxWidth = (float) Math.max(realEntity.getWidth(), 0.5);
             EntityUtils.sendCustomHitBox(player, packetEntity.getEntityId(), hitboxHeight, hitboxWidth);
+            // Send custom name so Bedrock players see the EliteMobs name, not the mob type
+            sendNameToViewer(player);
             log.info("[BRIDGE] Sent spawn packet + hitbox for " + bedrockEntityId
                     + " (fakeId=" + packetEntity.getEntityId() + ") to " + player.getName());
         }, 2L);
@@ -171,5 +174,56 @@ public class FMMEntityData {
 
     public boolean hasViewers() {
         return !viewers.isEmpty();
+    }
+
+    /**
+     * Sends the custom name to a viewer. If no name is available yet (EliteMobs may not
+     * have set it), retries once after 20 ticks (1 second).
+     */
+    private void sendNameToViewer(Player player) {
+        Component name = getCustomName();
+        if (name != null) {
+            packetEntity.sendNameMetadata(name, true, player);
+            log.info("[BRIDGE] Sent nametag for " + bedrockEntityId + " to " + player.getName());
+        } else {
+            // EliteMobs might set the name after a delay — retry once after 1 second
+            Bukkit.getScheduler().runTaskLater(FMMBedrockBridge.getInstance(), () -> {
+                if (destroyed || !player.isOnline() || !viewers.contains(player)) return;
+                Component retryName = getCustomName();
+                if (retryName != null) {
+                    packetEntity.sendNameMetadata(retryName, true, player);
+                    log.info("[BRIDGE] Sent nametag (retry) for " + bedrockEntityId + " to " + player.getName());
+                } else {
+                    log.warning("[BRIDGE] No custom name found for " + bedrockEntityId + " after retry");
+                }
+            }, 20L);
+        }
+    }
+
+    /**
+     * Gets the custom name — tries the real Bukkit entity first (EliteMobs sets this),
+     * then falls back to FMM's display name.
+     */
+    private Component getCustomName() {
+        // 1. Try Bukkit entity custom name (EliteMobs sets this on the living entity)
+        try {
+            Component name = realEntity.customName();
+            if (name != null) {
+                log.fine("[BRIDGE] Got name from realEntity.customName() for " + bedrockEntityId);
+                return name;
+            }
+        } catch (Exception ignored) {}
+
+        // 2. Fallback: FMM's display name (used for TextDisplay nametags)
+        try {
+            String fmmName = modeledEntity.getDisplayName();
+            if (fmmName != null && !fmmName.isEmpty()) {
+                log.fine("[BRIDGE] Got name from FMM displayName for " + bedrockEntityId + ": " + fmmName);
+                return Component.text(fmmName);
+            }
+        } catch (Exception ignored) {}
+
+        log.fine("[BRIDGE] No custom name found for " + bedrockEntityId);
+        return null;
     }
 }
