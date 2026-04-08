@@ -4,10 +4,6 @@ target/
 # Claude Code - local reference repos (separate git repos, not part of this project)
 references/
 aktuelle_logs/
-# Claude Code - session state file (updated after each session, local only)
-CLAUDE_SESSION.md
-CLAUDE.md
-GEMINI.md
 
 # IDE
 .idea/
