@@ -45,8 +45,12 @@ FMM spawns DynamicEntity (wraps LivingEntity)
 | 3 | Java to Bedrock resource pack conversion + Geyser Extension | Done |
 | 4 | Hitbox, material, interact redirect, visible_bounds, multi-texture atlas | Done |
 | 4.5 | Model scale, texture atlas quality, nametags, performance fixes | Done |
-| 5 | Animation conversion + runtime sync (idle, walk, attack, death) | Done (testing) |
-| 6 | Polish: BossBar interception, particle effects, EliteMobs UI | Planned |
+| 5 | Animation conversion + runtime sync (idle, walk, attack, death) | Bug (StackOverflow in GeyserUtils.registerProperties) |
+| 5.1 | StackOverflow fix + animation verification | Planned |
+| 5.5 | Code modularization (split Bridge + Extension into smaller classes) | Planned |
+| 6 | Static Entities (Props/Furniture — no underlying mob) | Planned |
+| 7 | EliteMobs UI/UX (BossBar, nametag improvements, GUIs) | Planned |
+| 8 | Polish: particles, config, performance, production-readiness | Planned |
 
 ## Deployment
 
@@ -121,6 +125,10 @@ The Geyser Extension will:
 | `GeyserPreInitializeEvent` | Scans `input/` for model folders, registers each via `GeyserUtils.addCustomEntity()` (reflection), generates and zips resource pack |
 | `GeyserDefineResourcePacksEvent` | Registers the generated ZIP as a Bedrock resource pack served to all connecting clients |
 | `GeyserPostInitializeEvent` | Starts downstream monitor that re-registers GeyserUtils packet listener on server switches |
+
+### Known Issues
+
+- **Phase 5 StackOverflow:** `GeyserUtils.registerProperties()` (line 140) calls itself recursively instead of `registerPropertiesForGeyser()`. This is a bug in GeyserUtils, not in FMMBedrockBridge. Workaround: bypass `registerProperties()` and call `registerPropertiesForGeyser()` directly via reflection, or use entity definition-level properties instead of runtime property registration.
 
 ## Dependencies
 
