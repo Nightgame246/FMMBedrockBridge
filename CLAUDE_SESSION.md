@@ -172,8 +172,18 @@
 - Gemini (großer Context): GeyserUtils Quellcode-Analyse
 - Codex: Parallelisierbare Refactoring-Tasks (Phase 5.5)
 
-### Noch nicht implementiert
-- Alles oben — reine Planungssession bisher
+### Implementiert (Phase 4.6 — Bedrock Compatibility Fixes)
+
+Aus Review des Plans gegen Minecraft Superpowers Skills (`geyser-bridge-development`, `resourcepack-conversion`):
+
+1. **UV Integer Fix (KRITISCH):** `BedrockGeometryGenerator.toIntJsonArray()` — `uv` und `uv_size` werden jetzt als Integer serialisiert. Float-Werte crashen Geyser's JSON Parser.
+2. **Bone Count Warning:** Log-Warning wenn Model >50 Bones hat (Bedrock Performance-Limit).
+3. **Texture POW2:** `BedrockModelConverter.nextPowerOfTwo()` — Textur-Dimensionen automatisch auf nächste Zweierpotenz aufgerundet.
+
+### Plan aktualisiert
+- Task 0 (Phase 4.6) als erledigt eingetragen
+- Verifikations-Checkliste erweitert (9 Punkte aus geyser-bridge-development Skill)
+- Risiko-Hinweis: FMM Display Entity Transformationen ≠ Bedrock Bone Animationen
 
 ### Build
 ```

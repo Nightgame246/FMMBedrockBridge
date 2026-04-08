@@ -186,7 +186,18 @@ public class BedrockModelConverter {
                 } catch (IOException ignored) {}
             }
         }
+        // Bedrock requires power-of-2 texture dimensions for reliable rendering
+        maxW = nextPowerOfTwo(maxW);
+        maxH = nextPowerOfTwo(maxH);
         return new int[]{maxW, maxH};
+    }
+
+    private int nextPowerOfTwo(int v) {
+        if (v <= 0) return 16;
+        if ((v & (v - 1)) == 0) return v; // already POW2
+        int result = Integer.highestOneBit(v) << 1;
+        log.info("[Converter] Rounded texture dimension " + v + " → " + result + " (power of 2)");
+        return result;
     }
 
     /**
