@@ -45,6 +45,7 @@ FMM spawns DynamicEntity (wraps LivingEntity)
 | 3 | Java to Bedrock resource pack conversion + Geyser Extension | Done |
 | 4 | Hitbox, material, interact redirect, visible_bounds, multi-texture atlas | Done |
 | 4.5 | Model scale, texture atlas quality, nametags, performance fixes | Done |
+| 4.6 | Bedrock format fixes: UV integer values, texture POW2, bone count warning | Done |
 | 5 | Animation conversion + runtime sync (idle, walk, attack, death) | Bug (StackOverflow in GeyserUtils.registerProperties) |
 | 5.1 | StackOverflow fix + animation verification | Planned |
 | 5.5 | Code modularization (split Bridge + Extension into smaller classes) | Planned |

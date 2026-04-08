@@ -3,6 +3,7 @@ package de.crazypandas.fmmbedrockbridge.converter;
 import com.google.gson.*;
 
 import java.util.*;
+import java.util.logging.Logger;
 
 /**
  * Generates a Bedrock .geo.json from raw .bbmodel data.
@@ -16,7 +17,9 @@ import java.util.*;
  */
 public class BedrockGeometryGenerator {
 
+    private static final Logger log = Logger.getLogger(BedrockGeometryGenerator.class.getName());
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
+    private static final int BEDROCK_BONE_WARN_THRESHOLD = 50;
 
     private static final List<String> SKIP_PREFIXES = List.of("b_", "hitbox", "tag_", "m_");
 
@@ -52,6 +55,12 @@ public class BedrockGeometryGenerator {
         List<?> outliner = (List<?>) bbmodel.get("outliner");
         if (outliner != null) {
             traverseOutliner(outliner, null, elementMap, bones, uScale, vScale, atlasSlotHeight);
+        }
+
+        if (bones.size() > BEDROCK_BONE_WARN_THRESHOLD) {
+            log.warning("[FMMBridge] Model '" + modelId + "' has " + bones.size()
+                    + " bones (threshold: " + BEDROCK_BONE_WARN_THRESHOLD
+                    + "). This may cause performance issues on Bedrock clients.");
         }
 
         // Calculate visible_bounds from actual cube coordinates
@@ -237,8 +246,8 @@ public class BedrockGeometryGenerator {
                 double vOffset = textureIndex * atlasSlotHeight;
 
                 JsonObject faceUV = new JsonObject();
-                faceUV.add("uv", toJsonArray(scaledU1, scaledV1 + vOffset));
-                faceUV.add("uv_size", toJsonArray(scaledU2 - scaledU1, scaledV2 - scaledV1));
+                faceUV.add("uv", toIntJsonArray(scaledU1, scaledV1 + vOffset));
+                faceUV.add("uv_size", toIntJsonArray(scaledU2 - scaledU1, scaledV2 - scaledV1));
                 uvObj.add(face, faceUV);
             }
             cube.add("uv", uvObj);
@@ -315,6 +324,17 @@ public class BedrockGeometryGenerator {
         JsonArray a = new JsonArray();
         a.add(round(x));
         a.add(round(y));
+        return a;
+    }
+
+    /**
+     * Integer variant for UV coordinates — Bedrock requires uv and uv_size
+     * values to be integers, not floats. Float values crash Geyser's JSON parser.
+     */
+    private static JsonArray toIntJsonArray(double x, double y) {
+        JsonArray a = new JsonArray();
+        a.add((int) Math.round(x));
+        a.add((int) Math.round(y));
         return a;
     }
 
