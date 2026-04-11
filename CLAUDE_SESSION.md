@@ -201,11 +201,21 @@ Aus Review des Plans gegen Minecraft Superpowers Skills (`geyser-bridge-developm
   - `FMMEntityData`: `registerAndSendInitialAnimation()` → `sendInitialAnimation()` — `EntityUtils.registerProperty()` Aufrufe entfernt, nur noch `sendIntProperty()` für initialen State
   - **Deployed & verifiziert:** Proxy-Logs zeigen `Registered N animation property slots` für alle Models, kein StackOverflowError
 
+- **Phase 5.5: Code-Modularisierung**
+  - Spigot Plugin:
+    - `PacketInterceptor` — Packet suppression + interact redirect (aus BedrockEntityBridge)
+    - `ViewerManager` — Bedrock player tracking, join/quit, range checks (aus BedrockEntityBridge)
+    - `BedrockEntityBridge` implementiert nicht mehr Listener, delegiert an beide
+  - Geyser Extension:
+    - `ResourcePackBuilder` — Entity defs, render controllers, manifest, zip (aus FMMBridgeExtension)
+    - `EntityRegistrar` — GeyserUtils reflection für entity + property registration (aus FMMBridgeExtension)
+    - `DownstreamMonitor` — Session tracking + listener re-registration (aus FMMBridgeExtension)
+    - `FMMBridgeExtension` nur noch Lifecycle-Event-Handling
+
 ### Noch zu testen
 - Bedrock-Client Animation-Test (kein Client verfügbar)
 
 ### Offene Themen
-- Phase 5.5: Code-Modularisierung
 - Phase 6: Static Entities (Props/Möbel)
 - Phase 7: EliteMobs UI/UX
 - Phase 8: Polish
