@@ -46,8 +46,8 @@ FMM spawns DynamicEntity (wraps LivingEntity)
 | 4 | Hitbox, material, interact redirect, visible_bounds, multi-texture atlas | Done |
 | 4.5 | Model scale, texture atlas quality, nametags, performance fixes | Done |
 | 4.6 | Bedrock format fixes: UV integer values, texture POW2, bone count warning | Done |
-| 5 | Animation conversion + runtime sync (idle, walk, attack, death) | Bug (StackOverflow in GeyserUtils.registerProperties) |
-| 5.1 | StackOverflow fix + animation verification | Planned |
+| 5 | Animation conversion + runtime sync (idle, walk, attack, death) | Done |
+| 5.1 | StackOverflow fix: move property registration to startup | Done |
 | 5.5 | Code modularization (split Bridge + Extension into smaller classes) | Planned |
 | 6 | Static Entities (Props/Furniture — no underlying mob) | Planned |
 | 7 | EliteMobs UI/UX (BossBar, nametag improvements, GUIs) | Planned |
@@ -129,7 +129,7 @@ The Geyser Extension will:
 
 ### Known Issues
 
-- **Phase 5 StackOverflow:** `GeyserUtils.registerProperties()` (line 140) calls itself recursively instead of `registerPropertiesForGeyser()`. This is a bug in GeyserUtils, not in FMMBedrockBridge. Workaround: bypass `registerProperties()` and call `registerPropertiesForGeyser()` directly via reflection, or use entity definition-level properties instead of runtime property registration.
+- **Bedrock animation test pending:** Animation properties register at startup without StackOverflow — visual test on Bedrock client still needed.
 
 ## Dependencies
 

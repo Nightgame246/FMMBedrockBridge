@@ -189,3 +189,23 @@ Aus Review des Plans gegen Minecraft Superpowers Skills (`geyser-bridge-developm
 ```
 /usr/share/idea/plugins/maven/lib/maven3/bin/mvn clean package
 ```
+
+---
+
+## Session: 2026-04-11
+
+### Abgeschlossen
+- **Phase 5.1: StackOverflow Fix**
+  - `FMMBridgeExtension.registerAnimationProperties()` — registriert Animation Properties via `GeyserUtils.addProperty()` + `registerProperties()` per Reflection beim Startup (`GeyserPreInitializeEvent`, `GEYSER_LOADED=false`)
+  - Aufruf in `processModelDirectory()` nach `addCustomEntity()`, vor `generatePackFiles()`
+  - `FMMEntityData`: `registerAndSendInitialAnimation()` → `sendInitialAnimation()` — `EntityUtils.registerProperty()` Aufrufe entfernt, nur noch `sendIntProperty()` für initialen State
+  - **Deployed & verifiziert:** Proxy-Logs zeigen `Registered N animation property slots` für alle Models, kein StackOverflowError
+
+### Noch zu testen
+- Bedrock-Client Animation-Test (kein Client verfügbar)
+
+### Offene Themen
+- Phase 5.5: Code-Modularisierung
+- Phase 6: Static Entities (Props/Möbel)
+- Phase 7: EliteMobs UI/UX
+- Phase 8: Polish
