@@ -48,7 +48,7 @@ FMM spawns DynamicEntity (wraps LivingEntity)
 | 4.6 | Bedrock format fixes: UV integer values, texture POW2, bone count warning | Done |
 | 5 | Animation conversion + runtime sync (idle, walk, attack, death) | Done |
 | 5.1 | StackOverflow fix: move property registration to startup | Done |
-| 5.5 | Code modularization (split Bridge + Extension into smaller classes) | Planned |
+| 5.5 | Code modularization (PacketInterceptor, ViewerManager, ResourcePackBuilder, EntityRegistrar, DownstreamMonitor) | Done |
 | 6 | Static Entities (Props/Furniture — no underlying mob) | Planned |
 | 7 | EliteMobs UI/UX (BossBar, nametag improvements, GUIs) | Planned |
 | 8 | Polish: particles, config, performance, production-readiness | Planned |
@@ -109,7 +109,9 @@ The Geyser Extension will:
 | Class | Role |
 |-------|------|
 | `FMMEntityTracker` | Polls `ModeledEntityManager.getAllEntities()` every second, diffs for spawns/despawns |
-| `BedrockEntityBridge` | Manages fake PacketEntities for Bedrock players, packet suppression for real entities, interact redirect, viewer distance tracking |
+| `BedrockEntityBridge` | Manages fake PacketEntities for Bedrock players, delegates to PacketInterceptor and ViewerManager |
+| `PacketInterceptor` | Suppresses spawn/metadata packets for hidden real entities, redirects interact packets from fake to real |
+| `ViewerManager` | Tracks Bedrock players (via Floodgate), handles join/quit events, range checks |
 | `FMMEntityData` | Per-entity state: wraps ModeledEntity + PacketEntity + viewer set, handles addViewer/removeViewer lifecycle, sends nametag metadata |
 | `PacketEntity` | Fake packet-only PIG entity (ID 300-400M) via PacketEvents, handles spawn/teleport/destroy/name-metadata packets |
 | `BedrockModelConverter` | Reads `.bbmodel` source files, generates `geometry.json` + texture atlas via `BedrockGeometryGenerator` |
@@ -121,11 +123,12 @@ The Geyser Extension will:
 
 ### Geyser Extension (`geyser-extension/`)
 
-| Event | Action |
-|-------|--------|
-| `GeyserPreInitializeEvent` | Scans `input/` for model folders, registers each via `GeyserUtils.addCustomEntity()` (reflection), generates and zips resource pack |
-| `GeyserDefineResourcePacksEvent` | Registers the generated ZIP as a Bedrock resource pack served to all connecting clients |
-| `GeyserPostInitializeEvent` | Starts downstream monitor that re-registers GeyserUtils packet listener on server switches |
+| Class | Role |
+|-------|------|
+| `FMMBridgeExtension` | Lifecycle event handling (PreInitialize, DefineResourcePacks, PostInitialize) |
+| `EntityRegistrar` | GeyserUtils reflection for entity + animation property registration |
+| `ResourcePackBuilder` | Generates entity defs, render controllers, manifest.json, zips pack |
+| `DownstreamMonitor` | Re-registers GeyserUtils packet listener on server switches |
 
 ### Known Issues
 
