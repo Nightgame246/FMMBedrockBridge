@@ -88,8 +88,8 @@ public class FMMEntityData {
             EntityUtils.sendCustomHitBox(player, packetEntity.getEntityId(), hitboxHeight, hitboxWidth);
             // Send custom name so Bedrock players see the EliteMobs name, not the mob type
             sendNameToViewer(player);
-            // Register animation properties and send initial animation state
-            registerAndSendInitialAnimation(player);
+            // Send initial animation state (properties already registered at startup by Extension)
+            sendInitialAnimation(player);
             log.info("[BRIDGE] Sent spawn packet + hitbox for " + bedrockEntityId
                     + " (fakeId=" + packetEntity.getEntityId() + ") to " + player.getName());
         }, 2L);
@@ -132,33 +132,23 @@ public class FMMEntityData {
     }
 
     /**
-     * Registers animation properties with GeyserUtils and sends the initial animation state.
-     * Must be called after the entity spawn packet is sent.
+     * Sends the initial animation state to a new Bedrock viewer.
+     * Properties are already registered at startup by the Geyser Extension.
      */
-    private void registerAndSendInitialAnimation(Player player) {
+    private void sendInitialAnimation(Player player) {
         if (sortedAnimationNames == null || sortedAnimationNames.isEmpty()) return;
 
-        int fakeId = packetEntity.getEntityId();
-        int slotCount = BedrockAnimationControllerGenerator.getPropertySlotCount(sortedAnimationNames.size());
-
-        // Register each property slot with GeyserUtils
-        for (int i = 0; i < slotCount; i++) {
-            String propertyId = "fmmbridge:anim" + i;
-            EntityUtils.registerProperty(player, fakeId, propertyId, Integer.class);
-        }
-
-        // Send initial animation state (usually "idle")
         String currentAnim = AnimationStateTracker.getCurrentAnimationName(modeledEntity);
-        if (currentAnim != null) {
-            int animIndex = sortedAnimationNames.indexOf(currentAnim);
-            if (animIndex >= 0) {
-                int[] bitmask = BedrockAnimationControllerGenerator.getAnimationBitmask(animIndex);
-                String propertyId = "fmmbridge:anim" + bitmask[0];
-                EntityUtils.sendIntProperty(player, fakeId, propertyId, bitmask[1]);
-                lastAnimationName = currentAnim;
-                log.info("[BRIDGE] Sent initial animation '" + currentAnim + "' (bitmask=" + bitmask[1] + ") for " + bedrockEntityId);
-            }
-        }
+        if (currentAnim == null) return;
+
+        int animIndex = sortedAnimationNames.indexOf(currentAnim);
+        if (animIndex < 0) return;
+
+        int[] bitmask = BedrockAnimationControllerGenerator.getAnimationBitmask(animIndex);
+        String propertyId = "fmmbridge:anim" + bitmask[0];
+        EntityUtils.sendIntProperty(player, packetEntity.getEntityId(), propertyId, bitmask[1]);
+        lastAnimationName = currentAnim;
+        log.info("[BRIDGE] Sent initial animation '" + currentAnim + "' (bitmask=" + bitmask[1] + ") for " + bedrockEntityId);
     }
 
     /**
