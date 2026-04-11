@@ -61,7 +61,7 @@ public class FMMEntityData {
         // 1. Hide the real entity (wolf/zombie/etc) from this player
         //    Register with packet suppressor to block ALL future spawn/metadata packets
         int realEntityId = realEntity.getEntityId();
-        bridge.hideRealEntity(realEntityId, player);
+        bridge.getPacketInterceptor().hideEntity(realEntityId, player);
 
         // Send destroy packet to immediately remove the entity client-side
         PacketEvents.getAPI().getPlayerManager().sendPacket(player,
@@ -102,7 +102,7 @@ public class FMMEntityData {
         if (!viewers.remove(player)) return;
 
         // Un-hide the real entity from packet suppressor
-        bridge.unhideRealEntity(realEntity.getEntityId(), player);
+        bridge.getPacketInterceptor().unhideEntity(realEntity.getEntityId(), player);
 
         // Destroy fake entity for this player
         packetEntity.sendDestroyPacket(player);
@@ -210,7 +210,7 @@ public class FMMEntityData {
 
             for (Player player : viewers) {
                 // Un-hide from packet suppressor
-                bridge.unhideRealEntity(realEntityId, player);
+                bridge.getPacketInterceptor().unhideEntity(realEntityId, player);
                 try {
                     player.showEntity(FMMBedrockBridge.getInstance(), realEntity);
                 } catch (Exception e) {

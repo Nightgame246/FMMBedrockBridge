@@ -51,7 +51,7 @@ public class FMMBedrockBridge extends JavaPlugin {
         bridge = new BedrockEntityBridge(floodgateAvailable, geyserUtilsAvailable, entityTracker);
         entityTracker.setBridge(bridge);
         entityTracker.start();
-        getServer().getPluginManager().registerEvents(bridge, this);
+        getServer().getPluginManager().registerEvents(bridge.getViewerManager(), this);
 
         boolean packetEventsAvailable = getServer().getPluginManager().getPlugin("packetevents") != null
                 || getServer().getPluginManager().getPlugin("PacketEvents") != null;
