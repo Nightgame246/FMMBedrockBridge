@@ -374,6 +374,16 @@ public class FMMBridgeExtension implements Extension {
                 this.logger().warning("FMMBridgeExtension: Failed to register model " + modelId);
                 return;
             }
+
+            // Register animation properties BEFORE generatePackFiles
+            // Must happen during GeyserPreInitializeEvent while GEYSER_LOADED=false
+            // to avoid the recursive bug in GeyserUtils.registerProperties()
+            Path animPath = modelDir.resolve("animations.json");
+            if (Files.exists(animPath)) {
+                List<String> animNames = readAnimationNames(animPath);
+                registerAnimationProperties(modelId, animNames.size());
+            }
+
             generatePackFiles(modelId, geometryPath, texturePath, packDir, modelScale);
             this.logger().info("Prepared Bedrock assets for " + modelId);
         } catch (Exception e) {
@@ -435,6 +445,40 @@ public class FMMBridgeExtension implements Extension {
 
         this.logger().warning("FMMBridgeExtension: All classloader strategies failed for " + fullId);
         return false;
+    }
+
+    /**
+     * Registers animation properties for a model with GeyserUtils.
+     * Must be called AFTER addCustomEntity() and BEFORE Geyser finishes loading.
+     * Pattern from GeyserModelEngine Entity.java:128-134.
+     */
+    private void registerAnimationProperties(String modelId, int animationCount) {
+        if (animationCount == 0) return;
+
+        String fullId = "fmmbridge:" + modelId;
+        int slotCount = (int) Math.ceil(animationCount / 24.0);
+
+        ClassLoader cl = this.getClass().getClassLoader();
+        try {
+            Class<?> geyserUtilsClass = Class.forName(
+                    "me.zimzaza4.geyserutils.geyser.GeyserUtils", true, cl);
+
+            Method addProperty = geyserUtilsClass.getMethod(
+                    "addProperty", String.class, String.class, Class.class);
+            Method registerProps = geyserUtilsClass.getMethod(
+                    "registerProperties", String.class);
+
+            for (int i = 0; i < slotCount; i++) {
+                addProperty.invoke(null, fullId, "fmmbridge:anim" + i, Integer.class);
+            }
+            registerProps.invoke(null, fullId);
+
+            this.logger().info("FMMBridge: Registered " + slotCount
+                    + " animation property slots for " + fullId);
+        } catch (Exception e) {
+            this.logger().warning("FMMBridge: Failed to register animation properties for "
+                    + fullId + ": " + e.getMessage());
+        }
     }
 
     @Deprecated
