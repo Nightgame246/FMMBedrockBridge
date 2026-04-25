@@ -51,6 +51,8 @@ FMM spawns DynamicEntity (wraps LivingEntity)
 | 5.5 | Code modularization (PacketInterceptor, ViewerManager, ResourcePackBuilder, EntityRegistrar, DownstreamMonitor) | Done |
 | 5.6 | Animation format fixes: short names in controllers, new UUID per pack build | Done |
 | 6 | Static Entities (Props/Furniture — no underlying mob) | Done |
+| 6.1 | Console spam fix + `/fmmbridge debug` command | Done |
+| 6.2 | Blockbench v5 NPC model support (bone names + pivots from groups array) | In Progress |
 | 7 | EliteMobs UI/UX (BossBar, nametag improvements, GUIs) | Planned |
 | 8 | Polish: hitbox scale, hurt flash, particles, config, performance, production-readiness | Planned |
 
@@ -135,6 +137,7 @@ The Geyser Extension will:
 
 ### Known Issues
 
+- **NPC-Modelle visuell verzerrt (In Progress):** FMM NPC-Models (Blockbench v5 Format) haben alle Bone-Pivots bei 0,0,0. Fix deployed, Debugging läuft (Phase 6.2).
 - **Hitbox zu klein:** Bedrock-Hitbox nutzt unveränderte Java-Entity-Dimensionen; das visuelle Model wird mit `scale: 1.6` gerendert → Hitbox wirkt kleiner (Phase 8).
 - **Kein Hurt-Flash:** Damage-Metadata der Real-Entity wird vollständig supprimiert; Bedrock zeigt keinen roten Blitz bei Treffer (Phase 8).
 
