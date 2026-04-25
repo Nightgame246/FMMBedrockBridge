@@ -3,9 +3,11 @@ package de.crazypandas.fmmbedrockbridge.bridge;
 import com.google.gson.Gson;
 import com.magmaguy.freeminecraftmodels.customentity.DynamicEntity;
 import com.magmaguy.freeminecraftmodels.customentity.ModeledEntity;
+import com.magmaguy.freeminecraftmodels.customentity.StaticEntity;
 import de.crazypandas.fmmbedrockbridge.FMMBedrockBridge;
 import de.crazypandas.fmmbedrockbridge.tracker.FMMEntityTracker;
 import org.bukkit.Bukkit;
+import org.bukkit.Location;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
 import org.bukkit.scheduler.BukkitTask;
@@ -35,7 +37,7 @@ public class BedrockEntityBridge {
     private final FMMEntityTracker entityTracker;
 
     /** All active FMM entity data, keyed by ModeledEntity */
-    private final Map<ModeledEntity, FMMEntityData> entityDataMap = new ConcurrentHashMap<>();
+    private final Map<ModeledEntity, IBridgeEntityData> entityDataMap = new ConcurrentHashMap<>();
 
     /** Packet suppression + interact redirect */
     private final PacketInterceptor packetInterceptor = new PacketInterceptor();
@@ -67,16 +69,17 @@ public class BedrockEntityBridge {
 
         viewerManager.setOnPlayerReady(player -> {
             if (!geyserUtilsAvailable) return;
-            for (FMMEntityData data : entityDataMap.values()) {
-                Entity real = data.getRealEntity();
-                if (real != null && !real.isDead() && ViewerManager.isInRange(player, real)) {
+            for (IBridgeEntityData data : entityDataMap.values()) {
+                if (!data.isAlive()) continue;
+                Location loc = data.getLocation();
+                if (loc != null && ViewerManager.isInRange(player, loc)) {
                     data.addViewer(player);
                 }
             }
         });
 
         viewerManager.setOnPlayerLeave(player -> {
-            for (FMMEntityData data : entityDataMap.values()) {
+            for (IBridgeEntityData data : entityDataMap.values()) {
                 data.removeViewer(player);
             }
         });
@@ -105,7 +108,7 @@ public class BedrockEntityBridge {
         }
         packetInterceptor.unregister();
 
-        for (FMMEntityData data : entityDataMap.values()) {
+        for (IBridgeEntityData data : entityDataMap.values()) {
             data.destroy();
         }
         entityDataMap.clear();
@@ -119,24 +122,42 @@ public class BedrockEntityBridge {
      * Called by FMMEntityTracker when a new FMM entity is detected.
      */
     public void onEntitySpawn(ModeledEntity modeledEntity) {
-        if (!(modeledEntity instanceof DynamicEntity)) return;
         if (!geyserUtilsAvailable) return;
 
-        Entity underlying = getUnderlyingEntity(modeledEntity);
-        if (underlying == null) return;
-
         String bedrockId = getBedrockEntityId(modeledEntity);
-        FMMEntityData data = new FMMEntityData(modeledEntity, underlying, bedrockId, this);
-        entityDataMap.put(modeledEntity, data);
-        packetInterceptor.mapFakeToReal(data.getPacketEntity().getEntityId(), underlying.getEntityId());
+        IBridgeEntityData data;
 
-        log.info("[BRIDGE] Registered entity " + bedrockId
-                + " (realId=" + underlying.getEntityId()
-                + ", fakeId=" + data.getPacketEntity().getEntityId() + ")");
+        if (modeledEntity instanceof DynamicEntity) {
+            Entity underlying = getUnderlyingEntity(modeledEntity);
+            if (underlying == null) return;
+
+            FMMEntityData fmmData = new FMMEntityData(modeledEntity, underlying, bedrockId, this);
+            packetInterceptor.mapFakeToReal(fmmData.getPacketEntity().getEntityId(), underlying.getEntityId());
+            data = fmmData;
+
+            log.info("[BRIDGE] Registered dynamic entity " + bedrockId
+                    + " (realId=" + underlying.getEntityId()
+                    + ", fakeId=" + data.getPacketEntity().getEntityId() + ")");
+        } else if (modeledEntity instanceof StaticEntity) {
+            Location loc = modeledEntity.getLocation();
+            if (loc == null) return;
+
+            data = new StaticEntityData(modeledEntity, loc, bedrockId);
+
+            log.info("[BRIDGE] Registered static entity " + bedrockId
+                    + " at " + loc.getWorld().getName()
+                    + " " + String.format("%.1f %.1f %.1f", loc.getX(), loc.getY(), loc.getZ())
+                    + " (fakeId=" + data.getPacketEntity().getEntityId() + ")");
+        } else {
+            return;
+        }
+
+        entityDataMap.put(modeledEntity, data);
 
         // Immediately add all ready Bedrock players as viewers if in range
+        Location spawnLoc = data.getLocation();
         for (Player player : viewerManager.getReadyPlayers()) {
-            if (player.isOnline() && ViewerManager.isInRange(player, underlying)) {
+            if (player.isOnline() && ViewerManager.isInRange(player, spawnLoc)) {
                 data.addViewer(player);
             }
         }
@@ -146,7 +167,7 @@ public class BedrockEntityBridge {
      * Called by FMMEntityTracker when an FMM entity is no longer detected.
      */
     public void onEntityDespawn(ModeledEntity modeledEntity) {
-        FMMEntityData data = entityDataMap.remove(modeledEntity);
+        IBridgeEntityData data = entityDataMap.remove(modeledEntity);
         if (data != null) {
             packetInterceptor.unmapFake(data.getPacketEntity().getEntityId());
             data.destroy();
@@ -157,20 +178,19 @@ public class BedrockEntityBridge {
      * Per-tick sync: check viewer distance and update positions.
      */
     private void tick() {
-        for (FMMEntityData data : entityDataMap.values()) {
+        for (IBridgeEntityData data : entityDataMap.values()) {
             if (data.isDestroyed()) continue;
+            if (!data.isAlive()) continue;
 
-            Entity real = data.getRealEntity();
-            if (real == null || real.isDead()) {
-                continue;
-            }
+            Location loc = data.getLocation();
+            if (loc == null) continue;
 
-            data.syncPosition();
+            data.tick();
 
             for (Player player : viewerManager.getReadyPlayers()) {
                 if (!player.isOnline()) continue;
 
-                boolean inRange = ViewerManager.isInRange(player, real);
+                boolean inRange = ViewerManager.isInRange(player, loc);
                 boolean isViewer = data.getViewers().contains(player);
 
                 if (inRange && !isViewer) {

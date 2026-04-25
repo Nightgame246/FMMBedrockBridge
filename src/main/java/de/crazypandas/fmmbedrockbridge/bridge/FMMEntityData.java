@@ -24,7 +24,7 @@ import java.util.logging.Logger;
  * 2. setCustomEntity(fakeId, ...)   — populate GeyserUtils CUSTOM_ENTITIES cache
  * 3. sendSpawnPacket(fakeEntity)    — Geyser intercepts this, finds cache entry, replaces with custom entity
  */
-public class FMMEntityData {
+public class FMMEntityData implements IBridgeEntityData {
 
     private static final Logger log = FMMBedrockBridge.getInstance().getLogger();
 
@@ -116,6 +116,21 @@ public class FMMEntityData {
 
         log.info("[BRIDGE] Removed viewer " + player.getName()
                 + " for " + bedrockEntityId);
+    }
+
+    @Override
+    public void tick() {
+        syncPosition();
+    }
+
+    @Override
+    public boolean isAlive() {
+        return realEntity != null && !realEntity.isDead();
+    }
+
+    @Override
+    public Location getLocation() {
+        return realEntity != null ? realEntity.getLocation() : null;
     }
 
     /**

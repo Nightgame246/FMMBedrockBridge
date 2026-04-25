@@ -76,8 +76,12 @@ public class ViewerManager implements Listener {
     }
 
     public static boolean isInRange(Player player, Entity entity) {
+        return isInRange(player, entity.getLocation());
+    }
+
+    public static boolean isInRange(Player player, Location entityLoc) {
+        if (entityLoc == null) return false;
         Location playerLoc = player.getLocation();
-        Location entityLoc = entity.getLocation();
         if (playerLoc.getWorld() != entityLoc.getWorld()) return false;
 
         double dx = playerLoc.getX() - entityLoc.getX();
