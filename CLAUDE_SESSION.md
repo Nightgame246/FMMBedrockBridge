@@ -254,9 +254,47 @@ Aus Review des Plans gegen Minecraft Superpowers Skills (`geyser-bridge-developm
 - **Kein Hurt-Flash (rotes Flackern):** Damage-Metadata der Real-Entity wird supprimiert
 
 ### Offene Themen
-- Phase 6: Static Entities (Props/Möbel)
 - Phase 7: EliteMobs UI/UX
 - Phase 8: Polish (Hitbox-Scale, Hurt-Flash, Partikel, Config, Performance)
+
+### Build
+```
+/usr/share/idea/plugins/maven/lib/maven3/bin/mvn clean package
+```
+
+---
+
+## Session: 2026-04-25 (Fortsetzung)
+
+### Abgeschlossen
+
+- **Phase 6: Static Entity Support**
+  - `IBridgeEntityData` Interface — gemeinsame API für DynamicEntity und StaticEntity Bridge-Daten
+    - Methoden: `addViewer`, `removeViewer`, `tick`, `destroy`, `isDestroyed`, `isAlive`, `getViewers`, `getPacketEntity`, `getLocation`
+  - `StaticEntityData` — neue Klasse für FMM StaticEntity (Props/Möbel)
+    - Kein underlyingEntity (StaticEntity hat keine LivingEntity)
+    - Kein Animation-Tracking (Props sind statisch)
+    - Kein Combat-Redirect
+    - Position fest aus `modeledEntity.getLocation()` beim Spawn
+    - `addViewer()`: setzt GeyserUtils Custom Entity + sendet Fake-PIG-Spawn-Paket (gleicher Mechanismus wie DynamicEntity)
+  - `FMMEntityData` implementiert jetzt `IBridgeEntityData`
+    - `tick()` → `syncPosition()`
+    - `isAlive()` → `realEntity != null && !realEntity.isDead()`
+    - `getLocation()` → `realEntity.getLocation()`
+  - `ViewerManager` — `isInRange(Player, Location)` Overload hinzugefügt
+  - `BedrockEntityBridge` — generalisiert für beide Entity-Typen
+    - `entityDataMap` ist jetzt `Map<ModeledEntity, IBridgeEntityData>`
+    - `onEntitySpawn()`: DynamicEntity → `FMMEntityData`, StaticEntity → `StaticEntityData`
+    - `tick()` nutzt Interface-Methoden, keine DynamicEntity-spezifischen Casts mehr
+  - **Hinweis:** Ob FMM Armor Stands für StaticEntity an Bedrock schickt (mit `sendCustomModelsToBedrockClients: false`) muss getestet werden. Falls Armor-Stand-Artefakte sichtbar sind → Suppression in Phase 8 ergänzen
+
+### Noch zu testen
+- StaticEntity auf Bedrock-Client sichtbar? (TestServer01 Neustart erforderlich)
+- Armor Stand Artefakte? Falls ja: Suppression für StaticEntity-Bones nachrüsten
+
+### Offene Themen
+- Phase 7: EliteMobs UI/UX
+- Phase 8: Polish (Hitbox-Scale, Hurt-Flash, Partikel, Config, Performance, Armor-Stand-Suppression für Static)
 
 ### Build
 ```

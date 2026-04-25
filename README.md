@@ -50,7 +50,7 @@ FMM spawns DynamicEntity (wraps LivingEntity)
 | 5.1 | StackOverflow fix: move property registration to startup | Done |
 | 5.5 | Code modularization (PacketInterceptor, ViewerManager, ResourcePackBuilder, EntityRegistrar, DownstreamMonitor) | Done |
 | 5.6 | Animation format fixes: short names in controllers, new UUID per pack build | Done |
-| 6 | Static Entities (Props/Furniture — no underlying mob) | Planned |
+| 6 | Static Entities (Props/Furniture — no underlying mob) | Done |
 | 7 | EliteMobs UI/UX (BossBar, nametag improvements, GUIs) | Planned |
 | 8 | Polish: hitbox scale, hurt flash, particles, config, performance, production-readiness | Planned |
 
@@ -113,7 +113,9 @@ The Geyser Extension will:
 | `BedrockEntityBridge` | Manages fake PacketEntities for Bedrock players, delegates to PacketInterceptor and ViewerManager |
 | `PacketInterceptor` | Suppresses spawn/metadata packets for hidden real entities, redirects interact packets from fake to real |
 | `ViewerManager` | Tracks Bedrock players (via Floodgate), handles join/quit events, range checks |
-| `FMMEntityData` | Per-entity state: wraps ModeledEntity + PacketEntity + viewer set, handles addViewer/removeViewer lifecycle, sends nametag metadata |
+| `IBridgeEntityData` | Common interface for DynamicEntity and StaticEntity bridge data |
+| `FMMEntityData` | Per-DynamicEntity state: wraps ModeledEntity + PacketEntity + viewer set, handles addViewer/removeViewer lifecycle, sends nametag metadata |
+| `StaticEntityData` | Per-StaticEntity state: spawns fake entity at fixed location, no animation or combat redirect |
 | `PacketEntity` | Fake packet-only PIG entity (ID 300-400M) via PacketEvents, handles spawn/teleport/destroy/name-metadata packets |
 | `BedrockModelConverter` | Reads `.bbmodel` source files, generates `geometry.json` + texture atlas via `BedrockGeometryGenerator` |
 | `BedrockGeometryGenerator` | Converts .bbmodel to Bedrock .geo.json with multi-texture atlas UV mapping and dynamic visible_bounds |
