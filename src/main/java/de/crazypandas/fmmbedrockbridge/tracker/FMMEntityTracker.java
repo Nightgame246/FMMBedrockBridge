@@ -57,7 +57,7 @@ public class FMMEntityTracker extends BukkitRunnable {
 
     private void onEntitySpawn(ModeledEntity entity) {
         String type = getEntityType(entity);
-        log.info("[FMM SPAWN] type=" + type
+        log.fine("[FMM SPAWN] type=" + type
                 + " entityID=" + entity.getEntityID()
                 + " location=" + formatLocation(entity));
         if (bridge != null) {
@@ -67,7 +67,7 @@ public class FMMEntityTracker extends BukkitRunnable {
 
     private void onEntityDespawn(ModeledEntity entity) {
         String type = getEntityType(entity);
-        log.info("[FMM DESPAWN] type=" + type
+        log.fine("[FMM DESPAWN] type=" + type
                 + " entityID=" + entity.getEntityID());
         if (bridge != null) {
             bridge.onEntityDespawn(entity);

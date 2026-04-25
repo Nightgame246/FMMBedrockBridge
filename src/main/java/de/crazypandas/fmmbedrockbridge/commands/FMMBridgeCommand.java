@@ -1,12 +1,19 @@
 package de.crazypandas.fmmbedrockbridge.commands;
 
+import com.magmaguy.freeminecraftmodels.customentity.DynamicEntity;
+import com.magmaguy.freeminecraftmodels.customentity.ModeledEntity;
 import com.magmaguy.freeminecraftmodels.dataconverter.FileModelConverter;
+import de.crazypandas.fmmbedrockbridge.FMMBedrockBridge;
+import de.crazypandas.fmmbedrockbridge.bridge.BedrockEntityBridge;
+import de.crazypandas.fmmbedrockbridge.bridge.IBridgeEntityData;
 import de.crazypandas.fmmbedrockbridge.converter.BedrockModelConverter;
 import org.bukkit.Bukkit;
+import org.bukkit.Location;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.command.TabCompleter;
+import org.bukkit.entity.Player;
 import org.bukkit.plugin.Plugin;
 
 import java.util.HashMap;
@@ -31,7 +38,7 @@ public class FMMBridgeCommand implements CommandExecutor, TabCompleter {
         }
 
         if (args.length == 0) {
-            sender.sendMessage("§6FMMBedrockBridge §7— /fmmbridge convert [modelId|all]");
+            sender.sendMessage("§6FMMBedrockBridge §7— /fmmbridge <convert|debug>");
             return true;
         }
 
@@ -62,13 +69,60 @@ public class FMMBridgeCommand implements CommandExecutor, TabCompleter {
             return true;
         }
 
-        sender.sendMessage("§6FMMBedrockBridge §7— /fmmbridge convert [modelId|all]");
+        if (args[0].equalsIgnoreCase("debug")) {
+            runDebug(sender);
+            return true;
+        }
+
+        sender.sendMessage("§6FMMBedrockBridge §7— /fmmbridge <convert|debug>");
         return true;
+    }
+
+    private void runDebug(CommandSender sender) {
+        BedrockEntityBridge bridge = FMMBedrockBridge.getInstance().getBridge();
+        if (bridge == null) {
+            sender.sendMessage("§c[FMMBridge] Bridge not initialized.");
+            return;
+        }
+
+        Map<ModeledEntity, IBridgeEntityData> entities = bridge.getEntityDataMap();
+        sender.sendMessage("§6[FMMBridge Debug] §7Tracked entities: §e" + entities.size());
+
+        for (Map.Entry<ModeledEntity, IBridgeEntityData> entry : entities.entrySet()) {
+            ModeledEntity me = entry.getKey();
+            IBridgeEntityData data = entry.getValue();
+
+            String type = (me instanceof DynamicEntity) ? "§aDYNAMIC" : "§bSTATIC";
+            String alive = data.isAlive() ? "§aalive" : "§cdead";
+            String destroyed = data.isDestroyed() ? " §c[DESTROYED]" : "";
+            int viewers = data.getViewers().size();
+            int fakeId = data.getPacketEntity().getEntityId();
+
+            Location loc = data.getLocation();
+            String locStr = loc == null ? "null" :
+                    loc.getWorld().getName() + " " +
+                    String.format("%.0f,%.0f,%.0f", loc.getX(), loc.getY(), loc.getZ());
+
+            sender.sendMessage("  " + type + " §7" + me.getEntityID()
+                    + " §8|§7 " + alive + destroyed
+                    + " §8|§7 viewers=§e" + viewers
+                    + " §8|§7 fakeId=§7" + fakeId
+                    + " §8|§7 " + locStr);
+        }
+
+        sender.sendMessage("§6[FMMBridge Debug] §7Ready Bedrock players: §e"
+                + bridge.getViewerManager().getReadyPlayers().size());
+        for (Player p : bridge.getViewerManager().getReadyPlayers()) {
+            Location pl = p.getLocation();
+            sender.sendMessage("  §b" + p.getName()
+                    + " §8|§7 " + pl.getWorld().getName()
+                    + " " + String.format("%.0f,%.0f,%.0f", pl.getX(), pl.getY(), pl.getZ()));
+        }
     }
 
     @Override
     public List<String> onTabComplete(CommandSender sender, Command command, String label, String[] args) {
-        if (args.length == 1) return List.of("convert");
+        if (args.length == 1) return List.of("convert", "debug");
         if (args.length == 2 && args[0].equalsIgnoreCase("convert")) return List.of("all");
         return List.of();
     }

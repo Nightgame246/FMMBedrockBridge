@@ -135,7 +135,7 @@ public class BedrockEntityBridge {
             packetInterceptor.mapFakeToReal(fmmData.getPacketEntity().getEntityId(), underlying.getEntityId());
             data = fmmData;
 
-            log.info("[BRIDGE] Registered dynamic entity " + bedrockId
+            log.fine("[BRIDGE] Registered dynamic entity " + bedrockId
                     + " (realId=" + underlying.getEntityId()
                     + ", fakeId=" + data.getPacketEntity().getEntityId() + ")");
         } else if (modeledEntity instanceof StaticEntity) {
@@ -144,7 +144,7 @@ public class BedrockEntityBridge {
 
             data = new StaticEntityData(modeledEntity, loc, bedrockId);
 
-            log.info("[BRIDGE] Registered static entity " + bedrockId
+            log.fine("[BRIDGE] Registered static entity " + bedrockId
                     + " at " + loc.getWorld().getName()
                     + " " + String.format("%.1f %.1f %.1f", loc.getX(), loc.getY(), loc.getZ())
                     + " (fakeId=" + data.getPacketEntity().getEntityId() + ")");
@@ -248,7 +248,7 @@ public class BedrockEntityBridge {
                     }
                 }
                 Collections.sort(names);
-                log.info("[BRIDGE] Loaded " + names.size() + " animation names for " + modelId);
+                log.fine("[BRIDGE] Loaded " + names.size() + " animation names for " + modelId);
                 return names;
             } catch (Exception e) {
                 log.warning("[BRIDGE] Could not read animation names for " + modelId + ": " + e.getMessage());
@@ -263,5 +263,9 @@ public class BedrockEntityBridge {
 
     public ViewerManager getViewerManager() {
         return viewerManager;
+    }
+
+    public Map<ModeledEntity, IBridgeEntityData> getEntityDataMap() {
+        return Collections.unmodifiableMap(entityDataMap);
     }
 }

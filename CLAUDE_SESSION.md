@@ -300,3 +300,47 @@ Aus Review des Plans gegen Minecraft Superpowers Skills (`geyser-bridge-developm
 ```
 /usr/share/idea/plugins/maven/lib/maven3/bin/mvn clean package
 ```
+
+---
+
+## Session: 2026-04-25 (Abend)
+
+### Abgeschlossen
+
+- **Console-Spam gefixt:**
+  - Alle Routine-Events (addViewer, removeViewer, spawn, despawn, nametag, animation-sync) von `log.info()` auf `log.fine()` gesetzt
+  - Betroffen: `FMMEntityData`, `BedrockEntityBridge`, `StaticEntityData`, `FMMEntityTracker`, `ViewerManager`
+  - Ergebnis: Bridge erzeugt keine INFO-Log-Einträge mehr bei normalem Betrieb
+
+- **`/fmmbridge debug` Command hinzugefügt** (permanent behalten laut Fabi):
+  - Zeigt alle getrackten Entities: Typ (DYNAMIC/STATIC), entityID, alive-Status, viewers-Anzahl, fakeId, Location
+  - Zeigt alle ready Bedrock-Spieler mit Koordinaten
+  - Tab-Completion: `convert`, `debug`
+
+- **Blockbench v5 Geometrie-Fix (Bone-Namen):**
+  - FMM NPC-Models (em_ag_xxx) nutzen Blockbench v5 Format
+  - v5: `outliner` enthält nur UUIDs + children, kein `name`-Feld in Gruppen
+  - Bone-Namen stehen in `animations.animators` keyed by UUID
+  - Fix: `BedrockGeometryGenerator` baut `Map<UUID, String> uuidToName` aus animations → `traverseOutliner` nutzt diesen als Fallback
+  - Vorher: 0 Bones, 410 Bytes .geo.json. Nachher: korrekte Bones, 39.899 Bytes
+
+- **Blockbench v5 Bone-Pivot-Fix (in Arbeit):**
+  - Pivots (`origin`) und Rotationen stehen im `groups`-Array, nicht im `outliner`
+  - Fix: `BedrockGeometryGenerator` baut `Map<UUID, Map> uuidToGroup` aus `groups`-Array
+  - `traverseOutliner` schaut Pivot und Rotation aus `uuidToGroup` nach
+  - Deployed + `/fmmbridge convert all` + bedrock-skins zu Proxy kopiert
+  - **Ergebnis: NPCs sichtbar, aber visuelle Verzerrung bleibt** → Nächste Session weiter debuggen
+
+### Offenes Problem: NPC-Visuelle Verzerrung
+Bone-Pivots sollten jetzt aus dem `groups`-Array kommen — unklar ob sie tatsächlich korrekt im .geo.json ankommen. Nächste Session: Pivot-Werte im generierten .geo.json auf dem Proxy direkt prüfen und mit .bbmodel-Originalwerten vergleichen. Proxy-Neustart war noch ausstehend.
+
+### Offene Themen
+- NPC-Verzerrung debuggen (Pivot-Werte im .geo.json verifizieren, Proxy neustarten)
+- EliteMobs GUI (Shops etc.) — noch nicht untersucht
+- Phase 7: EliteMobs UI/UX
+- Phase 8: Polish
+
+### Build
+```
+/usr/share/idea/plugins/maven/lib/maven3/bin/mvn clean package
+```

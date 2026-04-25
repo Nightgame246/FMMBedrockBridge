@@ -88,6 +88,10 @@ public class FMMBedrockBridge extends JavaPlugin {
         return instance;
     }
 
+    public BedrockEntityBridge getBridge() {
+        return bridge;
+    }
+
     public boolean isFloodgateAvailable() {
         return floodgateAvailable;
     }

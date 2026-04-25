@@ -47,7 +47,7 @@ public class StaticEntityData implements IBridgeEntityData {
         Bukkit.getScheduler().runTaskLater(FMMBedrockBridge.getInstance(), () -> {
             if (destroyed || !player.isOnline()) return;
             packetEntity.sendSpawnPacket(player);
-            log.info("[BRIDGE] Static entity " + bedrockEntityId
+            log.fine("[BRIDGE] Static entity " + bedrockEntityId
                     + " (fakeId=" + packetEntity.getEntityId() + ") spawned for " + player.getName());
         }, 2L);
     }
@@ -71,7 +71,7 @@ public class StaticEntityData implements IBridgeEntityData {
             packetEntity.remove(viewers);
         }
         viewers.clear();
-        log.info("[BRIDGE] Destroyed static entity data for " + bedrockEntityId);
+        log.fine("[BRIDGE] Destroyed static entity data for " + bedrockEntityId);
     }
 
     @Override

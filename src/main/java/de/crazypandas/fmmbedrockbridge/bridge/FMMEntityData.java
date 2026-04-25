@@ -71,7 +71,7 @@ public class FMMEntityData implements IBridgeEntityData {
         EntityUtils.setCustomEntity(player, packetEntity.getEntityId(), bedrockEntityId);
         viewers.add(player);
 
-        log.info("[BRIDGE] Added viewer " + player.getName()
+        log.fine("[BRIDGE] Added viewer " + player.getName()
                 + " for " + bedrockEntityId
                 + " (fakeId=" + packetEntity.getEntityId()
                 + ", realId=" + realEntityId + " destroyed)");
@@ -90,7 +90,7 @@ public class FMMEntityData implements IBridgeEntityData {
             sendNameToViewer(player);
             // Send initial animation state (properties already registered at startup by Extension)
             sendInitialAnimation(player);
-            log.info("[BRIDGE] Sent spawn packet + hitbox for " + bedrockEntityId
+            log.fine("[BRIDGE] Sent spawn packet + hitbox for " + bedrockEntityId
                     + " (fakeId=" + packetEntity.getEntityId() + ") to " + player.getName());
         }, 2L);
     }
@@ -114,7 +114,7 @@ public class FMMEntityData implements IBridgeEntityData {
             // Entity might have been removed
         }
 
-        log.info("[BRIDGE] Removed viewer " + player.getName()
+        log.fine("[BRIDGE] Removed viewer " + player.getName()
                 + " for " + bedrockEntityId);
     }
 
@@ -163,7 +163,7 @@ public class FMMEntityData implements IBridgeEntityData {
         String propertyId = "fmmbridge:anim" + bitmask[0];
         EntityUtils.sendIntProperty(player, packetEntity.getEntityId(), propertyId, bitmask[1]);
         lastAnimationName = currentAnim;
-        log.info("[BRIDGE] Sent initial animation '" + currentAnim + "' (bitmask=" + bitmask[1] + ") for " + bedrockEntityId);
+        log.fine("[BRIDGE] Sent initial animation '" + currentAnim + "' (bitmask=" + bitmask[1] + ") for " + bedrockEntityId);
     }
 
     /**
@@ -206,7 +206,7 @@ public class FMMEntityData implements IBridgeEntityData {
             EntityUtils.sendIntProperty(viewer, fakeId, "fmmbridge:anim" + newBitmask[0], newBitmask[1]);
         }
 
-        log.info("[BRIDGE] Animation changed: " + lastAnimationName + " → " + currentAnim
+        log.fine("[BRIDGE] Animation changed: " + lastAnimationName + " → " + currentAnim
                 + " (bitmask=" + newBitmask[1] + ") for " + bedrockEntityId);
         lastAnimationName = currentAnim;
     }
@@ -235,7 +235,7 @@ public class FMMEntityData implements IBridgeEntityData {
         }
 
         viewers.clear();
-        log.info("[BRIDGE] Destroyed entity data for " + bedrockEntityId);
+        log.fine("[BRIDGE] Destroyed entity data for " + bedrockEntityId);
     }
 
     public boolean isDestroyed() {
@@ -274,7 +274,7 @@ public class FMMEntityData implements IBridgeEntityData {
         Component name = getCustomName();
         if (name != null) {
             packetEntity.sendNameMetadata(name, true, player);
-            log.info("[BRIDGE] Sent nametag for " + bedrockEntityId + " to " + player.getName());
+            log.fine("[BRIDGE] Sent nametag for " + bedrockEntityId + " to " + player.getName());
         } else {
             // EliteMobs might set the name after a delay — retry once after 1 second
             Bukkit.getScheduler().runTaskLater(FMMBedrockBridge.getInstance(), () -> {
@@ -282,7 +282,7 @@ public class FMMEntityData implements IBridgeEntityData {
                 Component retryName = getCustomName();
                 if (retryName != null) {
                     packetEntity.sendNameMetadata(retryName, true, player);
-                    log.info("[BRIDGE] Sent nametag (retry) for " + bedrockEntityId + " to " + player.getName());
+                    log.fine("[BRIDGE] Sent nametag (retry) for " + bedrockEntityId + " to " + player.getName());
                 } else {
                     log.warning("[BRIDGE] No custom name found for " + bedrockEntityId + " after retry");
                 }

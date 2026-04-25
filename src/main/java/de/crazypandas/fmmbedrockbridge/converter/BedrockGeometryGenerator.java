@@ -50,11 +50,44 @@ public class BedrockGeometryGenerator {
             }
         }
 
+        // Build UUID → group data map from the Blockbench v5 "groups" array.
+        // v5 stores full bone data (name, origin, rotation, children) there instead of in outliner items.
+        Map<String, Map<?, ?>> uuidToGroup = new HashMap<>();
+        List<?> groups = (List<?>) bbmodel.get("groups");
+        if (groups != null) {
+            for (Object g : groups) {
+                if (g instanceof Map<?, ?> gm) {
+                    String uuid = (String) gm.get("uuid");
+                    if (uuid != null) uuidToGroup.put(uuid, gm);
+                }
+            }
+        }
+
+        // Build UUID → bone name mapping from animations' animators.
+        // FMM NPC models store bone names here instead of in outliner group objects.
+        Map<String, String> uuidToName = new HashMap<>();
+        List<?> animations = (List<?>) bbmodel.get("animations");
+        if (animations != null) {
+            for (Object animObj : animations) {
+                Map<?, ?> anim = (Map<?, ?>) animObj;
+                Map<?, ?> animators = (Map<?, ?>) anim.get("animators");
+                if (animators == null) continue;
+                for (Map.Entry<?, ?> entry : animators.entrySet()) {
+                    String uuid = (String) entry.getKey();
+                    Map<?, ?> animator = (Map<?, ?>) entry.getValue();
+                    String name = (String) animator.get("name");
+                    if (uuid != null && name != null && !uuidToName.containsKey(uuid)) {
+                        uuidToName.put(uuid, name);
+                    }
+                }
+            }
+        }
+
         // Build bones list by traversing outliner recursively
         List<JsonObject> bones = new ArrayList<>();
         List<?> outliner = (List<?>) bbmodel.get("outliner");
         if (outliner != null) {
-            traverseOutliner(outliner, null, elementMap, bones, uScale, vScale, atlasSlotHeight);
+            traverseOutliner(outliner, null, elementMap, bones, uuidToName, uuidToGroup, uScale, vScale, atlasSlotHeight);
         }
 
         if (bones.size() > BEDROCK_BONE_WARN_THRESHOLD) {
@@ -102,11 +135,30 @@ public class BedrockGeometryGenerator {
     private static void traverseOutliner(List<?> items, String parentName,
                                           Map<String, Map<?, ?>> elementMap,
                                           List<JsonObject> bones,
+                                          Map<String, String> uuidToName,
+                                          Map<String, Map<?, ?>> uuidToGroup,
                                           double uScale, double vScale, int atlasSlotHeight) {
         for (Object item : items) {
             if (item instanceof Map<?, ?> group) {
-                String boneName = (String) group.get("name");
-                if (boneName == null) continue;
+                String groupUuid = (String) group.get("uuid");
+
+                // For v5 Blockbench format, full bone data is in the "groups" array keyed by UUID.
+                // Merge: prefer data from uuidToGroup when available (has correct origin/rotation).
+                Map<?, ?> fullGroup = (groupUuid != null && uuidToGroup.containsKey(groupUuid))
+                        ? uuidToGroup.get(groupUuid)
+                        : group;
+
+                String boneName = (String) fullGroup.get("name");
+                if (boneName == null) {
+                    // FMM NPC models: bone name is stored in animations' animators, keyed by UUID
+                    if (groupUuid != null) boneName = uuidToName.get(groupUuid);
+                }
+                if (boneName == null) {
+                    // Still no name: transparent structural group — recurse into children with same parent
+                    List<?> ch = (List<?>) group.get("children");
+                    if (ch != null) traverseOutliner(ch, parentName, elementMap, bones, uuidToName, uuidToGroup, uScale, vScale, atlasSlotHeight);
+                    continue;
+                }
                 if (shouldSkip(boneName)) continue;
 
                 String safeName = safeBoneName(boneName);
@@ -115,8 +167,8 @@ public class BedrockGeometryGenerator {
                 bone.addProperty("name", safeName);
                 if (parentName != null) bone.addProperty("parent", parentName);
 
-                // Pivot point from bone origin
-                List<?> origin = (List<?>) group.get("origin");
+                // Pivot point: prefer fullGroup (v5 groups array has correct origin)
+                List<?> origin = (List<?>) fullGroup.get("origin");
                 if (origin != null && origin.size() == 3) {
                     bone.add("pivot", toJsonArray(
                             toDouble(origin.get(0)),
@@ -126,8 +178,8 @@ public class BedrockGeometryGenerator {
                     bone.add("pivot", toJsonArray(0, 0, 0));
                 }
 
-                // Bone rotation
-                List<?> rotation = (List<?>) group.get("rotation");
+                // Bone rotation: prefer fullGroup
+                List<?> rotation = (List<?>) fullGroup.get("rotation");
                 if (rotation != null && rotation.size() == 3) {
                     double rx = toDouble(rotation.get(0));
                     double ry = toDouble(rotation.get(1));
@@ -137,7 +189,7 @@ public class BedrockGeometryGenerator {
                     }
                 }
 
-                // Collect cubes from this bone's children
+                // Collect cubes from this bone's children (outliner group has the live children list)
                 List<?> children = (List<?>) group.get("children");
                 if (children != null) {
                     JsonArray cubesArray = new JsonArray();
@@ -158,7 +210,7 @@ public class BedrockGeometryGenerator {
                     bones.add(bone);
 
                     // Recurse into child bone groups
-                    traverseOutliner(children, safeName, elementMap, bones, uScale, vScale, atlasSlotHeight);
+                    traverseOutliner(children, safeName, elementMap, bones, uuidToName, uuidToGroup, uScale, vScale, atlasSlotHeight);
                 } else {
                     bones.add(bone);
                 }

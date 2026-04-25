@@ -50,7 +50,7 @@ public class ViewerManager implements Listener {
         Bukkit.getScheduler().runTaskLater(FMMBedrockBridge.getInstance(), () -> {
             if (!player.isOnline()) return;
             readyPlayers.add(player);
-            log.info("[BRIDGE] Bedrock player " + player.getName() + " is now ready");
+            log.fine("[BRIDGE] Bedrock player " + player.getName() + " is now ready");
             if (onPlayerReady != null) onPlayerReady.accept(player);
         }, 60L);
     }
