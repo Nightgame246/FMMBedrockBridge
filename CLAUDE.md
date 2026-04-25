@@ -302,6 +302,7 @@ Die Konvertierung muss folgendes leisten:
 - `sendCustomModelsToBedrockClients: false` in `plugins/FreeMinecraftModels/config.yml` **MUSS so bleiben**
 - Mit `true`: FMM aktiviert eigene (kaputte) Bedrock-Implementierung → Vanilla Wolf verschwindet komplett
 - Mit `false`: Bedrock-Spieler sehen das Basis-Mob (Wolf) — das ist der korrekte Ausgangszustand für unsere Bridge
+- **Bugfix in post-2.4.0 (Bone.java):** Die Bedingung `if (isBedrock && sendCustomModelsToBedrockClients)` war invertiert (`!` fehlte). Auf dem Server (FMM 2.4.0) ist der Bug noch aktiv — mit `false` hat FMM trotzdem Display Entities an Bedrock gesendet. Nach FMM-Update (nächste Release) verhält sich `false` korrekt: FMM überspringt Display Entities für Bedrock, unsere Bridge übernimmt vollständig.
 
 ### GeyserUtils — Downstream Listener Problem (gelöst)
 - `GeyserUtils.registerPacketListener()` wird in `onSessionJoin` mit 80ms Delay aufgerufen

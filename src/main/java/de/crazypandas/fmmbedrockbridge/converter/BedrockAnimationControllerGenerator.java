@@ -40,7 +40,6 @@ public class BedrockAnimationControllerGenerator {
 
         for (int i = 0; i < sorted.size(); i++) {
             String animName = sorted.get(i);
-            String animId = "animation.fmmbridge." + modelId + "." + animName;
             String controllerId = "controller.animation.fmmbridge." + modelId + "." + animName;
 
             int propertyIndex = i / 24;
@@ -49,7 +48,8 @@ public class BedrockAnimationControllerGenerator {
 
             String query = "math.mod(math.floor(query.property('" + NAMESPACE + ":anim" + propertyIndex + "') / " + bitmask + "), 2)";
 
-            JsonObject controller = createController(animId, query);
+            // Pass the short name (key in entity animations map), not the full animation ID
+            JsonObject controller = createController(animName, query);
             controllers.add(controllerId, controller);
         }
 
