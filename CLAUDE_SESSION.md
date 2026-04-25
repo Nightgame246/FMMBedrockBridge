@@ -219,3 +219,46 @@ Aus Review des Plans gegen Minecraft Superpowers Skills (`geyser-bridge-developm
 - Phase 6: Static Entities (Props/Möbel)
 - Phase 7: EliteMobs UI/UX
 - Phase 8: Polish
+
+---
+
+## Session: 2026-04-25
+
+### Abgeschlossen
+
+- **Referenz-Plugins aktualisiert (lokal):**
+  - `FreeMinecraftModels` auf Branch `build-bone-fix` gebaut — Cherry-pick nur Bone.java-Fix (post-2.4.0)
+    - Bug: `if (isBedrock && sendCustomModelsToBedrockClients)` war invertiert → mit `false` wurden trotzdem Display Entities an Bedrock gesendet
+    - Deployed als `FreeMinecraftModels-2.4.0-local-boneFix.jar` (originales `.jar` → `.jar1`)
+  - `EliteMobs` lokal auf 10.1.1 gebaut (System-Gradle 8.9, kein Linux-gradlew)
+    - Deployed als `EliteMobs-10.1.1-local.jar`
+
+- **Phase 5.6: Animation-Format-Fixes**
+  - **Root Cause #1 — Falscher Animations-Referenz-Typ im Controller:**
+    - `BedrockAnimationControllerGenerator`: States-`animations[]` nutzte volle ID (`"animation.fmmbridge.wolf.idle"`)
+    - Bedrock erwartet Short-Name aus der Entity-Definition `animations`-Map (`"idle"`)
+    - Fix: `createController(animName, query)` statt `createController(animId, query)`
+  - **Root Cause #2 — Stale Pack-Cache beim Bedrock-Client:**
+    - `manifest.json` wurde einmalig erstellt (April 2) und nie erneuert
+    - Bedrock cached Packs nach UUID → Client lud nie die neuen Dateien
+    - Fix: `writeManifest()` Guard (`if exists return`) entfernt in `ResourcePackBuilder` + `BedrockResourcePackGenerator` → jeder Proxy-Start generiert neue UUID
+  - **Animationen verifiziert:** Wolf idle/walk/attack laufen korrekt auf Bedrock-Client
+
+- **Debugging-Erkenntnisse (dokumentiert für zukünftige Sessions):**
+  - `query.property(...)` in Animation-Controllern funktioniert nur mit Short-Names aus dem Entity-Definition `animations`-Map
+  - GeyserUtils `entity.getPropertyManager()` arbeitet korrekt — Problem war nicht das Property-System
+  - Diagnostic: Controller temporär auf `initial_state: play` gesetzt um Pack-Cache-Problem zu isolieren
+
+### Bekannte Einschränkungen (Phase 8)
+- **Hitbox zu klein:** Bedrock-Hitbox = Java-Entity-Größe, aber Model rendert mit `scale: 1.6` → Hitbox wirkt zu klein
+- **Kein Hurt-Flash (rotes Flackern):** Damage-Metadata der Real-Entity wird supprimiert
+
+### Offene Themen
+- Phase 6: Static Entities (Props/Möbel)
+- Phase 7: EliteMobs UI/UX
+- Phase 8: Polish (Hitbox-Scale, Hurt-Flash, Partikel, Config, Performance)
+
+### Build
+```
+/usr/share/idea/plugins/maven/lib/maven3/bin/mvn clean package
+```
