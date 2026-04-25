@@ -88,8 +88,6 @@ public class ResourcePackBuilder {
     }
 
     private void writeManifest(Path manifestPath) throws IOException {
-        if (Files.exists(manifestPath)) return;
-
         Map<String, Object> root = new LinkedHashMap<>();
         root.put("format_version", 2);
 
@@ -119,20 +117,23 @@ public class ResourcePackBuilder {
         description.put("render_controllers", List.of("controller.render.fmmbridge_" + modelId));
         description.put("spawn_egg", Map.of("base_color", "#000000", "overlay_color", "#FFFFFF"));
 
-        if (!animationNames.isEmpty()) {
-            Map<String, String> animations = new LinkedHashMap<>();
-            List<String> controllerRefs = new ArrayList<>();
-            for (String animName : animationNames) {
-                animations.put(animName, "animation.fmmbridge." + modelId + "." + animName);
-                controllerRefs.add("controller.animation.fmmbridge." + modelId + "." + animName);
-            }
+        Map<String, String> animations = new LinkedHashMap<>();
+        List<String> animateList = new ArrayList<>();
+        for (String animName : animationNames) {
+            animations.put(animName, "animation.fmmbridge." + modelId + "." + animName);
+            animations.put(animName + "_ctrl", "controller.animation.fmmbridge." + modelId + "." + animName);
+            animateList.add(animName + "_ctrl");
+        }
+        if (!animations.isEmpty()) {
             description.put("animations", animations);
-            description.put("animation_controllers", controllerRefs);
         }
 
         Map<String, Object> scripts = new LinkedHashMap<>();
         if (modelScale != 1.0) {
             scripts.put("scale", String.valueOf(modelScale));
+        }
+        if (!animateList.isEmpty()) {
+            scripts.put("animate", animateList);
         }
         if (!scripts.isEmpty()) {
             description.put("scripts", scripts);

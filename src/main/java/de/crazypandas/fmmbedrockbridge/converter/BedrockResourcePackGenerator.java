@@ -90,8 +90,6 @@ public final class BedrockResourcePackGenerator {
     }
 
     private static void writeManifest(Path manifestPath) throws IOException {
-        if (Files.exists(manifestPath)) return;
-
         Map<String, Object> root = new LinkedHashMap<>();
         root.put("format_version", 2);
 
@@ -120,25 +118,26 @@ public final class BedrockResourcePackGenerator {
         description.put("render_controllers", List.of("controller.render.fmmbridge_" + modelId));
         description.put("spawn_egg", Map.of("base_color", "#000000", "overlay_color", "#FFFFFF"));
 
-        // Animation references
-        if (!animationNames.isEmpty()) {
-            Map<String, String> animations = new LinkedHashMap<>();
-            List<String> controllerRefs = new ArrayList<>();
-            for (String animName : animationNames) {
-                animations.put(animName, "animation.fmmbridge." + modelId + "." + animName);
-                controllerRefs.add("controller.animation.fmmbridge." + modelId + "." + animName);
-            }
+        // Animation references — controllers go into animations map with _ctrl alias,
+        // then scripts.animate lists the aliases so Bedrock evaluates them automatically.
+        // Raw strings in animation_controllers[] are invalid Bedrock format.
+        Map<String, String> animations = new LinkedHashMap<>();
+        List<String> animateList = new ArrayList<>();
+        for (String animName : animationNames) {
+            animations.put(animName, "animation.fmmbridge." + modelId + "." + animName);
+            animations.put(animName + "_ctrl", "controller.animation.fmmbridge." + modelId + "." + animName);
+            animateList.add(animName + "_ctrl");
+        }
+        if (!animations.isEmpty()) {
             description.put("animations", animations);
-
-            // Combine render controller + animation controllers
-            List<Object> allControllers = new ArrayList<>(controllerRefs);
-            description.put("animation_controllers", allControllers);
         }
 
-        // Scale to match FMM's Java-side visual size (0.4 × 4.0 = 1.6)
         Map<String, Object> scripts = new LinkedHashMap<>();
         if (modelScale != 1.0) {
             scripts.put("scale", String.valueOf(modelScale));
+        }
+        if (!animateList.isEmpty()) {
+            scripts.put("animate", animateList);
         }
         if (!scripts.isEmpty()) {
             description.put("scripts", scripts);
