@@ -49,9 +49,10 @@ FMM spawns DynamicEntity (wraps LivingEntity)
 | 5 | Animation conversion + runtime sync (idle, walk, attack, death) | Done |
 | 5.1 | StackOverflow fix: move property registration to startup | Done |
 | 5.5 | Code modularization (PacketInterceptor, ViewerManager, ResourcePackBuilder, EntityRegistrar, DownstreamMonitor) | Done |
+| 5.6 | Animation format fixes: short names in controllers, new UUID per pack build | Done |
 | 6 | Static Entities (Props/Furniture — no underlying mob) | Planned |
 | 7 | EliteMobs UI/UX (BossBar, nametag improvements, GUIs) | Planned |
-| 8 | Polish: particles, config, performance, production-readiness | Planned |
+| 8 | Polish: hitbox scale, hurt flash, particles, config, performance, production-readiness | Planned |
 
 ## Deployment
 
@@ -132,7 +133,8 @@ The Geyser Extension will:
 
 ### Known Issues
 
-- **Bedrock animation test pending:** Animation properties register at startup without StackOverflow — visual test on Bedrock client still needed.
+- **Hitbox zu klein:** Bedrock-Hitbox nutzt unveränderte Java-Entity-Dimensionen; das visuelle Model wird mit `scale: 1.6` gerendert → Hitbox wirkt kleiner (Phase 8).
+- **Kein Hurt-Flash:** Damage-Metadata der Real-Entity wird vollständig supprimiert; Bedrock zeigt keinen roten Blitz bei Treffer (Phase 8).
 
 ## Dependencies
 
