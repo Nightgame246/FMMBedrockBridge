@@ -23,6 +23,10 @@ public class BedrockGeometryGenerator {
 
     private static final List<String> SKIP_PREFIXES = List.of("b_", "hitbox", "tag_", "m_");
 
+    // FMM authors all models at 4x scale and renders Display Entities at scale 0.25.
+    // We must divide every position coordinate by this factor so Bedrock sees the correct size.
+    private static final double MODEL_SCALE = 4.0;
+
     /**
      * @param modelId          Model identifier
      * @param bbmodel          Parsed .bbmodel JSON
@@ -167,13 +171,13 @@ public class BedrockGeometryGenerator {
                 bone.addProperty("name", safeName);
                 if (parentName != null) bone.addProperty("parent", parentName);
 
-                // Pivot point: prefer fullGroup (v5 groups array has correct origin)
+                // Pivot point: divide by MODEL_SCALE to undo FMM's 4x authoring scale.
                 List<?> origin = (List<?>) fullGroup.get("origin");
                 if (origin != null && origin.size() == 3) {
                     bone.add("pivot", toJsonArray(
-                            toDouble(origin.get(0)),
-                            toDouble(origin.get(1)),
-                            toDouble(origin.get(2))));
+                            toDouble(origin.get(0)) / MODEL_SCALE,
+                            toDouble(origin.get(1)) / MODEL_SCALE,
+                            toDouble(origin.get(2)) / MODEL_SCALE));
                 } else {
                     bone.add("pivot", toJsonArray(0, 0, 0));
                 }
@@ -223,17 +227,18 @@ public class BedrockGeometryGenerator {
         List<?> toList = (List<?>) element.get("to");
         if (fromList == null || toList == null) return null;
 
-        double fromX = toDouble(fromList.get(0));
-        double fromY = toDouble(fromList.get(1));
-        double fromZ = toDouble(fromList.get(2));
-        double toX = toDouble(toList.get(0));
-        double toY = toDouble(toList.get(1));
-        double toZ = toDouble(toList.get(2));
+        // Divide by MODEL_SCALE to undo FMM's 4x authoring scale.
+        double fromX = toDouble(fromList.get(0)) / MODEL_SCALE;
+        double fromY = toDouble(fromList.get(1)) / MODEL_SCALE;
+        double fromZ = toDouble(fromList.get(2)) / MODEL_SCALE;
+        double toX = toDouble(toList.get(0)) / MODEL_SCALE;
+        double toY = toDouble(toList.get(1)) / MODEL_SCALE;
+        double toZ = toDouble(toList.get(2)) / MODEL_SCALE;
 
-        // Apply inflate if present
+        // Apply inflate if present (also in model-pixel space, so scale it too).
         double inflate = 0;
         if (element.get("inflate") != null) {
-            inflate = toDouble(element.get("inflate"));
+            inflate = toDouble(element.get("inflate")) / MODEL_SCALE;
         }
         fromX -= inflate; fromY -= inflate; fromZ -= inflate;
         toX += inflate; toY += inflate; toZ += inflate;
@@ -246,7 +251,7 @@ public class BedrockGeometryGenerator {
         cube.add("origin", toJsonArray(fromX, fromY, fromZ));
         cube.add("size", toJsonArray(sizeX, sizeY, sizeZ));
 
-        // Cube pivot + rotation
+        // Cube pivot + rotation (pivot in model-pixel space → scale; rotation in degrees → don't scale).
         List<?> cubeOrigin = (List<?>) element.get("origin");
         List<?> cubeRotation = (List<?>) element.get("rotation");
         if (cubeOrigin != null && cubeRotation != null && cubeRotation.size() == 3) {
@@ -255,9 +260,9 @@ public class BedrockGeometryGenerator {
             double rz = toDouble(cubeRotation.get(2));
             if (rx != 0 || ry != 0 || rz != 0) {
                 cube.add("pivot", toJsonArray(
-                        toDouble(cubeOrigin.get(0)),
-                        toDouble(cubeOrigin.get(1)),
-                        toDouble(cubeOrigin.get(2))));
+                        toDouble(cubeOrigin.get(0)) / MODEL_SCALE,
+                        toDouble(cubeOrigin.get(1)) / MODEL_SCALE,
+                        toDouble(cubeOrigin.get(2)) / MODEL_SCALE));
                 cube.add("rotation", toJsonArray(rx, ry, rz));
             }
         }

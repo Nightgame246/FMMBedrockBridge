@@ -18,6 +18,10 @@ public class BedrockAnimationConverter {
 
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
 
+    // FMM authors models at 4x scale; position keyframes are in the same pixel space and must be scaled down.
+    // Rotation (degrees) and scale (multiplier) channels are unaffected.
+    private static final double MODEL_SCALE = 4.0;
+
     /**
      * Converts all animations from a .bbmodel to Bedrock .animation.json.
      *
@@ -174,6 +178,15 @@ public class BedrockAnimationConverter {
             double x = toDouble(point.get("x"));
             double y = toDouble(point.get("y"));
             double z = toDouble(point.get("z"));
+
+            // Position offsets are in model-pixel space — divide by MODEL_SCALE like geometry coordinates.
+            // Rotation (degrees) and scale (multiplier) channels do not need this adjustment.
+            String channelForScale = (String) kf.get("channel");
+            if ("position".equals(channelForScale)) {
+                x /= MODEL_SCALE;
+                y /= MODEL_SCALE;
+                z /= MODEL_SCALE;
+            }
 
             String timeKey = formatTime(time);
 
