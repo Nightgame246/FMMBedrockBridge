@@ -344,3 +344,54 @@ Bone-Pivots sollten jetzt aus dem `groups`-Array kommen — unklar ob sie tatsä
 ```
 /usr/share/idea/plugins/maven/lib/maven3/bin/mvn clean package
 ```
+
+---
+
+## Session: 2026-04-30
+
+### Abgeschlossen
+
+- **FMM 4x-Skalierungs-Fix (Root Cause der NPC-Verzerrung):**
+  - Ursache gefunden: FMMs `BoneBlueprint.class` enthält `MODEL_SCALE = 4.0f` (bestätigt per Decompile aus FreeMinecraftModels-2.4.0.jar)
+  - FMM authoriert alle .bbmodel-Modelle mit 4x vergrößerten Koordinaten; Display Entities werden mit Scale 0.25 gerendert
+  - Unser Converter hat die rohen 4x-Koordinaten direkt ans Bedrock-Format übergeben → Bones/Cubes erschienen 4x zu groß ("aufgeblasen")
+  - Mit `modelScale=1.6` war es sogar **6.4x** die richtige Größe
+
+- **`BedrockGeometryGenerator` Fix:**
+  - `MODEL_SCALE = 4.0` Konstante hinzugefügt
+  - Alle Positionskoordinaten werden durch 4 geteilt: Bone-Pivot (origin), Cube from/to, Cube-Rotationspivot, inflate
+  - Rotationswinkel (Grad) und UV-Koordinaten bleiben unverändert
+
+- **`BedrockAnimationConverter` Fix:**
+  - `MODEL_SCALE = 4.0` ebenfalls hinzugefügt
+  - `position`-Keyframes werden durch 4 geteilt (gleicher Pixelraum wie Geometrie)
+  - `rotation`- und `scale`-Channels bleiben unverändert
+
+- **Default `modelScale` korrigiert:** `1.6` → `1.0`
+  - Nach dem Koordinaten-Fix entspricht Scale 1.0 exakt FMMs eigenem Rendering (Display Entity scale=0.25)
+  - Admins können über `converter.model-scale` in config.yml anpassen
+
+- **Deployment-Memory korrigiert:**
+  - `fmmbridgeextension/input/` als korrekten Proxy-Pfad in Memory gespeichert
+  - `packs/generated_pack.zip` (alte Datei vom 29. März) gelöscht — Extension registriert Pack selbst via GeyserDefineResourcePacksEvent
+  - Beide rsync-Pfade (geyserutils/skins + fmmbridgeextension/input) dokumentiert
+
+- **Proxy-Start verifiziert:**
+  - Alle 188 Modelle mit `scale=1.0` registriert (vorher `scale=1.6`)
+  - `Generated Bedrock resource pack at fmmbridgeextension/generated-pack.zip` ✅
+  - Keine Fehler beim Start
+
+### Noch zu testen
+- NPC-Modelle (em_ag_xxx) auf Bedrock-Client: erscheinen sie jetzt korrekt skaliert statt aufgeblasen?
+- Boss-Modelle (01_em_wolf etc.): erscheinen sie noch korrekt, oder zu klein durch Scale-Änderung?
+- Falls Boss-Modelle zu klein: `converter.model-scale` in config.yml anpassen und neu converten
+
+### Offene Themen
+- Visuelles Testing mit Bedrock-Client (beim nächsten Login)
+- Phase 7: EliteMobs UI/UX
+- Phase 8: Polish (Hitbox-Scale, Hurt-Flash, Partikel, Config, Performance)
+
+### Build
+```
+/usr/share/idea/plugins/maven/lib/maven3/bin/mvn clean package
+```

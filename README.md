@@ -52,7 +52,8 @@ FMM spawns DynamicEntity (wraps LivingEntity)
 | 5.6 | Animation format fixes: short names in controllers, new UUID per pack build | Done |
 | 6 | Static Entities (Props/Furniture — no underlying mob) | Done |
 | 6.1 | Console spam fix + `/fmmbridge debug` command | Done |
-| 6.2 | Blockbench v5 NPC model support (bone names + pivots from groups array) | In Progress |
+| 6.2 | Blockbench v5 NPC model support (bone names + pivots from groups array) | Done |
+| 6.3 | FMM 4x coordinate scale fix — all geometry/animation coordinates divided by MODEL_SCALE=4.0 | Done |
 | 7 | EliteMobs UI/UX (BossBar, nametag improvements, GUIs) | Planned |
 | 8 | Polish: hitbox scale, hurt flash, particles, config, performance, production-readiness | Planned |
 

@@ -38,7 +38,8 @@ public class BedrockModelConverter {
     public BedrockModelConverter() {
         String configPath = FMMBedrockBridge.getInstance().getConfig().getString("converter.output-path", "bedrock-skins");
         this.outputBase = new File(FMMBedrockBridge.getInstance().getDataFolder(), configPath);
-        this.modelScale = FMMBedrockBridge.getInstance().getConfig().getDouble("converter.model-scale", 1.6);
+        // 1.0 is correct after geometry coordinates are divided by MODEL_SCALE (4.0).
+        this.modelScale = FMMBedrockBridge.getInstance().getConfig().getDouble("converter.model-scale", 1.0);
     }
 
     /**
