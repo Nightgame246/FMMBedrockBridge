@@ -23,9 +23,9 @@ public class BedrockGeometryGenerator {
 
     private static final List<String> SKIP_PREFIXES = List.of("b_", "hitbox", "tag_", "m_");
 
-    // FMM authors all models at 4x scale and renders Display Entities at scale 0.25.
-    // We must divide every position coordinate by this factor so Bedrock sees the correct size.
-    private static final double MODEL_SCALE = 4.0;
+    // FMM internally multiplies bbmodel coordinates by MODEL_SCALE=4.0 and compensates with
+    // Display Entity scale=0.25, netting a 1:1 ratio. The .bbmodel coordinates are therefore
+    // already the correct Bedrock geometry coordinates — no division needed.
 
     /**
      * @param modelId          Model identifier
@@ -87,7 +87,11 @@ public class BedrockGeometryGenerator {
             }
         }
 
-        // Build bones list by traversing outliner recursively
+        // No root bone with [0,180,0] — Bedrock animations on individual bones can override
+        // parent rotation, leaving animated bones (head, arms) out of phase with non-animated
+        // bones. Instead, the 180° flip is baked into each cube's UV mapping in buildCube
+        // (north↔south, east↔west swap). The geometry sits at its natural orientation, so
+        // animations and bone hierarchy work normally with no inheritance issues.
         List<JsonObject> bones = new ArrayList<>();
         List<?> outliner = (List<?>) bbmodel.get("outliner");
         if (outliner != null) {
@@ -171,13 +175,12 @@ public class BedrockGeometryGenerator {
                 bone.addProperty("name", safeName);
                 if (parentName != null) bone.addProperty("parent", parentName);
 
-                // Pivot point: divide by MODEL_SCALE to undo FMM's 4x authoring scale.
                 List<?> origin = (List<?>) fullGroup.get("origin");
                 if (origin != null && origin.size() == 3) {
                     bone.add("pivot", toJsonArray(
-                            toDouble(origin.get(0)) / MODEL_SCALE,
-                            toDouble(origin.get(1)) / MODEL_SCALE,
-                            toDouble(origin.get(2)) / MODEL_SCALE));
+                            toDouble(origin.get(0)),
+                            toDouble(origin.get(1)),
+                            toDouble(origin.get(2))));
                 } else {
                     bone.add("pivot", toJsonArray(0, 0, 0));
                 }
@@ -227,18 +230,16 @@ public class BedrockGeometryGenerator {
         List<?> toList = (List<?>) element.get("to");
         if (fromList == null || toList == null) return null;
 
-        // Divide by MODEL_SCALE to undo FMM's 4x authoring scale.
-        double fromX = toDouble(fromList.get(0)) / MODEL_SCALE;
-        double fromY = toDouble(fromList.get(1)) / MODEL_SCALE;
-        double fromZ = toDouble(fromList.get(2)) / MODEL_SCALE;
-        double toX = toDouble(toList.get(0)) / MODEL_SCALE;
-        double toY = toDouble(toList.get(1)) / MODEL_SCALE;
-        double toZ = toDouble(toList.get(2)) / MODEL_SCALE;
+        double fromX = toDouble(fromList.get(0));
+        double fromY = toDouble(fromList.get(1));
+        double fromZ = toDouble(fromList.get(2));
+        double toX = toDouble(toList.get(0));
+        double toY = toDouble(toList.get(1));
+        double toZ = toDouble(toList.get(2));
 
-        // Apply inflate if present (also in model-pixel space, so scale it too).
         double inflate = 0;
         if (element.get("inflate") != null) {
-            inflate = toDouble(element.get("inflate")) / MODEL_SCALE;
+            inflate = toDouble(element.get("inflate"));
         }
         fromX -= inflate; fromY -= inflate; fromZ -= inflate;
         toX += inflate; toY += inflate; toZ += inflate;
@@ -251,7 +252,6 @@ public class BedrockGeometryGenerator {
         cube.add("origin", toJsonArray(fromX, fromY, fromZ));
         cube.add("size", toJsonArray(sizeX, sizeY, sizeZ));
 
-        // Cube pivot + rotation (pivot in model-pixel space → scale; rotation in degrees → don't scale).
         List<?> cubeOrigin = (List<?>) element.get("origin");
         List<?> cubeRotation = (List<?>) element.get("rotation");
         if (cubeOrigin != null && cubeRotation != null && cubeRotation.size() == 3) {
@@ -260,19 +260,29 @@ public class BedrockGeometryGenerator {
             double rz = toDouble(cubeRotation.get(2));
             if (rx != 0 || ry != 0 || rz != 0) {
                 cube.add("pivot", toJsonArray(
-                        toDouble(cubeOrigin.get(0)) / MODEL_SCALE,
-                        toDouble(cubeOrigin.get(1)) / MODEL_SCALE,
-                        toDouble(cubeOrigin.get(2)) / MODEL_SCALE));
+                        toDouble(cubeOrigin.get(0)),
+                        toDouble(cubeOrigin.get(1)),
+                        toDouble(cubeOrigin.get(2))));
                 cube.add("rotation", toJsonArray(rx, ry, rz));
             }
         }
 
-        // UV mapping: per-face with texture atlas offset
+        // UV mapping: per-face with texture atlas offset.
+        // FACE SWAP for 180° Y orientation: .bbmodel files follow the Blockbench convention
+        // where the model's "front" texture (face, chest, etc.) is on the NORTH face (cube
+        // local -Z). Bedrock entities render with their geometric -Z facing AWAY from the
+        // player, so a directly-translated NORTH face would appear on the BACK of the entity.
+        // Swap NORTH↔SOUTH and EAST↔WEST so the front textures end up on the entity's visible
+        // front side. Up/down faces stay unchanged (rotation around Y doesn't move them).
         Map<?, ?> faces = (Map<?, ?>) element.get("faces");
         if (faces != null) {
             JsonObject uvObj = new JsonObject();
-            for (String face : new String[]{"north", "south", "east", "west", "up", "down"}) {
-                Map<?, ?> faceData = (Map<?, ?>) faces.get(face);
+            String[] sourceFaces = {"south", "north", "west", "east", "up", "down"};
+            String[] targetFaces = {"north", "south", "east", "west", "up", "down"};
+            for (int i = 0; i < sourceFaces.length; i++) {
+                String sourceFace = sourceFaces[i];
+                String targetFace = targetFaces[i];
+                Map<?, ?> faceData = (Map<?, ?>) faces.get(sourceFace);
                 if (faceData == null) continue;
                 List<?> uv = (List<?>) faceData.get("uv");
                 if (uv == null || uv.size() < 4) continue;
@@ -305,7 +315,7 @@ public class BedrockGeometryGenerator {
                 JsonObject faceUV = new JsonObject();
                 faceUV.add("uv", toIntJsonArray(scaledU1, scaledV1 + vOffset));
                 faceUV.add("uv_size", toIntJsonArray(scaledU2 - scaledU1, scaledV2 - scaledV1));
-                uvObj.add(face, faceUV);
+                uvObj.add(targetFace, faceUV);
             }
             cube.add("uv", uvObj);
         }
@@ -361,7 +371,13 @@ public class BedrockGeometryGenerator {
     }
 
     private static String safeBoneName(String name) {
-        return name.replaceAll("[^a-zA-Z0-9_]", "_").toLowerCase();
+        String safe = name.replaceAll("[^a-zA-Z0-9_]", "_").toLowerCase();
+        // Bedrock applies head_yaw rotation to bones whose name CONTAINS "head" — substring
+        // match, not exact. This overrides the bind-pose rotation inherited from fmmbridge_root,
+        // leaving the head 180° out of phase with the body. Rename to a name with no "head"
+        // substring so Bedrock treats it as a regular bone.
+        if (safe.contains("head")) return safe.replace("head", "noggin");
+        return safe;
     }
 
     private static double toDouble(Object o) {

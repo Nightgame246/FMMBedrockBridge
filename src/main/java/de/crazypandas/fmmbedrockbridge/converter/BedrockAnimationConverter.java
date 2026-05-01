@@ -18,9 +18,7 @@ public class BedrockAnimationConverter {
 
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
 
-    // FMM authors models at 4x scale; position keyframes are in the same pixel space and must be scaled down.
-    // Rotation (degrees) and scale (multiplier) channels are unaffected.
-    private static final double MODEL_SCALE = 4.0;
+    // .bbmodel position keyframes are in the same coordinate space as the geometry — used directly.
 
     /**
      * Converts all animations from a .bbmodel to Bedrock .animation.json.
@@ -112,7 +110,7 @@ public class BedrockAnimationConverter {
             // Skip non-bone animators (effects, etc.) but include null_objects for now
             if (type != null && !type.equals("bone") && !type.equals("null_object")) continue;
 
-            String safeBoneName = boneName.replaceAll("[^a-zA-Z0-9_]", "_").toLowerCase();
+            String safeBoneName = safeBoneName(boneName);
 
             List<?> keyframes = (List<?>) animator.get("keyframes");
             if (keyframes == null || keyframes.isEmpty()) continue;
@@ -179,14 +177,6 @@ public class BedrockAnimationConverter {
             double y = toDouble(point.get("y"));
             double z = toDouble(point.get("z"));
 
-            // Position offsets are in model-pixel space — divide by MODEL_SCALE like geometry coordinates.
-            // Rotation (degrees) and scale (multiplier) channels do not need this adjustment.
-            String channelForScale = (String) kf.get("channel");
-            if ("position".equals(channelForScale)) {
-                x /= MODEL_SCALE;
-                y /= MODEL_SCALE;
-                z /= MODEL_SCALE;
-            }
 
             String timeKey = formatTime(time);
 
@@ -203,6 +193,18 @@ public class BedrockAnimationConverter {
         }
 
         return timeline;
+    }
+
+    /**
+     * Must match the renaming rule in BedrockGeometryGenerator.safeBoneName so animation
+     * keyframes target the same bone names that appear in the geometry. Any bone whose name
+     * contains "head" is renamed (head → noggin) to escape Bedrock's hardcoded head_yaw
+     * auto-rotation that triggers on substring match.
+     */
+    private static String safeBoneName(String name) {
+        String safe = name.replaceAll("[^a-zA-Z0-9_]", "_").toLowerCase();
+        if (safe.contains("head")) return safe.replace("head", "noggin");
+        return safe;
     }
 
     private static String formatTime(double time) {

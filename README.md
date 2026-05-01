@@ -54,8 +54,9 @@ FMM spawns DynamicEntity (wraps LivingEntity)
 | 6.1 | Console spam fix + `/fmmbridge debug` command | Done |
 | 6.2 | Blockbench v5 NPC model support (bone names + pivots from groups array) | Done |
 | 6.3 | FMM 4x coordinate scale fix — all geometry/animation coordinates divided by MODEL_SCALE=4.0 | Done |
+| 6.4 | Head/Body orientation fix — UV face swap + entity yaw correction (replaces broken root-bone approach) | Done |
 | 7 | EliteMobs UI/UX (BossBar, nametag improvements, GUIs) | Planned |
-| 8 | Polish: hitbox scale, hurt flash, particles, config, performance, production-readiness | Planned |
+| 8 | Polish: hitbox scale, hurt flash, particles, config, performance, animation X/Z mirror for movement, production-readiness | Planned |
 
 ## Deployment
 
@@ -138,7 +139,7 @@ The Geyser Extension will:
 
 ### Known Issues
 
-- **NPC-Modelle visuell verzerrt (In Progress):** FMM NPC-Models (Blockbench v5 Format) haben alle Bone-Pivots bei 0,0,0. Fix deployed, Debugging läuft (Phase 6.2).
+- **Animationen mit Bewegung in X/Z laufen rückwärts (Phase 8):** Die UV-Face-Swap aus Phase 6.4 dreht das Modell visuell 180°, aber Animation-Keyframes bleiben im ursprünglichen Koordinatensystem. Boss-Animationen, die den Wolf nach vorne schnappen lassen, verschieben ihn jetzt visuell rückwärts. Fix: Position- und Rotation-X/Z-Werte in `BedrockAnimationConverter` negieren.
 - **Hitbox zu klein:** Bedrock-Hitbox nutzt unveränderte Java-Entity-Dimensionen; das visuelle Model wird mit `scale: 1.6` gerendert → Hitbox wirkt kleiner (Phase 8).
 - **Kein Hurt-Flash:** Damage-Metadata der Real-Entity wird vollständig supprimiert; Bedrock zeigt keinen roten Blitz bei Treffer (Phase 8).
 

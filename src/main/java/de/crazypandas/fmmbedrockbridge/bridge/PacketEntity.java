@@ -20,11 +20,15 @@ import java.util.*;
 import java.util.concurrent.ThreadLocalRandom;
 
 /**
- * A fake packet-only entity (PIG) used to trigger Bedrock custom entity replacement.
+ * A fake packet-only entity (ARMOR_STAND) used to trigger Bedrock custom entity replacement.
  * The entity exists only as packets — no server-side entity is created.
  *
  * GeyserUtils intercepts the spawn packet for this fake entity ID,
  * finds it in the CUSTOM_ENTITIES cache, and replaces it with the Bedrock custom entity.
+ *
+ * ARMOR_STAND is used because it has no client-side AI (no head-tracking, no body-tracking).
+ * The 180° orientation correction is handled by the virtual fmmbridge_root bone in the geometry
+ * (rotation=[0,180,0]), so entity yaw is sent as-is without any correction here.
  */
 public class PacketEntity {
 
@@ -37,7 +41,7 @@ public class PacketEntity {
     public PacketEntity(Location location) {
         this.id = ThreadLocalRandom.current().nextInt(300_000_000, 400_000_000);
         this.uuid = UUID.randomUUID();
-        this.type = EntityTypes.PIG;
+        this.type = EntityTypes.ARMOR_STAND;
         this.location = location.clone();
     }
 
@@ -73,10 +77,17 @@ public class PacketEntity {
     }
 
     public void sendSpawnPacket(Collection<Player> players) {
+        // The geometry has UV faces swapped (north↔south, east↔west) so the model's "front"
+        // textures end up on the SOUTH face. Bedrock then needs the entity rotated 180° so
+        // that face direction matches the configured NPC yaw. body_yaw and head_yaw are kept
+        // equal to prevent any body-tracking from the underlying ARMOR_STAND.
+        float correctedYaw = location.getYaw() + 180f;
+        Location spawnLoc = location.clone();
+        spawnLoc.setYaw(correctedYaw);
         WrapperPlayServerSpawnEntity packet = new WrapperPlayServerSpawnEntity(
                 id, uuid, type,
-                SpigotConversionUtil.fromBukkitLocation(location),
-                location.getYaw(), 0, null
+                SpigotConversionUtil.fromBukkitLocation(spawnLoc),
+                correctedYaw, 0, null
         );
         for (Player player : players) {
             PacketEvents.getAPI().getPlayerManager().sendPacket(player, packet);
@@ -91,7 +102,7 @@ public class PacketEntity {
         EntityPositionData data = new EntityPositionData(
                 SpigotConversionUtil.fromBukkitLocation(location).getPosition(),
                 Vector3d.zero(),
-                location.getYaw(),
+                location.getYaw() + 180f,
                 location.getPitch()
         );
 
