@@ -59,8 +59,10 @@ public class ResourcePackBuilder {
                     packDir.resolve("animations").resolve(modelId + ".animation.json"),
                     StandardCopyOption.REPLACE_EXISTING);
             Files.createDirectories(packDir.resolve("animation_controllers"));
+            // Use just modelId + ".json" (not ".animation_controllers.json") — Bedrock rejects
+            // paths over 80 chars, and the longer suffix pushed many model names over the limit.
             Files.copy(controllerPath,
-                    packDir.resolve("animation_controllers").resolve(modelId + ".animation_controllers.json"),
+                    packDir.resolve("animation_controllers").resolve(modelId + ".json"),
                     StandardCopyOption.REPLACE_EXISTING);
             extension.logger().info("FMMBridge: " + modelId + " has " + animationNames.size() + " animations");
         }

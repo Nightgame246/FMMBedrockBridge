@@ -35,6 +35,14 @@ public class FMMBridgeExtension implements Extension {
 
         try {
             Files.createDirectories(inputDir);
+            // Clean the pack directory on every start so stale files from previous builds
+            // (e.g. old "*.animation_controllers.json" entries) don't end up in the new zip.
+            if (Files.exists(packDir)) {
+                try (var walk = Files.walk(packDir)) {
+                    walk.sorted(java.util.Comparator.reverseOrder())
+                        .forEach(p -> { try { Files.delete(p); } catch (java.io.IOException ignored) {} });
+                }
+            }
             Files.createDirectories(packDir);
 
             ResourcePackBuilder packBuilder = new ResourcePackBuilder(packDir, this);

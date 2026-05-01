@@ -395,3 +395,39 @@ Bone-Pivots sollten jetzt aus dem `groups`-Array kommen — unklar ob sie tatsä
 ```
 /usr/share/idea/plugins/maven/lib/maven3/bin/mvn clean package
 ```
+
+---
+
+## Session: 2026-05-01
+
+### Problem
+NPC-Modelle (z.B. EliteMobs Arena Master) hatten auf Bedrock-Clients eine Orientierungs-Inkonsistenz: Body und Head zeigten in unterschiedliche Richtungen — meistens war Body korrekt ausgerichtet, aber der Kopf war 180° verdreht (Hinterkopf zum Spieler, Gesicht weg). Tritt sowohl bei dynamischen als auch statischen Entities auf.
+
+### Root Cause
+Bedrock-Client-Rendering: **Animationen auf einzelnen Bones überschreiben die Parent-Rotation** des Root-Bones (oder verhalten sich anders als bei nicht-animierten Bones). Mit unserem alten Setup (virtueller `fmmbridge_root` Bone mit `[0,180,0]` Rotation) bekamen statische Bones (`waist`, `body`) die 180°-Drehung über Vererbung, animierte Bones (`head`, `arms`, `legs`) aber nicht. Body sah richtig aus (zufällig + symmetrische Texturen), Head fiel sofort als 180° verkehrt auf.
+
+Mehrere Workaround-Hypothesen wurden getestet und als falsch verworfen:
+- Bone-Rename `head`→`h_head`/`noggin` (kein Bedrock-Substring-Match auf "head")
+- Pig-Entity-Body-Tracking (war ARMOR_STAND, kein Tracking)
+- Cube-Rotation [0, 180, 0] (komponiert mit Animationen schwierig)
+
+### Lösung
+Komplett anderer Ansatz: **UV-Face-Swap in der Geometrie + `+180°` Yaw-Korrektur am Entity-Spawn**.
+
+- **`BedrockGeometryGenerator.buildCube`:** UV-Faces werden bei der Generierung getauscht — `north↔south`, `east↔west`. Front-Texturen aus Blockbench (NORTH face) landen auf der SOUTH face. Up/down bleiben gleich (180° um Y bewegt sie nicht).
+- **`BedrockGeometryGenerator.generate`:** Virtueller `fmmbridge_root` Bone entfernt. Top-level Bones haben kein parent.
+- **`PacketEntity`:** `+180°` Yaw-Korrektur in `sendSpawnPacket` und `sendLocationPacket` zurück. Body- und Head-Yaw bleiben identisch (kein Body-Tracking).
+- Bone-Rename `head`→`h_head`/`noggin` wieder entfernt — wird nicht mehr gebraucht.
+
+### Warum der Ansatz robust ist
+- Keine Abhängigkeit von Bedrocks Bone-Hierarchie oder Animation-Override-Verhalten
+- Das gleiche Vorgehen wie GeyserModelEngine (deren Modelle haben Front-Texturen schon auf SOUTH face designed)
+- Funktioniert für alle Entity-Typen (Static + Dynamic), unabhängig von Animations-Komplexität
+
+### Bekannte Folge-Issue (Phase 8)
+Animation-Keyframes mit Position oder Rotation auf X/Z-Achse sind weiterhin im ursprünglichen Koordinatensystem. Folge: Boss-Animationen mit Bewegung (z.B. Wolf-Attack) sehen "rückwärts" aus. Fix für Phase 8: in `BedrockAnimationConverter` Position- und Rotation-X/Z-Werte negieren (Y-Werte unverändert, da 180°-Drehung um Y-Achse).
+
+### Build
+```
+/usr/share/idea/plugins/maven/lib/maven3/bin/mvn clean package
+```

@@ -82,16 +82,19 @@ public class FMMEntityData implements IBridgeEntityData {
         Bukkit.getScheduler().runTaskLater(FMMBedrockBridge.getInstance(), () -> {
             if (destroyed || !player.isOnline()) return;
             packetEntity.sendSpawnPacket(player);
-            // Use real entity's hitbox dimensions so Bedrock players can interact
             float hitboxHeight = (float) Math.max(realEntity.getHeight(), 0.5);
             float hitboxWidth = (float) Math.max(realEntity.getWidth(), 0.5);
             EntityUtils.sendCustomHitBox(player, packetEntity.getEntityId(), hitboxHeight, hitboxWidth);
-            // Send custom name so Bedrock players see the EliteMobs name, not the mob type
             sendNameToViewer(player);
-            // Send initial animation state (properties already registered at startup by Extension)
-            sendInitialAnimation(player);
             log.fine("[BRIDGE] Sent spawn packet + hitbox for " + bedrockEntityId
                     + " (fakeId=" + packetEntity.getEntityId() + ") to " + player.getName());
+
+            // Send animation property with a second delay: Bedrock must finish loading the entity
+            // and initializing its property system before it can process property updates.
+            Bukkit.getScheduler().runTaskLater(FMMBedrockBridge.getInstance(), () -> {
+                if (destroyed || !player.isOnline() || !viewers.contains(player)) return;
+                sendInitialAnimation(player);
+            }, 10L);
         }, 2L);
     }
 
@@ -154,7 +157,10 @@ public class FMMEntityData implements IBridgeEntityData {
         if (sortedAnimationNames == null || sortedAnimationNames.isEmpty()) return;
 
         String currentAnim = AnimationStateTracker.getCurrentAnimationName(modeledEntity);
-        if (currentAnim == null) return;
+        if (currentAnim == null) {
+            // Fallback for NPCs where FMM animation state is unavailable — start idle or first anim
+            currentAnim = sortedAnimationNames.contains("idle") ? "idle" : sortedAnimationNames.get(0);
+        }
 
         int animIndex = sortedAnimationNames.indexOf(currentAnim);
         if (animIndex < 0) return;
@@ -163,7 +169,8 @@ public class FMMEntityData implements IBridgeEntityData {
         String propertyId = "fmmbridge:anim" + bitmask[0];
         EntityUtils.sendIntProperty(player, packetEntity.getEntityId(), propertyId, bitmask[1]);
         lastAnimationName = currentAnim;
-        log.fine("[BRIDGE] Sent initial animation '" + currentAnim + "' (bitmask=" + bitmask[1] + ") for " + bedrockEntityId);
+        log.info("[BRIDGE] Sent initial animation '" + currentAnim + "' idx=" + animIndex
+                + " prop=" + propertyId + " val=" + bitmask[1] + " entity=" + bedrockEntityId);
     }
 
     /**
@@ -174,7 +181,7 @@ public class FMMEntityData implements IBridgeEntityData {
         if (sortedAnimationNames == null || sortedAnimationNames.isEmpty()) return;
 
         String currentAnim = AnimationStateTracker.getCurrentAnimationName(modeledEntity);
-        if (currentAnim == null) return;
+        if (currentAnim == null) return; // NPCs: syncAnimation skipped, initial state set by sendInitialAnimation
 
         // Only send update when state actually changes
         if (currentAnim.equals(lastAnimationName)) return;
