@@ -23,9 +23,16 @@ public final class NametagBuilder {
 
     public static Component build(Entity realEntity, ModeledEntity modeledEntity) {
         Component hpLine = buildHpLine(realEntity);
-        // Healthbar + name added in later tasks; for now return HP line only or empty
-        if (hpLine == null) return Component.empty();
-        return hpLine;
+        Component barLine = buildBarLine(realEntity);
+        Component nameLine = buildNameLine(realEntity, modeledEntity);
+
+        // Compose with newlines, skipping null lines so static entities still get a clean name.
+        Component out = null;
+        if (hpLine != null)   out = hpLine;
+        if (barLine != null)  out = out == null ? barLine  : out.append(Component.newline()).append(barLine);
+        if (nameLine != null) out = out == null ? nameLine : out.append(Component.newline()).append(nameLine);
+
+        return out != null ? out : Component.empty();
     }
 
     private static Component buildHpLine(Entity realEntity) {
@@ -79,5 +86,27 @@ public final class NametagBuilder {
 
         return Component.text(filledPart.toString(), filledColor)
                 .append(Component.text(emptyPart.toString(), NamedTextColor.DARK_GRAY));
+    }
+
+    /**
+     * Returns the bottom name line. Priority: real entity custom name (set by EliteMobs)
+     * → FMM display name → null (no line).
+     */
+    private static Component buildNameLine(Entity realEntity, ModeledEntity modeledEntity) {
+        if (realEntity != null) {
+            try {
+                Component name = realEntity.customName();
+                if (name != null) return name;
+            } catch (Throwable ignored) {}
+        }
+        if (modeledEntity != null) {
+            try {
+                String fmmName = modeledEntity.getDisplayName();
+                if (fmmName != null && !fmmName.isEmpty()) {
+                    return Component.text(fmmName);
+                }
+            } catch (Throwable ignored) {}
+        }
+        return null;
     }
 }
