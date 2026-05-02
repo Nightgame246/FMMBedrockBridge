@@ -431,3 +431,36 @@ Animation-Keyframes mit Position oder Rotation auf X/Z-Achse sind weiterhin im u
 ```
 /usr/share/idea/plugins/maven/lib/maven3/bin/mvn clean package
 ```
+
+---
+
+## Session: 2026-05-02 (Dependency Bump)
+
+### Abgeschlossen
+- **FMM 2.4.0 → 2.5.0:** Lokal in `~/.m2` installiert (kein Public-Maven-Release noch), pom.xml updated. Kein Code-Change in der Bridge nötig — `ModeledEntityManager` API unverändert. Exclusions für geshade'te transitive Deps (`MagmaCore`, `ResourcePackManager`, `EliteMobs`, VaultAPI, Lombok, spigot-api, Floodgate, Geyser, bstats, commons-io, gson) ergänzt — sonst will Maven nicht-existente `MagmaCore:2.2.0-SNAPSHOT` auflösen.
+- **EliteMobs 10.1.1 → 10.2.0:** Server-Plugin-Update (keine Maven-Dep). Native FMM↔EliteMobs-Integration ist neu in 2.5.0 aktiv: `Bridged EliteMobs dungeon locator into FreeMinecraftModels`.
+- **PacketEvents 2.11.2 → 2.12.1:** pom.xml + Server. API abwärtskompatibel — Bridge kompiliert ohne Anpassung. Wichtig: Maven-Repo enthält nur API-only JAR (148 KB), für Server muss der shaded JAR (5.1 MB) von Github Releases geholt werden.
+- **Geyser-Velocity b1107 → b1129:** Proxy. Kein Breaking-Change (Entity refactor pt2 war b1107, davor schon drauf). Relevante Bugfixes: b1109 (Text display offsets), b1113 (vehicle nametag) — beide für Phase 7.1b wichtig.
+- **floodgate b123 → b132 (Spigot)** + **b131 → b132 (Velocity).**
+- **Cleanup:** Doppelte `fmmbridgeextension.jar` (lowercase) auf Proxy entfernt — nur `FMMBridgeExtension.jar` bleibt aktiv.
+
+### Erkenntnisse
+- **boneFix-Patch ist in FMM 2.5.0 mainline:** Bytecode-Diff `Bone.class` zeigt 2.4.0 hatte `ifeq 39` (Bug — `if (bedrock && sendCustom) return;` invertiert), 2.5.0 hat `ifne 39` (korrekt — `if (bedrock && !sendCustom) return;`). Lokales `FreeMinecraftModels-local-2.4.0-boneFix.jar` ist obsolet.
+- **FMM 2.5.0 Packet-Refactor (`easyminecraftgoals/v26/packets/`) bricht unseren PacketSuppressor NICHT** — Bedrock-Test bestätigt: Custom Models werden weiterhin korrekt angezeigt, Animationen laufen, Hitbox passt.
+- **GeyserUtils NPE in `loadSkin`/`loadSkins`** ist pre-existing seit mindestens 1. Mai (564 NPE-Matches in alten Logs vor dem Update). Nicht durch das Update verursacht. Geyser läuft nach dem Crash weiter, Custom Items + `fmmbridge:*` Entity-Definitionen werden registriert. Skin-Cache von GeyserUtils ist tot, aber unsere Bridge-Pipeline ist davon nicht betroffen. Sollte später separat adressiert werden.
+- **Verifiziert per Bedrock-Test (User):** Custom Models ✓, Animationen ✓, keine Nametags (erwartet — Phase 7.1b), Bewegungsrichtung falsch (bekannt — Phase 8).
+
+### Deployment
+- TestServer01: `FMM 2.5.0`, `EliteMobs 10.2.0`, `floodgate-spigot b132`, `packetevents-spigot 2.12.1`, neuer `FMMBedrockBridge.jar`
+- Proxy01: `Geyser-Velocity b1129`, `floodgate-velocity b132`
+- Rollback-Backups als `*.bak` auf beiden Hosts erhalten
+
+### Noch zu tun
+- Phase 7.1a brainstormen (BossBar mit korrekter EM-Style-Name-Quelle)
+- Phase 7.1b brainstormen (Nametag-Architektur — TextDisplay? Bedrock-Entity-Definition? Andere Floating-Entity?)
+- Phase 8 (später): Bewegungsrichtung-Fix (X/Z Animation-Keyframes negieren), GeyserUtils-NPE-Cleanup
+
+### Build
+```
+/usr/share/idea/plugins/maven/lib/maven3/bin/mvn clean package
+```
