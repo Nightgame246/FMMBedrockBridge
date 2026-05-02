@@ -39,6 +39,7 @@ public class FMMEntityData implements IBridgeEntityData {
     // Animation tracking
     private List<String> sortedAnimationNames;  // sorted list of animation names for this model
     private String lastAnimationName = null;    // last sent animation state
+    private Component lastSentName = null;
 
     public FMMEntityData(ModeledEntity modeledEntity, Entity realEntity, String bedrockEntityId, BedrockEntityBridge bridge) {
         this.modeledEntity = modeledEntity;
@@ -117,6 +118,8 @@ public class FMMEntityData implements IBridgeEntityData {
             // Entity might have been removed
         }
 
+        if (viewers.isEmpty()) lastSentName = null;
+
         log.fine("[BRIDGE] Removed viewer " + player.getName()
                 + " for " + bedrockEntityId);
     }
@@ -147,6 +150,9 @@ public class FMMEntityData implements IBridgeEntityData {
 
         // Sync animation state
         syncAnimation();
+
+        // Sync nametag content (HP / healthbar / name)
+        syncNametag();
     }
 
     /**
@@ -216,6 +222,23 @@ public class FMMEntityData implements IBridgeEntityData {
         log.fine("[BRIDGE] Animation changed: " + lastAnimationName + " → " + currentAnim
                 + " (bitmask=" + newBitmask[1] + ") for " + bedrockEntityId);
         lastAnimationName = currentAnim;
+    }
+
+    /**
+     * Builds the current 3-line nametag and sends a metadata update to all viewers
+     * if the result differs from the last sent value.
+     */
+    private void syncNametag() {
+        if (destroyed || viewers.isEmpty()) return;
+
+        Component current = NametagBuilder.build(realEntity, modeledEntity);
+        if (current.equals(lastSentName)) return;
+
+        for (Player viewer : viewers) {
+            if (!viewer.isOnline()) continue;
+            packetEntity.sendNameMetadata(current, true, viewer);
+        }
+        lastSentName = current;
     }
 
     /**
