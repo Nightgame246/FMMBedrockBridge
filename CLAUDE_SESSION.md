@@ -464,3 +464,50 @@ Animation-Keyframes mit Position oder Rotation auf X/Z-Achse sind weiterhin im u
 ```
 /usr/share/idea/plugins/maven/lib/maven3/bin/mvn clean package
 ```
+
+---
+
+## Session: 2026-05-02 (Phase 7.1a Brainstorm + Plan, Session pausiert vor Implementation)
+
+### Abgeschlossen
+- **Phase 7.1a Brainstorm** durchlaufen (superpowers:brainstorming Skill): Problem-Analyse, EM-Source-Recherche, Architektur-Entscheidung
+  - Geklärt: Bedrock zeigt "Evoker | 2" oben am Screen statt "Tier X Boss Name" — Java zeigt's korrekt
+  - EM-Source-Recherche: `Bukkit.createBossBar(eliteEntity.getName(), ...)` ist die Quelle (BossHealthDisplay.java:1118), `EliteEntity.getName()` Lombok-`@Getter` (kein Reflection-Hack nötig)
+  - Approach 2 gewählt: eigene Bukkit-BossBar pro EM-Boss × Bedrock-Viewer mit suppress von EM's Original via heuristische UUID-Capture (Title-Match)
+- **Spec geschrieben + committed** (`ecfdebf`): `docs/superpowers/specs/2026-05-02-phase7.1a-bossbar-design.md` (304 Zeilen)
+- **Implementation-Plan geschrieben + committed** (`13ffb7a`): `docs/superpowers/plans/2026-05-02-phase7.1a-bossbar-implementation.md` (1088 Zeilen, 8 bite-sized Tasks)
+
+### Plan-Übersicht (für Re-Start der Session)
+
+8 Tasks, jeder mit Compile-Check + Commit am Ende:
+1. **Foundation:** `plugin.yml` (EliteMobs zu softdepend), `config.yml` (`phase71a.suppress-em-bossbar: true`)
+2. **EliteMobsHook:** Soft-dep Wrapper, einzige Stelle mit `com.magmaguy.elitemobs.*` Imports
+3. **BossBarRegistry:** Concurrent `Set<UUID>` für Suppress-Logic
+4. **BedrockBossBarController:** Per-Boss Bukkit-BossBar-Lifecycle (addViewer, tickUpdate Progress+Color, cleanup)
+5. **BedrockEntityBridge:** `activeControllers`-Map + Cleanup auf shutdown
+6. **FMMEntityData:** Wire BossBar-Lifecycle in spawn/addViewer/tick/destroy
+7. **PacketInterceptor:** BOSS_EVENT-Suppress mit Title-Match-Heuristik + UUID-Capture
+8. **Build, Deploy, Manual Test:** Spec-Test-Matrix auf TestServer01 + diagnostic toggle
+
+### Erkenntnisse
+- **`realEntity.customName()` für EM-Bosse liefert nicht den styled Name** — bestätigt durch EM-Source: EM setzt zwar `livingEntity.setCustomName(this.name)` (`EliteEntity.java:613`), aber irgendwo überschreibt EM den customName mit dem Vanilla-Format "Evoker | 2". `eliteEntity.getName()` ist die einzige verlässliche Quelle für den styled Boss-Name.
+- **MythicMobs-Bosse sind out-of-scope** (User-Klärung): MythicMobs nutzt typischerweise ModelEngine (Ticxo) → GeyserModelEngine, nicht FMM/unsere Bridge.
+- **EM-Quest/Dungeon-Pfade können nicht prophylaktisch getestet werden** (User-Klärung): "Real-World Observation"-Strategie statt geplanter Soak-Tests — Probleme fixen wenn sie im Live-Betrieb auftauchen.
+
+### Deployment
+Keine Code-Änderungen committed — nur Spec + Plan. Implementation startet beim Wiederaufnehmen der Session mit Task 1.
+
+### Noch zu tun (nächste Session)
+- **Task 1-8 des Implementation-Plans abarbeiten** (siehe Plan-Datei). Subagent-Driven Execution wurde empfohlen; User hat Session davor pausiert.
+- Phase 7.1b brainstormen (Nametag-Architektur) — erst NACH Phase 7.1a fertig.
+- Phase 8 Backlog: Bewegungsrichtung-Animation-Fix (X/Z-Achse negieren), GeyserUtils-NPE-Cleanup (pre-existing, nicht blocking).
+
+### Hinweis für Re-Start
+- **Bei Debug-Tasks:** Vor dem Diagnose-Vorschlag immer `superpowers:minecraft-debugging` Skill laden (User-Wunsch 2026-05-02).
+- **Bei Bridge-Code-Änderungen:** `superpowers:geyser-bridge-development` Skill prüfen.
+- Plan-Execution-Empfehlung: Subagent-Driven (`superpowers:subagent-driven-development`).
+
+### Build
+```
+/usr/share/idea/plugins/maven/lib/maven3/bin/mvn clean package
+```
