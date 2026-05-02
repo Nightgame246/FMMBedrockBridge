@@ -42,6 +42,9 @@ public class BedrockEntityBridge {
     /** Packet suppression + interact redirect */
     private final PacketInterceptor packetInterceptor = new PacketInterceptor();
 
+    /** Resolves vanilla BossBar UUIDs to FMM entity custom names. */
+    private final BossBarTitleResolver bossBarResolver = new BossBarTitleResolver(this);
+
     /** Bedrock player tracking */
     private final ViewerManager viewerManager;
 
@@ -96,6 +99,8 @@ public class BedrockEntityBridge {
         syncTask = Bukkit.getScheduler().runTaskTimer(FMMBedrockBridge.getInstance(), this::tick, 20L, 1L);
         log.info("[BRIDGE] Sync task started (every tick)");
 
+        packetInterceptor.setBossBarResolver(bossBarResolver);
+        packetInterceptor.setViewerManager(viewerManager);
         packetInterceptor.register();
     }
 
@@ -115,6 +120,7 @@ public class BedrockEntityBridge {
         entityDataMap.clear();
         viewerManager.clear();
         packetInterceptor.clear();
+        bossBarResolver.clear();
 
         log.info("[BRIDGE] Shutdown complete");
     }
@@ -171,6 +177,9 @@ public class BedrockEntityBridge {
         IBridgeEntityData data = entityDataMap.remove(modeledEntity);
         if (data != null) {
             packetInterceptor.unmapFake(data.getPacketEntity().getEntityId());
+            if (data instanceof FMMEntityData fmmData && fmmData.getRealEntity() != null) {
+                bossBarResolver.onEntityDespawn(fmmData.getRealEntity().getEntityId());
+            }
             data.destroy();
         }
     }
