@@ -7,6 +7,7 @@ import com.github.retrooper.packetevents.event.PacketReceiveEvent;
 import com.github.retrooper.packetevents.event.PacketSendEvent;
 import com.github.retrooper.packetevents.protocol.packettype.PacketType;
 import com.github.retrooper.packetevents.wrapper.play.client.WrapperPlayClientInteractEntity;
+import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerBossBar;
 import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerEntityMetadata;
 import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerSpawnEntity;
 import de.crazypandas.fmmbedrockbridge.FMMBedrockBridge;
@@ -28,15 +29,23 @@ public class PacketInterceptor {
 
     private final Map<Integer, Set<Player>> hiddenEntityIds = new ConcurrentHashMap<>();
     private final Map<Integer, Integer> fakeToRealEntityId = new ConcurrentHashMap<>();
+    private BossBarTitleResolver bossBarResolver;
+    private ViewerManager viewerManager;
     private PacketListenerAbstract listener;
 
     public void register() {
         listener = new PacketListenerAbstract(PacketListenerPriority.HIGHEST) {
             @Override
             public void onPacketSend(PacketSendEvent event) {
-                if (hiddenEntityIds.isEmpty()) return;
                 Object eventPlayer = event.getPlayer();
                 if (!(eventPlayer instanceof Player)) return;
+
+                if (event.getPacketType() == PacketType.Play.Server.BOSS_BAR) {
+                    handleBossEvent(event);
+                    return;
+                }
+
+                if (hiddenEntityIds.isEmpty()) return;
 
                 int entityId = -1;
                 if (event.getPacketType() == PacketType.Play.Server.SPAWN_ENTITY) {
@@ -94,6 +103,36 @@ public class PacketInterceptor {
         fakeToRealEntityId.remove(fakeId);
     }
 
+    private void handleBossEvent(PacketSendEvent event) {
+        if (bossBarResolver == null || viewerManager == null) return;
+        if (!(event.getPlayer() instanceof Player viewer)) return;
+        if (!viewerManager.getReadyPlayers().contains(viewer)) return; // Java players: pass through
+
+        WrapperPlayServerBossBar wrapper = new WrapperPlayServerBossBar(event);
+        java.util.UUID uuid = wrapper.getUUID();
+        if (uuid == null) return;
+
+        WrapperPlayServerBossBar.Action action = wrapper.getAction();
+        if (action == WrapperPlayServerBossBar.Action.REMOVE) {
+            bossBarResolver.onBossBarRemoved(uuid);
+            return;
+        }
+
+        // For ADD and UPDATE_TITLE we attempt to substitute the title.
+        if (action != WrapperPlayServerBossBar.Action.ADD && action != WrapperPlayServerBossBar.Action.UPDATE_TITLE) {
+            return;
+        }
+
+        net.kyori.adventure.text.Component replacement = bossBarResolver.resolveTitle(uuid, viewer);
+        if (replacement == null) return;
+
+        try {
+            wrapper.setTitle(replacement);
+        } catch (Throwable t) {
+            // Setter not present in this PacketEvents version — leave packet untouched.
+        }
+    }
+
     private boolean isHiddenFor(int entityId, Object player) {
         Set<Player> players = hiddenEntityIds.get(entityId);
         return players != null && players.contains(player);
@@ -102,5 +141,13 @@ public class PacketInterceptor {
     public void clear() {
         hiddenEntityIds.clear();
         fakeToRealEntityId.clear();
+    }
+
+    public void setBossBarResolver(BossBarTitleResolver resolver) {
+        this.bossBarResolver = resolver;
+    }
+
+    public void setViewerManager(ViewerManager manager) {
+        this.viewerManager = manager;
     }
 }
