@@ -91,9 +91,10 @@ public class BedrockEntityBridge {
     public void start() {
         if (syncTask != null) return;
 
-        // Run every 2 ticks (100ms) — good balance between smoothness and performance
-        syncTask = Bukkit.getScheduler().runTaskTimer(FMMBedrockBridge.getInstance(), this::tick, 20L, 2L);
-        log.info("[BRIDGE] Sync task started (every 2 ticks)");
+        // Run every tick (50ms). PacketEntity.teleport only sends a packet on actual change,
+        // so the cost stays bounded by entity-movement-rate, not tick-rate.
+        syncTask = Bukkit.getScheduler().runTaskTimer(FMMBedrockBridge.getInstance(), this::tick, 20L, 1L);
+        log.info("[BRIDGE] Sync task started (every tick)");
 
         packetInterceptor.register();
     }
