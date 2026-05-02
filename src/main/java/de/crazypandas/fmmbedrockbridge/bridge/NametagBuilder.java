@@ -45,4 +45,39 @@ public final class NametagBuilder {
             return 0;
         }
     }
+
+    /** Total length of the bar in characters. */
+    private static final int BAR_LENGTH = 10;
+    /** Filled glyph (vertical block). Renders on Bedrock + Java without extra fonts. */
+    private static final char GLYPH_FILLED = '█';
+    /** Empty glyph (light shade). */
+    private static final char GLYPH_EMPTY = '░';
+
+    /**
+     * Builds the healthbar line. Returns null if HP information isn't available
+     * (skips that line entirely without breaking the rest of the nametag).
+     */
+    private static Component buildBarLine(Entity realEntity) {
+        if (!(realEntity instanceof LivingEntity living)) return null;
+        double max = maxHealth(living);
+        if (max <= 0) return null;
+        double current = Math.max(0, living.getHealth());
+        double fraction = Math.min(1.0, current / max);
+
+        int filled = (int) Math.round(fraction * BAR_LENGTH);
+        if (current > 0 && filled == 0) filled = 1; // never show fully empty unless dead
+
+        NamedTextColor filledColor;
+        if (fraction >= 0.66) filledColor = NamedTextColor.GREEN;
+        else if (fraction >= 0.33) filledColor = NamedTextColor.YELLOW;
+        else filledColor = NamedTextColor.RED;
+
+        StringBuilder filledPart = new StringBuilder(filled);
+        for (int i = 0; i < filled; i++) filledPart.append(GLYPH_FILLED);
+        StringBuilder emptyPart = new StringBuilder(BAR_LENGTH - filled);
+        for (int i = 0; i < BAR_LENGTH - filled; i++) emptyPart.append(GLYPH_EMPTY);
+
+        return Component.text(filledPart.toString(), filledColor)
+                .append(Component.text(emptyPart.toString(), NamedTextColor.DARK_GRAY));
+    }
 }
