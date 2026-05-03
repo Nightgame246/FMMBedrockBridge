@@ -5,11 +5,13 @@ import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerDe
 import com.magmaguy.freeminecraftmodels.customentity.ModeledEntity;
 import de.crazypandas.fmmbedrockbridge.FMMBedrockBridge;
 import de.crazypandas.fmmbedrockbridge.converter.BedrockAnimationControllerGenerator;
+import de.crazypandas.fmmbedrockbridge.elite.EliteMobsHook;
 import me.zimzaza4.geyserutils.spigot.api.EntityUtils;
 import net.kyori.adventure.text.Component;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.entity.Entity;
+import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
 
 import java.util.*;
@@ -40,6 +42,9 @@ public class FMMEntityData implements IBridgeEntityData {
     private List<String> sortedAnimationNames;  // sorted list of animation names for this model
     private String lastAnimationName = null;    // last sent animation state
 
+    // Phase 7.1a — null if this entity is not an EliteMobs boss
+    private final BedrockBossBarController bossBarController;
+
     public FMMEntityData(ModeledEntity modeledEntity, Entity realEntity, String bedrockEntityId, BedrockEntityBridge bridge) {
         this.modeledEntity = modeledEntity;
         this.realEntity = realEntity;
@@ -47,6 +52,23 @@ public class FMMEntityData implements IBridgeEntityData {
         this.bridge = bridge;
         this.packetEntity = new PacketEntity(realEntity.getLocation());
         this.sortedAnimationNames = bridge.getAnimationNames(bedrockEntityId);
+        this.bossBarController = createBossBarControllerIfElite();
+    }
+
+    /**
+     * Phase 7.1a — if the real entity is an EliteMobs boss with a styled name,
+     * create a BossBar controller and register it on the bridge for title-match
+     * lookup by the PacketInterceptor. Returns null otherwise.
+     */
+    private BedrockBossBarController createBossBarControllerIfElite() {
+        if (!(realEntity instanceof LivingEntity living)) return null;
+        String styledName = EliteMobsHook.getStyledName(living);
+        if (styledName == null) return null;
+        BedrockBossBarController controller = new BedrockBossBarController(living, styledName);
+        bridge.getActiveControllers().put(living.getUniqueId(), controller);
+        log.fine("[BRIDGE] Created BossBar controller for " + bedrockEntityId
+                + " (em-name='" + styledName + "')");
+        return controller;
     }
 
     /**
@@ -89,6 +111,11 @@ public class FMMEntityData implements IBridgeEntityData {
             log.fine("[BRIDGE] Sent spawn packet + hitbox for " + bedrockEntityId
                     + " (fakeId=" + packetEntity.getEntityId() + ") to " + player.getName());
 
+            // Phase 7.1a — add Bedrock viewer to BossBar (if this is an EM boss)
+            if (bossBarController != null) {
+                bossBarController.addViewer(player);
+            }
+
             // Send animation property with a second delay: Bedrock must finish loading the entity
             // and initializing its property system before it can process property updates.
             Bukkit.getScheduler().runTaskLater(FMMBedrockBridge.getInstance(), () -> {
@@ -117,6 +144,11 @@ public class FMMEntityData implements IBridgeEntityData {
             // Entity might have been removed
         }
 
+        // Phase 7.1a — remove Bedrock viewer from BossBar
+        if (bossBarController != null) {
+            bossBarController.removeViewer(player);
+        }
+
         log.fine("[BRIDGE] Removed viewer " + player.getName()
                 + " for " + bedrockEntityId);
     }
@@ -124,6 +156,9 @@ public class FMMEntityData implements IBridgeEntityData {
     @Override
     public void tick() {
         syncPosition();
+        if (bossBarController != null) {
+            bossBarController.tickUpdate();
+        }
     }
 
     @Override
@@ -239,6 +274,15 @@ public class FMMEntityData implements IBridgeEntityData {
                     // Entity might already be gone
                 }
             }
+        }
+
+        // Phase 7.1a — cleanup BossBar and remove from active controllers map
+        if (bossBarController != null) {
+            bossBarController.cleanup();
+            bridge.getActiveControllers().remove(realEntity.getUniqueId());
+            // Note: we don't remove this controller's captured UUIDs from BossBarRegistry
+            // here — they're harmless leftover entries that simply suppress packets which
+            // EM no longer sends. The registry is fully cleared on plugin shutdown.
         }
 
         viewers.clear();
