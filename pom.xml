@@ -109,6 +109,14 @@
             </exclusions>
         </dependency>
 
+        <!-- EliteMobs (soft-dep — only imported in EliteMobsHook) -->
+        <dependency>
+            <groupId>com.magmaguy</groupId>
+            <artifactId>EliteMobs</artifactId>
+            <version>10.1.1</version>
+            <scope>provided</scope>
+        </dependency>
+
         <!-- Floodgate API -->
         <dependency>
             <groupId>org.geysermc.floodgate</groupId>
