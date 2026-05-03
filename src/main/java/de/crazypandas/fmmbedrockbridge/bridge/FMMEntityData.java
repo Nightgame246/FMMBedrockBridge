@@ -10,9 +10,11 @@ import me.zimzaza4.geyserutils.spigot.api.EntityUtils;
 import net.kyori.adventure.text.Component;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
+import org.bukkit.entity.Display;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
+import org.bukkit.entity.TextDisplay;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -45,6 +47,9 @@ public class FMMEntityData implements IBridgeEntityData {
     // Phase 7.1a — null if this entity is not an EliteMobs boss
     private final BedrockBossBarController bossBarController;
 
+    // Phase 7.1b — null if the entity has no custom-name (no nametag)
+    private final BedrockNametagController bedrockNametagController;
+
     public FMMEntityData(ModeledEntity modeledEntity, Entity realEntity, String bedrockEntityId, BedrockEntityBridge bridge) {
         this.modeledEntity = modeledEntity;
         this.realEntity = realEntity;
@@ -53,6 +58,7 @@ public class FMMEntityData implements IBridgeEntityData {
         this.packetEntity = new PacketEntity(realEntity.getLocation());
         this.sortedAnimationNames = bridge.getAnimationNames(bedrockEntityId);
         this.bossBarController = createBossBarControllerIfElite();
+        this.bedrockNametagController = createNametagControllerIfNamed();
     }
 
     /**
@@ -89,6 +95,56 @@ public class FMMEntityData implements IBridgeEntityData {
         bridge.getActiveControllers().put(living.getUniqueId(), controller);
         FMMBedrockBridge.debugLog("[BRIDGE] Created BossBar controller for " + bedrockEntityId
                 + " (title='" + styledName + "')");
+        return controller;
+    }
+
+    /**
+     * Phase 7.1b — if the real entity has a non-null custom-name, spawn a TextDisplay
+     * above its head and register a controller. Returns null if the entity has no
+     * custom-name (then no nametag is shown — plugin-agnostic gating).
+     *
+     * <p>The {@link BedrockNametagController#getTextDisplayEntityId()} is registered with
+     * the PacketInterceptor INSIDE the {@code world.spawn} consumer, before Bukkit
+     * broadcasts the SPAWN_ENTITY packet. This avoids a race where Java players see
+     * the TextDisplay for a single tick before the suppress kicks in.
+     */
+    private BedrockNametagController createNametagControllerIfNamed() {
+        Component name = realEntity.customName();
+        if (name == null) {
+            FMMBedrockBridge.debugLog("[BRIDGE] Nametag skip — no customName for " + bedrockEntityId);
+            return null;
+        }
+        if (bridge.getActiveNametags().containsKey(realEntity.getUniqueId())) {
+            log.warning("[BRIDGE] Duplicate FMMEntityData for UUID " + realEntity.getUniqueId()
+                    + " (" + bedrockEntityId + ") — skipping second Nametag controller creation.");
+            return null;
+        }
+
+        Location spawnLoc = realEntity.getLocation().clone()
+                .add(0, realEntity.getHeight() + 0.3, 0);
+
+        TextDisplay textDisplay;
+        try {
+            // The lambda runs BEFORE Bukkit fires the spawn packet — so registering the
+            // entity-id as java-hidden here means the very first SPAWN_ENTITY broadcast
+            // is already filtered for Java players.
+            textDisplay = realEntity.getWorld().spawn(spawnLoc, TextDisplay.class, td -> {
+                td.text(name);
+                td.setBillboard(Display.Billboard.CENTER);
+                td.setSeeThrough(true);
+                td.setDefaultBackground(true);
+                bridge.getPacketInterceptor().hideFromJava(td.getEntityId());
+            });
+        } catch (Exception e) {
+            log.warning("[BRIDGE] Failed to spawn TextDisplay nametag for " + bedrockEntityId
+                    + ": " + e.getMessage() + " — entity will bridge without nametag.");
+            return null;
+        }
+
+        BedrockNametagController controller = new BedrockNametagController(realEntity, textDisplay, name);
+        bridge.getActiveNametags().put(realEntity.getUniqueId(), controller);
+        FMMBedrockBridge.debugLog("[BRIDGE] Created Nametag controller for " + bedrockEntityId
+                + " (text='" + name + "', textDisplayId=" + textDisplay.getEntityId() + ")");
         return controller;
     }
 
@@ -182,6 +238,9 @@ public class FMMEntityData implements IBridgeEntityData {
         syncPosition();
         if (bossBarController != null) {
             bossBarController.tickUpdate();
+        }
+        if (bedrockNametagController != null) {
+            bedrockNametagController.tickUpdate();
         }
     }
 
@@ -307,6 +366,13 @@ public class FMMEntityData implements IBridgeEntityData {
             // Note: we don't remove this controller's captured UUIDs from BossBarRegistry
             // here — they're harmless leftover entries that simply suppress packets which
             // EM no longer sends. The registry is fully cleared on plugin shutdown.
+        }
+
+        // Phase 7.1b — cleanup Nametag TextDisplay + unregister from Java-suppress
+        if (bedrockNametagController != null) {
+            bridge.getPacketInterceptor().unhideFromJava(bedrockNametagController.getTextDisplayEntityId());
+            bedrockNametagController.cleanup();
+            bridge.getActiveNametags().remove(realEntity.getUniqueId());
         }
 
         viewers.clear();
