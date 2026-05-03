@@ -30,3 +30,11 @@ phase71a:
   # (Bedrock sees only our replacement BossBar with the styled name).
   # Set to false as a diagnostic if you want to see both bars side-by-side.
   suppress-em-bossbar: true
+
+# Phase 7.1c — Combat-triggered visuals (HP/Bar/BossBar)
+phase71c:
+  # When true, BossBar appears only during combat (EnterCombat → ExitCombat).
+  # Nametag extends to 3 lines (HP / Health-Bar / Name) during combat.
+  # When false, BossBar is always-visible (Phase 7.1a behavior) and nametag stays
+  # at 1 line. Use false as a safety fallback if the combat-trigger logic breaks.
+  combat-enabled: true
