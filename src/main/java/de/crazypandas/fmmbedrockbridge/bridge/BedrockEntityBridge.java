@@ -54,6 +54,9 @@ public class BedrockEntityBridge {
     /** Phase 7.1a — captured EM BossBar UUIDs for suppression on Bedrock players */
     private final BossBarRegistry bossBarRegistry = new BossBarRegistry();
 
+    /** Phase 7.1b — active Nametag controllers, keyed by real-entity UUID */
+    private final Map<UUID, BedrockNametagController> activeNametags = new ConcurrentHashMap<>();
+
     private BukkitTask syncTask;
 
     // Cached reflection field for ModeledEntity.underlyingEntity
@@ -123,6 +126,7 @@ public class BedrockEntityBridge {
         entityDataMap.clear();
         activeControllers.clear();
         bossBarRegistry.clear();
+        activeNametags.clear();
         viewerManager.clear();
         packetInterceptor.clear();
 
@@ -287,5 +291,10 @@ public class BedrockEntityBridge {
 
     public BossBarRegistry getBossBarRegistry() {
         return bossBarRegistry;
+    }
+
+    /** Phase 7.1b — accessor for Nametag subsystem. */
+    public Map<UUID, BedrockNametagController> getActiveNametags() {
+        return activeNametags;
     }
 }
