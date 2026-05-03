@@ -56,8 +56,8 @@ FMM spawns DynamicEntity (wraps LivingEntity)
 | 6.3 | FMM 4x coordinate scale fix — all geometry/animation coordinates divided by MODEL_SCALE=4.0 | Done |
 | 6.4 | Head/Body orientation fix — UV face swap + entity yaw correction (replaces broken root-bone approach) | Done |
 | 7.1a | BossBar with EliteMobs styled name on Bedrock (per-boss Bukkit BossBar + first-match suppress heuristic) | Done |
-| 7.1b | Bedrock Nametag (3-line: HP / health-bar / name) — alternative architecture (TextDisplay or Bedrock entity definition) | Planned |
-| 7.1c | Combat-only BossBar trigger (crossplay fairness — match Java EM behaviour) — only after 7.1b is done | Planned |
+| 7.1b | Bedrock Nametag — always-visible name above mob via Bukkit TextDisplay + Java packet-suppress; uses FMM displayName (the styled-name source EM populates) | Done |
+| 7.1c | Combat-only HP / health-bar / BossBar (combat-event trigger, crossplay fairness, multi-bossbar-rejoin fix) — depends on 7.1b | Planned |
 | 7.2 | EliteMobs UI/UX (GUIs, custom items) | Planned |
 | 7.3 | Java popup menus → Bedrock Forms (Cumulus API) | Planned |
 | 8 | Polish: hitbox scale, hurt flash, particles, config, performance, animation X/Z mirror for movement, production-readiness | Planned |
@@ -146,6 +146,8 @@ The Geyser Extension will:
 - **Animationen mit Bewegung in X/Z laufen rückwärts (Phase 8):** Die UV-Face-Swap aus Phase 6.4 dreht das Modell visuell 180°, aber Animation-Keyframes bleiben im ursprünglichen Koordinatensystem. Boss-Animationen, die den Wolf nach vorne schnappen lassen, verschieben ihn jetzt visuell rückwärts. Fix: Position- und Rotation-X/Z-Werte in `BedrockAnimationConverter` negieren.
 - **Hitbox zu klein:** Bedrock-Hitbox nutzt unveränderte Java-Entity-Dimensionen; das visuelle Model wird mit `scale: 1.6` gerendert → Hitbox wirkt kleiner (Phase 8).
 - **Kein Hurt-Flash:** Damage-Metadata der Real-Entity wird vollständig supprimiert; Bedrock zeigt keinen roten Blitz bei Treffer (Phase 8).
+- **Nametag-Y-Offset bei kleinen Mobs (Phase 8):** Phase 7.1b nutzt `realEntity.getHeight() + 0.3` für die Nametag-Y-Position. Bei Mobs deren Custom-Model größer als die Vanilla-Hitbox ist (z.B. Wolf), erscheint der Nametag mitten im Modell statt darüber. Fix: model-aware Y-Offset (FMM-Skeleton-Bounds lesen oder per-Modell-Override).
+- **Doppel-BossBar für ein paar Sekunden bei Rejoin (Phase 7.1c oder 8):** Phase 7.1a's First-Match-Heuristik braucht "unser ADD-Paket vor EM's ADD". Bei Rejoin geht der Suppress-Registry-State verloren und EM's BossBar entsteht race-mäßig nochmal sichtbar. Fix wird in Phase 7.1c (Combat-only) oder als Polish in Phase 8 nachgezogen.
 
 ## Dependencies
 
