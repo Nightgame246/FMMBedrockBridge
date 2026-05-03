@@ -184,5 +184,6 @@ public final class BedrockBossBarController {
     public void cleanup() {
         bossBar.removeAll();
         viewers.clear();
+        isInCombat = false;
     }
 }
