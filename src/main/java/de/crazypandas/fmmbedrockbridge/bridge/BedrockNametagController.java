@@ -7,6 +7,7 @@ import org.bukkit.entity.Entity;
 import org.bukkit.entity.TextDisplay;
 
 import java.util.UUID;
+import java.util.function.Supplier;
 
 /**
  * Phase 7.1b — Lifecycle controller for one FMM mob's Bedrock-only nametag.
@@ -32,12 +33,26 @@ public final class BedrockNametagController {
     private final UUID realEntityUuid;
     private final Entity realEntity;
     private final TextDisplay textDisplay;
+    private final Supplier<Component> textSource;
     private Component lastText;
 
-    public BedrockNametagController(Entity realEntity, TextDisplay textDisplay, Component initialText) {
+    /**
+     * @param realEntity the FMM mob whose position the nametag tracks
+     * @param textDisplay the Bukkit TextDisplay entity already spawned by the caller
+     * @param initialText the initial text (also used as the first {@code lastText} cache value)
+     * @param textSource a supplier called each tick to get the current desired text. Returns
+     *                   null if no text source is available — the supplier is the source of
+     *                   truth for the styled name. The caller wires this to
+     *                   {@code modeledEntity.getDisplayName()} (FMM's own nametag pipeline,
+     *                   set by EM via CustomModelFMM.setName) with a fallback to
+     *                   {@code realEntity.customName()}.
+     */
+    public BedrockNametagController(Entity realEntity, TextDisplay textDisplay,
+                                    Component initialText, Supplier<Component> textSource) {
         this.realEntityUuid = realEntity.getUniqueId();
         this.realEntity = realEntity;
         this.textDisplay = textDisplay;
+        this.textSource = textSource;
         this.lastText = initialText;
     }
 
@@ -61,9 +76,10 @@ public final class BedrockNametagController {
      *   <li>Skip if the real entity or the TextDisplay is dead/invalid.</li>
      *   <li>Teleport the TextDisplay to {@code realEntity.location + (0, height + 0.3, 0)}.
      *       Bukkit deduplicates ENTITY_TELEPORT packets when position is unchanged.</li>
-     *   <li>If {@code realEntity.customName()} differs from the last sent value, update
-     *       {@link TextDisplay#text(Component)}. Empty/null custom-names are tolerated —
-     *       the display goes blank without breaking.</li>
+     *   <li>Fetch the current text via {@code textSource.get()} (typically
+     *       {@code modeledEntity.getDisplayName()}); update the TextDisplay only when it
+     *       differs from the last sent value. Null/empty supplier results render as
+     *       {@link Component#empty()}.</li>
      * </ul>
      */
     public void tickUpdate() {
@@ -75,7 +91,12 @@ public final class BedrockNametagController {
         textDisplay.teleport(target);
 
         // Text sync — only when changed, to avoid pointless METADATA churn
-        Component current = realEntity.customName();
+        Component current;
+        try {
+            current = textSource.get();
+        } catch (Throwable t) {
+            current = null;
+        }
         if (current == null) {
             current = Component.empty();
         }
