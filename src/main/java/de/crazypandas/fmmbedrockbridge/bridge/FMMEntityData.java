@@ -62,9 +62,23 @@ public class FMMEntityData implements IBridgeEntityData {
      */
     private BedrockBossBarController createBossBarControllerIfElite() {
         if (!(realEntity instanceof LivingEntity living)) return null;
+        if (bridge.getActiveControllers().containsKey(living.getUniqueId())) {
+            // FMM re-spawn without a corresponding despawn — skip to avoid orphaning
+            // the previous controller's BossBar.
+            log.warning("[BRIDGE] Duplicate FMMEntityData for UUID " + living.getUniqueId()
+                    + " (" + bedrockEntityId + ") — skipping second BossBar controller creation.");
+            return null;
+        }
         String styledName = EliteMobsHook.getStyledName(living);
         if (styledName == null) return null;
-        BedrockBossBarController controller = new BedrockBossBarController(living, styledName);
+        BedrockBossBarController controller;
+        try {
+            controller = new BedrockBossBarController(living, styledName);
+        } catch (Exception e) {
+            log.warning("[BRIDGE] Failed to create BossBar for " + bedrockEntityId
+                    + ": " + e.getMessage() + " — entity will bridge without BossBar.");
+            return null;
+        }
         bridge.getActiveControllers().put(living.getUniqueId(), controller);
         log.fine("[BRIDGE] Created BossBar controller for " + bedrockEntityId
                 + " (em-name='" + styledName + "')");
@@ -111,8 +125,11 @@ public class FMMEntityData implements IBridgeEntityData {
             log.fine("[BRIDGE] Sent spawn packet + hitbox for " + bedrockEntityId
                     + " (fakeId=" + packetEntity.getEntityId() + ") to " + player.getName());
 
-            // Phase 7.1a — add Bedrock viewer to BossBar (if this is an EM boss)
-            if (bossBarController != null) {
+            // Phase 7.1a — add Bedrock viewer to BossBar (if this is an EM boss).
+            // Check viewers.contains because removeViewer may have run during the 2-tick
+            // delay between the outer addViewer call and this lambda firing — without
+            // the check we'd add a phantom viewer to the BossBar that's no longer tracked.
+            if (bossBarController != null && viewers.contains(player)) {
                 bossBarController.addViewer(player);
             }
 
