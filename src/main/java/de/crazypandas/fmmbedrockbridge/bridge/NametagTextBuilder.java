@@ -8,6 +8,8 @@ import org.bukkit.attribute.Attribute;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.LivingEntity;
 
+import java.util.Locale;
+
 /**
  * Phase 7.1c — Pure utility for composing the nametag Component shown above
  * a bridged FMM mob on Bedrock.
@@ -81,7 +83,7 @@ public final class NametagTextBuilder {
         double max = maxHealth(living);
         if (max <= 0) return null;
         double current = Math.max(0, living.getHealth());
-        String text = String.format("%.2f / %.2f", current, max);
+        String text = String.format(Locale.ROOT, "%.2f / %.2f", current, max);
         return Component.text(text, NamedTextColor.WHITE);
     }
 
