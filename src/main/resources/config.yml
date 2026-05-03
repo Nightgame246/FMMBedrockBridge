@@ -23,3 +23,10 @@ converter:
   # use raw .bbmodel coordinates, so this factor compensates the difference.
   # Adjust if models appear too small or too large on Bedrock.
   model-scale: 1.6
+
+# Phase 7.1a — BossBar replacement for EliteMobs bosses
+phase71a:
+  # When true, suppress EliteMobs' own BossBar packets to Bedrock players
+  # (Bedrock sees only our replacement BossBar with the styled name).
+  # Set to false as a diagnostic if you want to see both bars side-by-side.
+  suppress-em-bossbar: true
