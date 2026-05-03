@@ -8,6 +8,7 @@ import de.crazypandas.fmmbedrockbridge.converter.BedrockAnimationControllerGener
 import de.crazypandas.fmmbedrockbridge.elite.EliteMobsHook;
 import me.zimzaza4.geyserutils.spigot.api.EntityUtils;
 import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
@@ -19,6 +20,7 @@ import org.bukkit.entity.TextDisplay;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Supplier;
 import java.util.logging.Logger;
 
 /**
@@ -100,14 +102,25 @@ public class FMMEntityData implements IBridgeEntityData {
     }
 
     /**
-     * Phase 7.1b — if the real entity has a non-null custom-name, spawn a TextDisplay
-     * above its head and register a controller. Returns null if the entity has no
-     * custom-name (then no nametag is shown — plugin-agnostic gating).
+     * Phase 7.1b — if a name source is available, spawn a TextDisplay above the mob's
+     * head and register a controller. Returns null if no name is available (plugin-agnostic
+     * gating).
+     *
+     * <p><b>Name source priority:</b>
+     * <ol>
+     *   <li>{@code modeledEntity.getDisplayName()} — set by EM via
+     *       {@code CustomModelFMM.setName} which calls {@code dynamicEntity.setDisplayName(...)}.
+     *       This is the same string EM uses for FMM's own internal nametag bones (what Java
+     *       renders), so for EliteMobs CustomBosses it carries the styled YAML name like
+     *       "Tier 13 &9Ice Elemental".</li>
+     *   <li>{@code realEntity.customName()} — fallback for non-FMM-named entities (Vanilla
+     *       mobs with custom-name, other plugins).</li>
+     * </ol>
      *
      * <p>The {@link BedrockNametagController#getTextDisplayEntityId()} is registered with
-     * the PacketInterceptor INSIDE the {@code world.spawn} consumer, before Bukkit
-     * broadcasts the SPAWN_ENTITY packet. This avoids a race where Java players see
-     * the TextDisplay for a single tick before the suppress kicks in.
+     * the PacketInterceptor INSIDE the {@code world.spawn} consumer, before Bukkit broadcasts
+     * the SPAWN_ENTITY packet. This avoids a race where Java players see the TextDisplay
+     * for a single tick before the suppress kicks in.
      */
     private BedrockNametagController createNametagControllerIfNamed() {
         // If Floodgate isn't available there are no Bedrock viewers — spawning a TextDisplay
@@ -117,9 +130,27 @@ public class FMMEntityData implements IBridgeEntityData {
             return null;
         }
 
-        Component name = realEntity.customName();
-        if (name == null) {
-            FMMBedrockBridge.debugLog("[BRIDGE] Nametag skip — no customName for " + bedrockEntityId);
+        // Supplier resolves the current name on every tick — FMM displayName is primary
+        // (set by EM with the styled YAML name), realEntity.customName() is fallback.
+        Supplier<Component> textSource = () -> {
+            try {
+                String fmmName = modeledEntity.getDisplayName();
+                if (fmmName != null && !fmmName.isEmpty()) {
+                    return LegacyComponentSerializer.legacySection().deserialize(fmmName);
+                }
+            } catch (Throwable ignored) {
+                // FMM API failure — fall through to customName fallback
+            }
+            try {
+                return realEntity.customName();
+            } catch (Throwable ignored) {
+                return null;
+            }
+        };
+
+        Component initialName = textSource.get();
+        if (initialName == null) {
+            FMMBedrockBridge.debugLog("[BRIDGE] Nametag skip — no name source for " + bedrockEntityId);
             return null;
         }
         if (bridge.getActiveNametags().containsKey(realEntity.getUniqueId())) {
@@ -131,13 +162,14 @@ public class FMMEntityData implements IBridgeEntityData {
         Location spawnLoc = realEntity.getLocation().clone()
                 .add(0, realEntity.getHeight() + BedrockNametagController.Y_OFFSET_PADDING, 0);
 
+        Component finalInitialName = initialName;
         TextDisplay textDisplay;
         try {
             // The lambda runs BEFORE Bukkit fires the spawn packet — so registering the
             // entity-id as java-hidden here means the very first SPAWN_ENTITY broadcast
             // is already filtered for Java players.
             textDisplay = realEntity.getWorld().spawn(spawnLoc, TextDisplay.class, td -> {
-                td.text(name);
+                td.text(finalInitialName);
                 td.setBillboard(Display.Billboard.CENTER);
                 td.setSeeThrough(true);
                 td.setDefaultBackground(true);
@@ -149,9 +181,10 @@ public class FMMEntityData implements IBridgeEntityData {
             return null;
         }
 
-        BedrockNametagController controller = new BedrockNametagController(realEntity, textDisplay, name);
+        BedrockNametagController controller = new BedrockNametagController(
+                realEntity, textDisplay, initialName, textSource);
         bridge.getActiveNametags().put(realEntity.getUniqueId(), controller);
-        String plainText = PlainTextComponentSerializer.plainText().serialize(name);
+        String plainText = PlainTextComponentSerializer.plainText().serialize(initialName);
         FMMBedrockBridge.debugLog("[BRIDGE] Created Nametag controller for " + bedrockEntityId
                 + " (text='" + plainText + "', textDisplayId=" + textDisplay.getEntityId() + ")");
         return controller;
