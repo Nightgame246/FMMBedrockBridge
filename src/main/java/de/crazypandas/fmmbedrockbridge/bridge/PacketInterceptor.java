@@ -9,6 +9,7 @@ import com.github.retrooper.packetevents.protocol.packettype.PacketType;
 import com.github.retrooper.packetevents.wrapper.play.client.WrapperPlayClientInteractEntity;
 import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerBossBar;
 import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerEntityMetadata;
+import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerEntityTeleport;
 import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerSpawnEntity;
 import de.crazypandas.fmmbedrockbridge.FMMBedrockBridge;
 import net.kyori.adventure.text.Component;
@@ -35,6 +36,15 @@ public class PacketInterceptor {
 
     private final Map<Integer, Set<Player>> hiddenEntityIds = new ConcurrentHashMap<>();
     private final Map<Integer, Integer> fakeToRealEntityId = new ConcurrentHashMap<>();
+
+    /**
+     * Phase 7.1b — entity IDs that must be hidden from ALL Java (non-Floodgate) players.
+     * Used for our auxiliary TextDisplay nametags: Java players already see the vanilla
+     * custom-name nametag on the real entity, so showing them our TextDisplay would create
+     * a visible duplicate.
+     */
+    private final Set<Integer> javaHiddenEntityIds = ConcurrentHashMap.newKeySet();
+
     private PacketListenerAbstract listener;
 
     // Phase 7.1a — back-reference for BossBar suppress logic. Set by BedrockEntityBridge.
@@ -62,6 +72,27 @@ public class PacketInterceptor {
                         entityId = new WrapperPlayServerEntityMetadata(event).getEntityId();
                     }
                     if (entityId > 0 && isHiddenFor(entityId, eventPlayer)) {
+                        event.setCancelled(true);
+                        return;
+                    }
+                }
+
+                // Phase 7.1b — Java-only suppress for our auxiliary TextDisplay nametags
+                if (!javaHiddenEntityIds.isEmpty() && floodgateAvailable
+                        && !FloodgateApi.getInstance().isFloodgatePlayer(playerObj.getUniqueId())) {
+                    int entityId = -1;
+                    if (event.getPacketType() == PacketType.Play.Server.SPAWN_ENTITY) {
+                        entityId = new WrapperPlayServerSpawnEntity(event).getEntityId();
+                    } else if (event.getPacketType() == PacketType.Play.Server.ENTITY_METADATA) {
+                        entityId = new WrapperPlayServerEntityMetadata(event).getEntityId();
+                    } else if (event.getPacketType() == PacketType.Play.Server.ENTITY_TELEPORT) {
+                        try {
+                            entityId = new WrapperPlayServerEntityTeleport(event).getEntityId();
+                        } catch (Throwable t) {
+                            // Wrapper API mismatch — fall through, packet passes
+                        }
+                    }
+                    if (entityId > 0 && javaHiddenEntityIds.contains(entityId)) {
                         event.setCancelled(true);
                         return;
                     }
@@ -109,6 +140,20 @@ public class PacketInterceptor {
         }
     }
 
+    /**
+     * Phase 7.1b — register an entity ID to be suppressed for ALL Java (non-Floodgate)
+     * players. SPAWN_ENTITY, ENTITY_METADATA, and ENTITY_TELEPORT packets for this ID
+     * will be cancelled before reaching Java clients.
+     */
+    public void hideFromJava(int entityId) {
+        javaHiddenEntityIds.add(entityId);
+    }
+
+    /** Phase 7.1b — unregister an entity from Java-suppress. */
+    public void unhideFromJava(int entityId) {
+        javaHiddenEntityIds.remove(entityId);
+    }
+
     public void mapFakeToReal(int fakeId, int realId) {
         fakeToRealEntityId.put(fakeId, realId);
     }
@@ -125,6 +170,7 @@ public class PacketInterceptor {
     public void clear() {
         hiddenEntityIds.clear();
         fakeToRealEntityId.clear();
+        javaHiddenEntityIds.clear();
     }
 
     /**
