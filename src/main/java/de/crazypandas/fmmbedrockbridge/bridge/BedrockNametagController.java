@@ -103,8 +103,16 @@ public final class BedrockNametagController {
         Location target = realEntity.getLocation().clone().add(0, realEntity.getHeight() + Y_OFFSET_PADDING, 0);
         textDisplay.teleport(target);
 
-        // Text sync — only when changed, to avoid pointless METADATA churn
-        Component current = NametagTextBuilder.compose(realEntity, modeledEntity, isInCombat);
+        // Text sync — only when changed, to avoid pointless METADATA churn.
+        // Defensive try/catch: compose() reaches into FMM/Bukkit APIs, and an unhandled
+        // throw here would otherwise propagate into the scheduled tick task and spam
+        // a stacktrace per tick. Fall back to lastText on failure.
+        Component current;
+        try {
+            current = NametagTextBuilder.compose(realEntity, modeledEntity, isInCombat);
+        } catch (Throwable t) {
+            current = lastText;
+        }
         if (current == null) {
             current = Component.empty();
         }
