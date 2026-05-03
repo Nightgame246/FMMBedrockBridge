@@ -73,6 +73,9 @@ public class BedrockEntityBridge {
         this.entityTracker = entityTracker;
         this.viewerManager = new ViewerManager(floodgateAvailable);
 
+        // Phase 7.1a — give PacketInterceptor a back-reference so it can look up controllers
+        packetInterceptor.setBridge(this);
+
         viewerManager.setOnPlayerReady(player -> {
             if (!geyserUtilsAvailable) return;
             for (IBridgeEntityData data : entityDataMap.values()) {
