@@ -1,5 +1,6 @@
 package de.crazypandas.fmmbedrockbridge.bridge;
 
+import com.magmaguy.freeminecraftmodels.customentity.ModeledEntity;
 import net.kyori.adventure.text.Component;
 import org.bukkit.Location;
 import org.bukkit.entity.Display;
@@ -7,17 +8,22 @@ import org.bukkit.entity.Entity;
 import org.bukkit.entity.TextDisplay;
 
 import java.util.UUID;
-import java.util.function.Supplier;
 
 /**
- * Phase 7.1b — Lifecycle controller for one FMM mob's Bedrock-only nametag.
+ * Phase 7.1b/7.1c — Lifecycle controller for one FMM mob's Bedrock-only nametag.
  *
  * <p>Holds a single Bukkit {@link TextDisplay} entity spawned above the FMM mob.
  * Position and text are synced each tick via {@link #tickUpdate()}. Java players
  * never see the TextDisplay because {@link PacketInterceptor#hideFromJava(int)}
  * suppresses its packets for non-Floodgate players — Java already shows the
- * vanilla custom-name nametag on the real entity, so a second display would
- * just produce visual duplication.
+ * vanilla custom-name nametag on the real entity.
+ *
+ * <p>Phase 7.1c — text content depends on {@link #isInCombat}:
+ * <ul>
+ *   <li>out-of-combat: 1 line (name only)</li>
+ *   <li>in-combat: 3 lines (HP-number / health-bar / name)</li>
+ * </ul>
+ * Combat state is toggled by {@code BedrockCombatTrigger} via {@link #setCombatState}.
  *
  * <p>Threading: all public methods must be called from the Bukkit main thread.
  */
@@ -32,27 +38,23 @@ public final class BedrockNametagController {
 
     private final UUID realEntityUuid;
     private final Entity realEntity;
+    private final ModeledEntity modeledEntity;
     private final TextDisplay textDisplay;
-    private final Supplier<Component> textSource;
     private Component lastText;
+    private boolean isInCombat = false;
 
     /**
      * @param realEntity the FMM mob whose position the nametag tracks
+     * @param modeledEntity the FMM ModeledEntity wrapper (used for displayName resolution)
      * @param textDisplay the Bukkit TextDisplay entity already spawned by the caller
      * @param initialText the initial text (also used as the first {@code lastText} cache value)
-     * @param textSource a supplier called each tick to get the current desired text. Returns
-     *                   null if no text source is available — the supplier is the source of
-     *                   truth for the styled name. The caller wires this to
-     *                   {@code modeledEntity.getDisplayName()} (FMM's own nametag pipeline,
-     *                   set by EM via CustomModelFMM.setName) with a fallback to
-     *                   {@code realEntity.customName()}.
      */
-    public BedrockNametagController(Entity realEntity, TextDisplay textDisplay,
-                                    Component initialText, Supplier<Component> textSource) {
+    public BedrockNametagController(Entity realEntity, ModeledEntity modeledEntity,
+                                    TextDisplay textDisplay, Component initialText) {
         this.realEntityUuid = realEntity.getUniqueId();
         this.realEntity = realEntity;
+        this.modeledEntity = modeledEntity;
         this.textDisplay = textDisplay;
-        this.textSource = textSource;
         this.lastText = initialText;
     }
 
@@ -70,16 +72,27 @@ public final class BedrockNametagController {
         return lastText;
     }
 
+    /** Phase 7.1c — true if currently in combat (3-line layout). */
+    public boolean isInCombat() {
+        return isInCombat;
+    }
+
+    /**
+     * Phase 7.1c — toggle combat-state. {@code tickUpdate} re-evaluates the text on the
+     * next tick, so the UI catches up within ~2 ticks of state change.
+     */
+    public void setCombatState(boolean inCombat) {
+        this.isInCombat = inCombat;
+    }
+
     /**
      * Each tick:
      * <ul>
      *   <li>Skip if the real entity or the TextDisplay is dead/invalid.</li>
      *   <li>Teleport the TextDisplay to {@code realEntity.location + (0, height + 0.3, 0)}.
      *       Bukkit deduplicates ENTITY_TELEPORT packets when position is unchanged.</li>
-     *   <li>Fetch the current text via {@code textSource.get()} (typically
-     *       {@code modeledEntity.getDisplayName()}); update the TextDisplay only when it
-     *       differs from the last sent value. Null/empty supplier results render as
-     *       {@link Component#empty()}.</li>
+     *   <li>Recompute text via {@link NametagTextBuilder#compose}; update the TextDisplay
+     *       only when it differs from the last sent value.</li>
      * </ul>
      */
     public void tickUpdate() {
@@ -91,12 +104,7 @@ public final class BedrockNametagController {
         textDisplay.teleport(target);
 
         // Text sync — only when changed, to avoid pointless METADATA churn
-        Component current;
-        try {
-            current = textSource.get();
-        } catch (Throwable t) {
-            current = null;
-        }
+        Component current = NametagTextBuilder.compose(realEntity, modeledEntity, isInCombat);
         if (current == null) {
             current = Component.empty();
         }
