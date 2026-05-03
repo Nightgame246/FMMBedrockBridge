@@ -48,6 +48,12 @@ public class BedrockEntityBridge {
     /** Cached animation names per bedrock entity ID (loaded from converter output) */
     private final Map<String, List<String>> animationNamesCache = new ConcurrentHashMap<>();
 
+    /** Phase 7.1a — active BossBar controllers, keyed by real-entity UUID */
+    private final Map<UUID, BedrockBossBarController> activeControllers = new ConcurrentHashMap<>();
+
+    /** Phase 7.1a — captured EM BossBar UUIDs for suppression on Bedrock players */
+    private final BossBarRegistry bossBarRegistry = new BossBarRegistry();
+
     private BukkitTask syncTask;
 
     // Cached reflection field for ModeledEntity.underlyingEntity
@@ -112,6 +118,8 @@ public class BedrockEntityBridge {
             data.destroy();
         }
         entityDataMap.clear();
+        activeControllers.clear();
+        bossBarRegistry.clear();
         viewerManager.clear();
         packetInterceptor.clear();
 
@@ -267,5 +275,14 @@ public class BedrockEntityBridge {
 
     public Map<ModeledEntity, IBridgeEntityData> getEntityDataMap() {
         return Collections.unmodifiableMap(entityDataMap);
+    }
+
+    /** Phase 7.1a — accessors for BossBar subsystem. */
+    public Map<UUID, BedrockBossBarController> getActiveControllers() {
+        return activeControllers;
+    }
+
+    public BossBarRegistry getBossBarRegistry() {
+        return bossBarRegistry;
     }
 }
