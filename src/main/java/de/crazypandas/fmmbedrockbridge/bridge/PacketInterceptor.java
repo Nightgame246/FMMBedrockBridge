@@ -9,6 +9,9 @@ import com.github.retrooper.packetevents.protocol.packettype.PacketType;
 import com.github.retrooper.packetevents.wrapper.play.client.WrapperPlayClientInteractEntity;
 import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerBossBar;
 import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerEntityMetadata;
+import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerEntityPositionSync;
+import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerEntityRelativeMove;
+import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerEntityRelativeMoveAndRotation;
 import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerEntityTeleport;
 import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerSpawnEntity;
 import de.crazypandas.fmmbedrockbridge.FMMBedrockBridge;
@@ -90,6 +93,25 @@ public class PacketInterceptor {
                             entityId = new WrapperPlayServerEntityTeleport(event).getEntityId();
                         } catch (Throwable t) {
                             // Wrapper API mismatch — fall through, packet passes
+                        }
+                    } else if (event.getPacketType() == PacketType.Play.Server.ENTITY_RELATIVE_MOVE) {
+                        try {
+                            entityId = new WrapperPlayServerEntityRelativeMove(event).getEntityId();
+                        } catch (Throwable t) {
+                            // Wrapper API mismatch — fall through
+                        }
+                    } else if (event.getPacketType() == PacketType.Play.Server.ENTITY_RELATIVE_MOVE_AND_ROTATION) {
+                        try {
+                            entityId = new WrapperPlayServerEntityRelativeMoveAndRotation(event).getEntityId();
+                        } catch (Throwable t) {
+                            // Wrapper API mismatch — fall through
+                        }
+                    } else if (event.getPacketType() == PacketType.Play.Server.ENTITY_POSITION_SYNC) {
+                        try {
+                            // POSITION_SYNC uses getId() (not getEntityId()) — confirmed from PE 2.12.1 source.
+                            entityId = new WrapperPlayServerEntityPositionSync(event).getId();
+                        } catch (Throwable t) {
+                            // Wrapper might be missing or use a different getter on older PE — fail soft.
                         }
                     }
                     if (entityId > 0 && javaHiddenEntityIds.contains(entityId)) {
