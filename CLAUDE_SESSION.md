@@ -511,3 +511,57 @@ Keine Code-Änderungen committed — nur Spec + Plan. Implementation startet bei
 ```
 /usr/share/idea/plugins/maven/lib/maven3/bin/mvn clean package
 ```
+
+---
+
+## Session: 2026-05-03 (Phase 7.1a Implementation + Debug-Mode-Integration)
+
+### Abgeschlossen — Phase 7.1a komplett funktional auf TestServer01
+- **Tasks 1-7 implementiert via Subagent-Driven Development** (commits 7463fe0 → 0db5ff6): plugin.yml softdepend, EliteMobsHook (soft-dep), BossBarRegistry, BedrockBossBarController, BedrockEntityBridge wiring, FMMEntityData lifecycle, PacketInterceptor BOSS_EVENT suppress
+- **Task 8 (deploy + manual test):** drei Diagnostic-Iterationen waren nötig um zwei latente Bugs zu finden, beide jetzt gelöst
+- **Test-Matrix bestanden:** Wolf "『3』 Wilder Alphawolf" + Ice Elemental "Evoker | 2" (EM-Bug, nicht unsers) erscheinen auf Bedrock, HP-Sync grün→gelb→rot, Multi-Boss stacked, Boss-Death cleanup OK
+
+### Bugs während Phase 8 gefunden und gelöst
+
+**1. Wrong styled-name source (Bug A).**
+Spec sagte `eliteEntity.getName()` als kanonische Quelle. Live-Test zeigte: für `EVOKER`-basierte CustomBosses liefert das den Vanilla-`<Mob> | <Tier>`-Namen, nicht den YAML-`name`. `livingEntity.getCustomName()` ist verlässlich (was Java auch als Mob-Nametag zeigt).
+**Fix:** `EliteMobsHook.getStyledName()` nutzt customName als primary, eliteEntity.getName() nur als fallback wenn customName nicht gesetzt.
+
+**2. Self-suppression (Bug B, kritisch).**
+Unser PacketInterceptor.handleBossEvent suppressed UNSERE EIGENE Bukkit-BossBar! Title-Match findet ja den eigenen Controller. ThreadLocal-basierter Bypass-Versuch funktionierte nicht weil Bukkit das BOSS_EVENT-Paket auf einem Netty-IO-Thread sendet, nicht auf dem Bukkit-Main-Thread wo `bossBar.addPlayer()` aufgerufen wird → ThreadLocal nicht sichtbar.
+**Fix:** First-Match-Heuristik ohne Threading. Pro Controller ist das **erste** title-matchende ADD-Paket unsere BossBar (wir adden immer beim Spawn, EM erst beim Combat-Enter — Reihenfolge garantiert), spätere matches sind EM's Duplikate. Implementiert via `BedrockBossBarController.hasOwnUuid()` / `registerOwnUuid()`.
+
+**3. `setVisible(true)` fehlt (Bug C).**
+Vergleich mit EM's `SkillXPBar.java` (das auf Bedrock funktioniert) zeigte: explizites `bossBar.setVisible(true)` nach `addPlayer()` ist nötig. Bukkit defaultet zwar auf visible=true aber der explizite Call generiert ein UPDATE_FLAGS-Paket das Geyser/Bedrock zur Anzeige der BossBar zu brauchen scheinen.
+**Fix:** `setVisible(true)` im Konstruktor und in `addViewer` ergänzt.
+
+### Debug-Mode-Integration (User-Wunsch)
+Statt die diagnostischen Logs zu entfernen, ins Plugin als nutzbares Debug-System integriert:
+- **`FMMBedrockBridge.debugLog(String)`** Helper: log.info wenn `debug: true` in config.yml, sonst log.fine (unsichtbar im Default-Logger)
+- **Phase 7.1a Logs** nutzen den Helper — toggle via config = sofortige sichtbare Diagnose ohne Build
+- **`/fmmbridge debug` Command** zeigt jetzt zusätzlich aktive BossBar-Controllers (Title, own-UUID-claimed-status, Entity-UUID) + Anzahl der suppressten EM-UUIDs + aktuellen debug-mode-Status
+
+### Crossplay-Behaviour-Klärung
+Aktuelles Verhalten: Bedrock-Spieler sieht BossBar **proximity-based** (in Range), Java-Spieler sieht EM's BossBar **combat-based** (erst bei Damage). Das ist ein kleiner Crossplay-Unterschied, aber:
+- Vanilla MC (Wither/Dragon) ist auch proximity-based — unser Bedrock-Verhalten ist Vanilla-konsistent
+- Java-Spieler hat den Mob-Custom-Name als Nametag — Bedrock fehlt der noch (Phase 7.1b)
+- Phase 7.1c (Combat-only Trigger) ist als Future Enhancement im Spec dokumentiert — sinnvoll erst NACH Phase 7.1b weil sonst Bedrock keine proximity-Awareness hätte
+
+### Phase-Erweiterung
+- Phase 7.1c neu hinzugefügt: Combat-only BossBar-Trigger für Crossplay-Fairness (geplant, nach 7.1b)
+- README + Spec aktualisiert mit Phase 7.1c-Beschreibung
+
+### Erkenntnisse (für Phase 7.1b und Folgephasen)
+- **PacketEvents Send-Listener läuft auf Netty-IO-Thread, nicht Bukkit-Main-Thread.** ThreadLocal-Tricks funktionieren nicht für Self-Identifikation von Outgoing-Pakete. Falls 7.1b ähnliche Distinction braucht, Timing-Heuristik (first-match) oder UUID-Whitelist nutzen.
+- **EM SkillXPBar als Working-Reference:** wenn ein Bedrock-BossBar-Mechanism gebaut wird, EM's `SkillXPBar.java` als Pattern nehmen — das funktioniert empirisch auf Bedrock (Bukkit-API + setVisible-Call).
+- **EM customName ist verlässliche Source für Boss-Nametag** auf der LivingEntity, auch wenn `eliteEntity.getName()` für manche Boss-Types inkonsistent ist.
+
+### Noch zu tun (nächste Session)
+- Phase 7.1b brainstormen (Bedrock-Nametag-Architektur — TextDisplay-Spawn? Bedrock-Entity-Definition mit Nametag-Component?)
+- Phase 7.1c brainstormen (Combat-only BossBar) — erst nach 7.1b fertig
+- Phase 8 Backlog: Bewegungsrichtung-Animation-Fix, GeyserUtils-NPE-Cleanup
+
+### Build
+```
+/usr/share/idea/plugins/maven/lib/maven3/bin/mvn clean package
+```

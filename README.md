@@ -55,7 +55,11 @@ FMM spawns DynamicEntity (wraps LivingEntity)
 | 6.2 | Blockbench v5 NPC model support (bone names + pivots from groups array) | Done |
 | 6.3 | FMM 4x coordinate scale fix — all geometry/animation coordinates divided by MODEL_SCALE=4.0 | Done |
 | 6.4 | Head/Body orientation fix — UV face swap + entity yaw correction (replaces broken root-bone approach) | Done |
-| 7 | EliteMobs UI/UX (BossBar, nametag improvements, GUIs) | Planned |
+| 7.1a | BossBar with EliteMobs styled name on Bedrock (per-boss Bukkit BossBar + first-match suppress heuristic) | Done |
+| 7.1b | Bedrock Nametag (3-line: HP / health-bar / name) — alternative architecture (TextDisplay or Bedrock entity definition) | Planned |
+| 7.1c | Combat-only BossBar trigger (crossplay fairness — match Java EM behaviour) — only after 7.1b is done | Planned |
+| 7.2 | EliteMobs UI/UX (GUIs, custom items) | Planned |
+| 7.3 | Java popup menus → Bedrock Forms (Cumulus API) | Planned |
 | 8 | Polish: hitbox scale, hurt flash, particles, config, performance, animation X/Z mirror for movement, production-readiness | Planned |
 
 ## Deployment
