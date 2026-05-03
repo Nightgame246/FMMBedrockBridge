@@ -7,13 +7,20 @@ import com.github.retrooper.packetevents.event.PacketReceiveEvent;
 import com.github.retrooper.packetevents.event.PacketSendEvent;
 import com.github.retrooper.packetevents.protocol.packettype.PacketType;
 import com.github.retrooper.packetevents.wrapper.play.client.WrapperPlayClientInteractEntity;
+import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerBossBar;
 import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerEntityMetadata;
 import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerSpawnEntity;
 import de.crazypandas.fmmbedrockbridge.FMMBedrockBridge;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
+import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
+import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
+import org.geysermc.floodgate.api.FloodgateApi;
 
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Logger;
 
@@ -30,23 +37,39 @@ public class PacketInterceptor {
     private final Map<Integer, Integer> fakeToRealEntityId = new ConcurrentHashMap<>();
     private PacketListenerAbstract listener;
 
+    // Phase 7.1a — back-reference for BossBar suppress logic. Set by BedrockEntityBridge.
+    private BedrockEntityBridge bridge;
+    private boolean floodgateAvailable = false;
+
+    public void setBridge(BedrockEntityBridge bridge) {
+        this.bridge = bridge;
+        this.floodgateAvailable = Bukkit.getPluginManager().getPlugin("floodgate") != null;
+    }
+
     public void register() {
         listener = new PacketListenerAbstract(PacketListenerPriority.HIGHEST) {
             @Override
             public void onPacketSend(PacketSendEvent event) {
-                if (hiddenEntityIds.isEmpty()) return;
                 Object eventPlayer = event.getPlayer();
-                if (!(eventPlayer instanceof Player)) return;
+                if (!(eventPlayer instanceof Player playerObj)) return;
 
-                int entityId = -1;
-                if (event.getPacketType() == PacketType.Play.Server.SPAWN_ENTITY) {
-                    entityId = new WrapperPlayServerSpawnEntity(event).getEntityId();
-                } else if (event.getPacketType() == PacketType.Play.Server.ENTITY_METADATA) {
-                    entityId = new WrapperPlayServerEntityMetadata(event).getEntityId();
+                // Existing: suppress spawn/metadata packets for hidden entities
+                if (!hiddenEntityIds.isEmpty()) {
+                    int entityId = -1;
+                    if (event.getPacketType() == PacketType.Play.Server.SPAWN_ENTITY) {
+                        entityId = new WrapperPlayServerSpawnEntity(event).getEntityId();
+                    } else if (event.getPacketType() == PacketType.Play.Server.ENTITY_METADATA) {
+                        entityId = new WrapperPlayServerEntityMetadata(event).getEntityId();
+                    }
+                    if (entityId > 0 && isHiddenFor(entityId, eventPlayer)) {
+                        event.setCancelled(true);
+                        return;
+                    }
                 }
 
-                if (entityId > 0 && isHiddenFor(entityId, eventPlayer)) {
-                    event.setCancelled(true);
+                // Phase 7.1a — BOSS_EVENT suppress for Bedrock players
+                if (event.getPacketType() == PacketType.Play.Server.BOSS_BAR) {
+                    handleBossEvent(event, playerObj);
                 }
             }
 
@@ -102,5 +125,96 @@ public class PacketInterceptor {
     public void clear() {
         hiddenEntityIds.clear();
         fakeToRealEntityId.clear();
+    }
+
+    /**
+     * Phase 7.1a — heuristic capture + suppress for EliteMobs BossBar packets to Bedrock players.
+     *
+     * Strategy:
+     *  - On ADD action: if title matches an active BedrockBossBarController whose target this
+     *    player is already viewing, capture the UUID into BossBarRegistry and cancel.
+     *  - On any other action with a captured UUID: cancel.
+     *  - All other packets: pass through untouched (vanilla Wither/Dragon BossBars, other plugins).
+     */
+    private void handleBossEvent(PacketSendEvent event, Player playerObj) {
+        if (bridge == null) return;
+        if (!isSuppressEnabled()) return;
+        if (!floodgateAvailable) return;
+        if (!FloodgateApi.getInstance().isFloodgatePlayer(playerObj.getUniqueId())) return;
+
+        WrapperPlayServerBossBar wrapper;
+        try {
+            wrapper = new WrapperPlayServerBossBar(event);
+        } catch (Throwable t) {
+            // PacketEvents wrapper API break — fail silent, packet passes through
+            return;
+        }
+
+        UUID uuid = wrapper.getUUID();
+        WrapperPlayServerBossBar.Action action = wrapper.getAction();
+
+        // Already-captured UUID: drop all subsequent updates for this Bedrock player
+        if (action != WrapperPlayServerBossBar.Action.ADD && bridge.getBossBarRegistry().contains(uuid)) {
+            event.setCancelled(true);
+            return;
+        }
+
+        // ADD action: try to match this title against an active controller for this viewer
+        if (action == WrapperPlayServerBossBar.Action.ADD) {
+            String packetTitle = extractTitleString(wrapper);
+            if (packetTitle == null) return;
+
+            for (BedrockBossBarController ctrl : bridge.getActiveControllers().values()) {
+                if (ctrl.hasViewer(playerObj) && titlesMatch(ctrl.getTitle(), packetTitle)) {
+                    bridge.getBossBarRegistry().add(uuid);
+                    event.setCancelled(true);
+                    log.fine("[BRIDGE] Captured EM BossBar UUID " + uuid
+                            + " (title='" + packetTitle + "') for Bedrock player " + playerObj.getName());
+                    return;
+                }
+            }
+            // Optional: log unmatched ADD on Bedrock player at FINE level for diagnosis
+            log.fine("[BRIDGE] Unmatched BOSS_EVENT(ADD) on Bedrock player " + playerObj.getName()
+                    + " title='" + packetTitle + "' (passing through)");
+        }
+    }
+
+    /** Extracts the title string from a BOSS_EVENT(ADD) wrapper, or null on failure. */
+    private String extractTitleString(WrapperPlayServerBossBar wrapper) {
+        try {
+            Component title = wrapper.getTitle();
+            if (title == null) return null;
+            return PlainTextComponentSerializer.plainText().serialize(title);
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    /**
+     * Compares the controller's title (set via Bukkit.createBossBar with a String) to the
+     * packet's plain-text title. EliteMobs uses ChatColorConverter.convert which produces
+     * legacy §-coded strings; both Bukkit's BossBar title and the BOSS_EVENT packet title
+     * carry the same source text. We compare plain-text (color codes stripped) for robustness.
+     */
+    private boolean titlesMatch(String controllerTitle, String packetTitle) {
+        if (controllerTitle == null || packetTitle == null) return false;
+        String a = stripLegacyCodes(controllerTitle);
+        String b = packetTitle;  // already plain text
+        return a.equals(b);
+    }
+
+    private String stripLegacyCodes(String input) {
+        // Use Adventure's legacy serializer to convert §-coded string → Component → plain text.
+        try {
+            Component c = LegacyComponentSerializer.legacySection().deserialize(input);
+            return PlainTextComponentSerializer.plainText().serialize(c);
+        } catch (Throwable t) {
+            return input;
+        }
+    }
+
+    private boolean isSuppressEnabled() {
+        return FMMBedrockBridge.getInstance().getConfig()
+                .getBoolean("phase71a.suppress-em-bossbar", true);
     }
 }
