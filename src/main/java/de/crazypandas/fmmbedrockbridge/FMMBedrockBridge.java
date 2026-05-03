@@ -99,4 +99,30 @@ public class FMMBedrockBridge extends JavaPlugin {
     public boolean isFmmAvailable() {
         return fmmAvailable;
     }
+
+    /**
+     * True if the {@code debug} key in config.yml is enabled. Plugin subsystems use this
+     * to gate verbose-but-useful diagnostic logging — call {@link #debugLog(String)} for
+     * the most common pattern (info-when-debug, fine-otherwise).
+     */
+    public static boolean isDebugEnabled() {
+        FMMBedrockBridge plugin = instance;
+        return plugin != null && plugin.getConfig().getBoolean("debug", false);
+    }
+
+    /**
+     * Logs at INFO level if {@code debug=true} in config.yml, otherwise at FINE level.
+     * Used for diagnostic messages that are noise in normal operation but valuable when
+     * troubleshooting — flip {@code debug: true} to surface them in latest.log without
+     * a code change.
+     */
+    public static void debugLog(String message) {
+        if (instance == null) return;
+        Logger logger = instance.getLogger();
+        if (instance.getConfig().getBoolean("debug", false)) {
+            logger.info(message);
+        } else {
+            logger.fine(message);
+        }
+    }
 }

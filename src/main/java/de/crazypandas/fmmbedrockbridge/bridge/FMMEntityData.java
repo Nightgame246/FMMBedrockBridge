@@ -61,7 +61,10 @@ public class FMMEntityData implements IBridgeEntityData {
      * lookup by the PacketInterceptor. Returns null otherwise.
      */
     private BedrockBossBarController createBossBarControllerIfElite() {
-        if (!(realEntity instanceof LivingEntity living)) return null;
+        if (!(realEntity instanceof LivingEntity living)) {
+            FMMBedrockBridge.debugLog("[BRIDGE] BossBar skip — realEntity not LivingEntity for " + bedrockEntityId);
+            return null;
+        }
         if (bridge.getActiveControllers().containsKey(living.getUniqueId())) {
             // FMM re-spawn without a corresponding despawn — skip to avoid orphaning
             // the previous controller's BossBar.
@@ -70,7 +73,11 @@ public class FMMEntityData implements IBridgeEntityData {
             return null;
         }
         String styledName = EliteMobsHook.getStyledName(living);
-        if (styledName == null) return null;
+        if (styledName == null) {
+            FMMBedrockBridge.debugLog("[BRIDGE] BossBar skip — no styled name for " + bedrockEntityId
+                    + " (not an EliteMobs boss or name not yet set)");
+            return null;
+        }
         BedrockBossBarController controller;
         try {
             controller = new BedrockBossBarController(living, styledName);
@@ -80,8 +87,8 @@ public class FMMEntityData implements IBridgeEntityData {
             return null;
         }
         bridge.getActiveControllers().put(living.getUniqueId(), controller);
-        log.fine("[BRIDGE] Created BossBar controller for " + bedrockEntityId
-                + " (em-name='" + styledName + "')");
+        FMMBedrockBridge.debugLog("[BRIDGE] Created BossBar controller for " + bedrockEntityId
+                + " (title='" + styledName + "')");
         return controller;
     }
 
