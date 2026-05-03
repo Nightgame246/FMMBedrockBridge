@@ -125,4 +125,14 @@ public class FMMBedrockBridge extends JavaPlugin {
             logger.fine(message);
         }
     }
+
+    /**
+     * Phase 7.1c — true if the combat-triggered visuals (BossBar combat-only, Nametag
+     * 3-line during combat) are enabled. When false, Phase 7.1a (BossBar always-visible)
+     * + Phase 7.1b (1-line nametag) behavior is preserved as a safety fallback.
+     */
+    public static boolean isPhase71cCombatEnabled() {
+        FMMBedrockBridge plugin = instance;
+        return plugin != null && plugin.getConfig().getBoolean("phase71c.combat-enabled", true);
+    }
 }
