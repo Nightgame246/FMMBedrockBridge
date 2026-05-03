@@ -7,6 +7,7 @@ import org.bukkit.boss.BossBar;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
 
+import de.crazypandas.fmmbedrockbridge.FMMBedrockBridge;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -50,15 +51,28 @@ public final class BedrockBossBarController {
     private double lastProgress = -1.0;
     private BarColor lastColor = null;
 
+    /**
+     * Phase 7.1c — combat-state. When false (default outside combat), the BossBar is
+     * invisible and {@link #addViewer(Player)} skips {@code bossBar.addPlayer(...)}.
+     * When true (during EM combat), the BossBar is visible and viewers are added.
+     * Toggled by {@link #enterCombat()} / {@link #exitCombat()} which are called from
+     * {@code BedrockCombatTrigger} on EM combat events.
+     */
+    private boolean isInCombat = false;
+
     public BedrockBossBarController(LivingEntity realEntity, String title) {
         this.realEntityUuid = realEntity.getUniqueId();
         this.realEntity = realEntity;
         this.title = title;
         this.bossBar = Bukkit.createBossBar(title, BarColor.GREEN, BarStyle.SEGMENTED_10);
         this.bossBar.setProgress(1.0);
-        // EM's SkillXPBar pattern: explicit setVisible(true) generates the UPDATE_FLAGS
-        // packet that Geyser/Bedrock require to actually display the bar on Bedrock clients.
-        this.bossBar.setVisible(true);
+        // Phase 7.1c — when combat-enabled, BossBar starts invisible and is only revealed
+        // via enterCombat(). When combat-enabled=false (Phase 7.1a fallback), keep the
+        // always-visible behavior + treat the controller as permanently in-combat so
+        // addViewer triggers bossBar.addPlayer.
+        boolean combatEnabled = FMMBedrockBridge.isPhase71cCombatEnabled();
+        this.bossBar.setVisible(!combatEnabled);
+        this.isInCombat = !combatEnabled;
         this.lastColor = BarColor.GREEN;
         this.lastProgress = 1.0;
     }
@@ -93,9 +107,13 @@ public final class BedrockBossBarController {
     public void addViewer(Player player) {
         if (player == null || !player.isOnline()) return;
         if (viewers.add(player)) {
-            bossBar.addPlayer(player);
-            // Re-assert visibility after addPlayer (matches EM SkillXPBar pattern).
-            bossBar.setVisible(true);
+            // Phase 7.1c — only register with the Bukkit bossBar when in combat. Outside
+            // combat the viewer is tracked here but the bossBar stays invisible to them;
+            // they're added via enterCombat() when the next combat starts.
+            if (isInCombat) {
+                bossBar.addPlayer(player);
+                bossBar.setVisible(true);
+            }
         }
     }
 
@@ -127,6 +145,40 @@ public final class BedrockBossBarController {
             bossBar.setColor(color);
             lastColor = color;
         }
+    }
+
+    /**
+     * Phase 7.1c — called from {@code BedrockCombatTrigger.onEnterCombat}. Reveals the
+     * BossBar and adds all currently-tracked viewers. Idempotent — safe to call when
+     * already in combat.
+     */
+    public void enterCombat() {
+        if (isInCombat) return;
+        isInCombat = true;
+        bossBar.setVisible(true);
+        for (Player viewer : viewers) {
+            if (viewer != null && viewer.isOnline()) {
+                bossBar.addPlayer(viewer);
+            }
+        }
+    }
+
+    /**
+     * Phase 7.1c — called from {@code BedrockCombatTrigger.onExitCombat}. Hides the
+     * BossBar from all viewers and clears captured own-UUIDs (so the first-match
+     * heuristic claims a fresh own-UUID at the next combat-enter). Idempotent.
+     */
+    public void exitCombat() {
+        if (!isInCombat) return;
+        isInCombat = false;
+        bossBar.removeAll();
+        bossBar.setVisible(false);
+        ownUuids.clear();
+    }
+
+    /** Phase 7.1c — used by {@code /fmmbridge debug} and the lazy-add gate in addViewer. */
+    public boolean isInCombat() {
+        return isInCombat;
     }
 
     public void cleanup() {
