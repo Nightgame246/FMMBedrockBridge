@@ -22,8 +22,12 @@ import java.util.UUID;
  */
 public final class BedrockNametagController {
 
-    /** Vertical offset above the entity's feet for the nametag (above the head). */
-    private static final double Y_OFFSET_PADDING = 0.3;
+    /**
+     * Vertical offset above the entity's feet for the nametag (above the head).
+     * Public so {@code FMMEntityData.createNametagControllerIfNamed} can use the
+     * same value when computing the initial spawn location.
+     */
+    public static final double Y_OFFSET_PADDING = 0.3;
 
     private final UUID realEntityUuid;
     private final Entity realEntity;

@@ -8,6 +8,7 @@ import de.crazypandas.fmmbedrockbridge.converter.BedrockAnimationControllerGener
 import de.crazypandas.fmmbedrockbridge.elite.EliteMobsHook;
 import me.zimzaza4.geyserutils.spigot.api.EntityUtils;
 import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.entity.Display;
@@ -109,6 +110,13 @@ public class FMMEntityData implements IBridgeEntityData {
      * the TextDisplay for a single tick before the suppress kicks in.
      */
     private BedrockNametagController createNametagControllerIfNamed() {
+        // If Floodgate isn't available there are no Bedrock viewers — spawning a TextDisplay
+        // would only result in Java players seeing a duplicate floating text. Skip entirely.
+        if (!FMMBedrockBridge.getInstance().isFloodgateAvailable()) {
+            FMMBedrockBridge.debugLog("[BRIDGE] Nametag skip — Floodgate unavailable for " + bedrockEntityId);
+            return null;
+        }
+
         Component name = realEntity.customName();
         if (name == null) {
             FMMBedrockBridge.debugLog("[BRIDGE] Nametag skip — no customName for " + bedrockEntityId);
@@ -121,7 +129,7 @@ public class FMMEntityData implements IBridgeEntityData {
         }
 
         Location spawnLoc = realEntity.getLocation().clone()
-                .add(0, realEntity.getHeight() + 0.3, 0);
+                .add(0, realEntity.getHeight() + BedrockNametagController.Y_OFFSET_PADDING, 0);
 
         TextDisplay textDisplay;
         try {
@@ -143,8 +151,9 @@ public class FMMEntityData implements IBridgeEntityData {
 
         BedrockNametagController controller = new BedrockNametagController(realEntity, textDisplay, name);
         bridge.getActiveNametags().put(realEntity.getUniqueId(), controller);
+        String plainText = PlainTextComponentSerializer.plainText().serialize(name);
         FMMBedrockBridge.debugLog("[BRIDGE] Created Nametag controller for " + bedrockEntityId
-                + " (text='" + name + "', textDisplayId=" + textDisplay.getEntityId() + ")");
+                + " (text='" + plainText + "', textDisplayId=" + textDisplay.getEntityId() + ")");
         return controller;
     }
 
@@ -235,6 +244,7 @@ public class FMMEntityData implements IBridgeEntityData {
 
     @Override
     public void tick() {
+        if (destroyed) return;
         syncPosition();
         if (bossBarController != null) {
             bossBarController.tickUpdate();
