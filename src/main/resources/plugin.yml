@@ -13,6 +13,7 @@ softdepend:
   - floodgate
   - GeyserUtils
   - PacketEvents
+  - EliteMobs
 
 commands:
   fmmbridge:
