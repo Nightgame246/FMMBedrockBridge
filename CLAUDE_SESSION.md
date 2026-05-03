@@ -565,3 +565,74 @@ Aktuelles Verhalten: Bedrock-Spieler sieht BossBar **proximity-based** (in Range
 ```
 /usr/share/idea/plugins/maven/lib/maven3/bin/mvn clean package
 ```
+
+---
+
+## Session: 2026-05-03 (Phase 7.1b — Bedrock Nametag)
+
+### Abgeschlossen
+- **Phase 7.1b Brainstorm + Spec + Plan + Implementation** auf eigener Branch `phase-7.1b`
+- **Architektur:** echte Bukkit `TextDisplay`-Entity über jedem FMM-Mob, position+text-sync via Tick-Loop, Java-Spieler sehen sie nicht (PacketInterceptor-Suppress). Bedrock-Spieler bekommen die Pakete durch — Geyser übersetzt zu Bedrock-Nametag-Entity.
+- **Plugin-agnostic Trigger:** Nametag erscheint wenn `modeledEntity.getDisplayName()` oder `realEntity.customName()` einen Wert hat — funktioniert für EM, BetterStructures, Tower Defense und alle anderen Magma-Plugins
+- **6 Tasks via Subagent-Driven Development** + 2 Review-Fixes
+- **Erfolgreich verifiziert auf TestServer01** mit Bedrock-Account (Wolf, Ice Elemental, Vindicator)
+
+### Schlüssel-Erkenntnis (Source-Bug-Fix)
+
+**`realEntity.customName()` ist NICHT die richtige Quelle für den Nametag-Text** bei FMM-Custom-Bosses (z.B. Ice Elemental zeigt "Evoker | 2" statt "Tier 13 Ice Elemental"). Nach dem ersten Build sahen wir das selbe Symptom wie bei Phase 7.1a BossBar.
+
+**Source-Trace via EM + FMM-Source ergab:**
+- EM's `CustomBossEntity.setName(name, true)` → `customModel.setName(name, true)` (mit `customModel: CustomModelFMM`)
+- `CustomModelFMM.setName` → `dynamicEntity.setDisplayName(name)` (FMM API)
+- FMM `ModeledEntity.setDisplayName(displayName)` → setzt Text auf `Skeleton.nametags` (FMM's interne TextDisplay-Bones)
+- **Java rendert seinen Mob-Nametag aus diesen FMM-Bones**, nicht aus `livingEntity.customName()`!
+
+**Fix:** `BedrockNametagController` nimmt einen `Supplier<Component> textSource` statt fixem `initialText`. `FMMEntityData` baut den Supplier mit `modeledEntity.getDisplayName()` (Legacy-§-codes via `LegacyComponentSerializer` parsen) als primary, `realEntity.customName()` als fallback. Live-Updates (z.B. EM-Phase-Wechsel) werden via Tick-Loop automatisch reflected.
+
+### Implementation-Details
+
+| Komponente | Status |
+|---|---|
+| `BedrockNametagController` (NEU) | Per-mob lifecycle, Supplier<Component>-getrieben |
+| `BedrockEntityBridge.activeNametags` Map + Accessor + Shutdown-Cleanup | additive |
+| `PacketInterceptor.javaHiddenEntityIds` + `hideFromJava`/`unhideFromJava` + Suppress-Branch | mirror der hide-from-Bedrock Logik, decked SPAWN_ENTITY/ENTITY_METADATA/ENTITY_TELEPORT/ENTITY_RELATIVE_MOVE/ENTITY_RELATIVE_MOVE_AND_ROTATION/ENTITY_POSITION_SYNC ab |
+| `FMMEntityData` Wiring | createNametagControllerIfNamed + tick + destroy + Floodgate-Guard |
+| `/fmmbridge debug` | zeigt Nametag-Controllers Sektion |
+
+### Bekannte Limitations (nach Phase 8 verschoben)
+
+1. **Wolf-Nametag mitten im Mob** — Y-Offset = `realEntity.getHeight() + 0.3` ist relativ zur Vanilla-Hitbox. FMM-Custom-Modelle sind oft größer (Scale `1.6×`), Nametag erscheint zu niedrig. Fix: model-aware Y-Offset (FMM-Skeleton-Bounds oder per-Modell-Konfig).
+2. **Multi-BossBar bei Rejoin** — Phase 7.1a First-Match-Heuristik verliert State bei Disconnect. EM's BossBar erscheint kurz parallel zu unserer. Fix in Phase 7.1c (Combat-only) oder Phase 8 Polish.
+
+### Phase-Reorganisation
+
+Phase 7.1c Scope erweitert auf "alles Combat-triggered zusammen" (BossBar-Toggle + HP-Zahl + Health-Bar) — weil das alles auf den gleichen `EliteMobEnterCombatEvent`-Hook geht. Phase 7.1b war ursprünglich als 3-zeiliger Nametag (HP/Bar/Name) gedacht, wurde aber während des Brainstorms reduziert auf "nur Name (always-visible)" — weil Java HP/Bar auch erst bei Combat zeigt.
+
+### Branch-Stand
+
+Alle Phase 7.1b Commits auf `phase-7.1b` Branch, nicht auf main. 8 Commits inkl. Brainstorm-Spec-Plan + Implementation + 2 Review-Fixes + finaler displayName-Source-Fix:
+
+```
+0d73c71 Phase 7.1b: nametag uses FMM displayName as primary source
+8ce747f Phase 7.1b: /fmmbridge debug shows active Nametag controllers
+eda7c58 Phase 7.1b: nametag fixes — Floodgate guard, Y-offset constant, ...
+46b3af7 Phase 7.1b: wire Nametag lifecycle into FMMEntityData
+7185163 Phase 7.1b: include position-sync packets in Java-suppress (review fix)
+925c382 Phase 7.1b: PacketInterceptor javaHiddenEntityIds + suppress for Java
+9a8ba52 Phase 7.1b: BedrockEntityBridge activeNametags map + accessor
+d617245 Phase 7.1b: BedrockNametagController — per-mob TextDisplay lifecycle
+7b29ffa Phase 7.1b implementation plan: Bedrock nametag via TextDisplay
+ad8236b Phase 7.1b design: Bedrock nametag via TextDisplay + Java suppress
+```
+
+Branch ready for merge to main wenn akzeptiert.
+
+### Noch zu tun (nächste Session)
+- Phase 7.1b → main mergen (oder als PR review)
+- Phase 7.1c brainstormen (Combat-only HP+Bar+BossBar-Toggle, includes Multi-BossBar-Rejoin-Fix)
+- Phase 8 Backlog erweitert: Wolf-Y-Offset, Bewegungsrichtung-Animation, GeyserUtils-NPE
+
+### Build
+```
+/usr/share/idea/plugins/maven/lib/maven3/bin/mvn clean package
+```
