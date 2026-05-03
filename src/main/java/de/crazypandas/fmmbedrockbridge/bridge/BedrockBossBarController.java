@@ -16,11 +16,18 @@ import java.util.concurrent.ConcurrentHashMap;
  * Bedrock viewers. Title is set once at construction and never updated —
  * EliteMobs phase-name changes are out of scope for Phase 7.1a.
  *
- * Lifecycle:
- *  - construct → BossBar created (no viewers yet)
- *  - addViewer(player) → bossBar.addPlayer(player)
- *  - tickUpdate() → recompute progress + color from realEntity HP, set if changed
- *  - cleanup() → bossBar.removeAll(), viewers cleared
+ * <p>Lifecycle:
+ * <ul>
+ *   <li>construct → BossBar created (no viewers yet)</li>
+ *   <li>addViewer(player) → bossBar.addPlayer(player) + setVisible(true)</li>
+ *   <li>tickUpdate() → recompute progress + color from realEntity HP, set if changed</li>
+ *   <li>cleanup() → bossBar.removeAll(), viewers cleared</li>
+ * </ul>
+ *
+ * <p>Self-suppression avoidance: the PacketInterceptor uses a first-match heuristic
+ * ({@link #hasOwnUuid()} / {@link #registerOwnUuid(UUID)}) to distinguish our own
+ * BOSS_EVENT(ADD) packets from EM's duplicate-title packets. The first matching ADD
+ * per controller is claimed as ours; subsequent matches are EM's.
  */
 public final class BedrockBossBarController {
 
@@ -33,6 +40,13 @@ public final class BedrockBossBarController {
     private final BossBar bossBar;
     private final Set<Player> viewers = ConcurrentHashMap.newKeySet();
 
+    /**
+     * UUIDs of Bukkit BossBar packets the PacketInterceptor has identified as our own
+     * (first-match heuristic). Held here so the interceptor can short-circuit subsequent
+     * non-ADD packets for these UUIDs without re-running the title-match check.
+     */
+    private final Set<UUID> ownUuids = ConcurrentHashMap.newKeySet();
+
     private double lastProgress = -1.0;
     private BarColor lastColor = null;
 
@@ -42,6 +56,9 @@ public final class BedrockBossBarController {
         this.title = title;
         this.bossBar = Bukkit.createBossBar(title, BarColor.GREEN, BarStyle.SEGMENTED_10);
         this.bossBar.setProgress(1.0);
+        // EM's SkillXPBar pattern: explicit setVisible(true) generates the UPDATE_FLAGS
+        // packet that Geyser/Bedrock require to actually display the bar on Bedrock clients.
+        this.bossBar.setVisible(true);
         this.lastColor = BarColor.GREEN;
         this.lastProgress = 1.0;
     }
@@ -58,10 +75,27 @@ public final class BedrockBossBarController {
         return viewers.contains(player);
     }
 
+    /** True if {@code uuid} belongs to a BossBar this controller created. */
+    public boolean isOwnUuid(UUID uuid) {
+        return ownUuids.contains(uuid);
+    }
+
+    /** True if at least one own-UUID has been registered (used by first-match heuristic). */
+    public boolean hasOwnUuid() {
+        return !ownUuids.isEmpty();
+    }
+
+    /** Called by PacketInterceptor when it claims a BOSS_EVENT(ADD) UUID as ours. */
+    public void registerOwnUuid(UUID uuid) {
+        ownUuids.add(uuid);
+    }
+
     public void addViewer(Player player) {
         if (player == null || !player.isOnline()) return;
         if (viewers.add(player)) {
             bossBar.addPlayer(player);
+            // Re-assert visibility after addPlayer (matches EM SkillXPBar pattern).
+            bossBar.setVisible(true);
         }
     }
 

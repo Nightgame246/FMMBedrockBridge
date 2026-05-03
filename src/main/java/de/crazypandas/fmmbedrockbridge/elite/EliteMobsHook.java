@@ -52,8 +52,31 @@ public final class EliteMobsHook {
     /**
      * Returns the styled name (e.g. "Tier 5 Elder Alphawolf") for an EliteMobs
      * boss, or null if the entity is not EM-tracked or EM is unavailable.
+     *
+     * <p>Resolution order:
+     * <ol>
+     *   <li>{@code livingEntity.getCustomName()} — verified reliable across boss
+     *       types in EM 10.2.0 (the Mob-Nametag visible on Java is sourced from this).</li>
+     *   <li>{@code eliteEntity.getName()} — fallback when customName is not yet set
+     *       (constructor-time race) or when the entity isn't an EliteMob.</li>
+     * </ol>
+     *
+     * <p>Empirically (2026-05-03 testing) {@code eliteEntity.getName()} is inconsistent
+     * for some boss types — e.g. EVOKER-based custom bosses like
+     * {@code primis_ice_village_the_ice_elemental} produce "Evoker | 2" instead of
+     * the YAML-configured styled name. The Mob-customName path stays correct.
      */
     public static String getStyledName(LivingEntity entity) {
+        if (entity == null) return null;
+
+        // Primary: LivingEntity customName (set by EM via setName, reliable per current testing)
+        String customName = entity.getCustomName();
+        if (customName != null && !customName.isEmpty()) {
+            return customName;
+        }
+
+        // Fallback: ask EliteMobs for the styled name
+        if (!isAvailable()) return null;
         EliteEntity elite = getEliteEntity(entity);
         if (elite == null) return null;
         try {
