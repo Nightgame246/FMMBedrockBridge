@@ -130,11 +130,21 @@ public class PacketInterceptor {
     /**
      * Phase 7.1a — heuristic capture + suppress for EliteMobs BossBar packets to Bedrock players.
      *
-     * Strategy:
-     *  - On ADD action: if title matches an active BedrockBossBarController whose target this
-     *    player is already viewing, capture the UUID into BossBarRegistry and cancel.
-     *  - On any other action with a captured UUID: cancel.
-     *  - All other packets: pass through untouched (vanilla Wither/Dragon BossBars, other plugins).
+     * <p>The BOSS_EVENT packet leaves the server on a Netty IO thread (not the Bukkit main
+     * thread that calls {@code bossBar.addPlayer()}), so ThreadLocal-based identification of
+     * "our own" packets doesn't survive the hand-off. We use a timing heuristic instead: the
+     * FIRST title-matching ADD per controller is ours (we always {@code addPlayer} at boss
+     * spawn, well before EM's own BossBar appears at combat-enter). Subsequent matching ADDs
+     * are EM's duplicates and get suppressed.
+     *
+     * <p>Strategy summary:
+     * <ul>
+     *   <li>Non-ADD with an own-UUID → pass through (our progress/color updates)</li>
+     *   <li>Non-ADD with a captured EM UUID → cancel</li>
+     *   <li>ADD with title match, controller has no own-UUID yet → claim as ours, pass through</li>
+     *   <li>ADD with title match, controller already has an own-UUID → EM duplicate, suppress</li>
+     *   <li>Anything else (vanilla Wither/Dragon, other plugins) → pass through untouched</li>
+     * </ul>
      */
     private void handleBossEvent(PacketSendEvent event, Player playerObj) {
         if (bridge == null) return;
@@ -153,29 +163,43 @@ public class PacketInterceptor {
         UUID uuid = wrapper.getUUID();
         WrapperPlayServerBossBar.Action action = wrapper.getAction();
 
-        // Already-captured UUID: drop all subsequent updates for this Bedrock player
+        // Pass-through for any UUID we've previously claimed as ours (progress / style updates).
+        for (BedrockBossBarController ctrl : bridge.getActiveControllers().values()) {
+            if (ctrl.isOwnUuid(uuid)) {
+                return;
+            }
+        }
+
+        // Already-captured EM UUID: drop all subsequent updates for this Bedrock player.
         if (action != WrapperPlayServerBossBar.Action.ADD && bridge.getBossBarRegistry().contains(uuid)) {
             event.setCancelled(true);
             return;
         }
 
-        // ADD action: try to match this title against an active controller for this viewer
+        // ADD action: title-match against active controllers. First match per controller is ours.
         if (action == WrapperPlayServerBossBar.Action.ADD) {
             String packetTitle = extractTitleString(wrapper);
             if (packetTitle == null) return;
 
             for (BedrockBossBarController ctrl : bridge.getActiveControllers().values()) {
                 if (ctrl.hasViewer(playerObj) && titlesMatch(ctrl.getTitle(), packetTitle)) {
-                    bridge.getBossBarRegistry().add(uuid);
-                    event.setCancelled(true);
-                    log.fine("[BRIDGE] Captured EM BossBar UUID " + uuid
-                            + " (title='" + packetTitle + "') for Bedrock player " + playerObj.getName());
+                    if (!ctrl.hasOwnUuid()) {
+                        // First matching ADD for this controller — claim it as our own.
+                        ctrl.registerOwnUuid(uuid);
+                        FMMBedrockBridge.debugLog("[BRIDGE] Claimed own BossBar UUID " + uuid
+                                + " (title='" + packetTitle + "') for " + playerObj.getName());
+                    } else {
+                        // Controller already has an own-UUID — this is EM's duplicate, suppress.
+                        bridge.getBossBarRegistry().add(uuid);
+                        event.setCancelled(true);
+                        FMMBedrockBridge.debugLog("[BRIDGE] Suppressed EM BossBar UUID " + uuid
+                                + " (title='" + packetTitle + "') for " + playerObj.getName());
+                    }
                     return;
                 }
             }
-            // Optional: log unmatched ADD on Bedrock player at FINE level for diagnosis
-            log.fine("[BRIDGE] Unmatched BOSS_EVENT(ADD) on Bedrock player " + playerObj.getName()
-                    + " title='" + packetTitle + "' (passing through)");
+            FMMBedrockBridge.debugLog("[BRIDGE] Unmatched BOSS_EVENT(ADD) uuid=" + uuid
+                    + " title='" + packetTitle + "' for " + playerObj.getName() + " (pass-through)");
         }
     }
 
