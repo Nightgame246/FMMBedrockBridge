@@ -48,6 +48,7 @@ public class EliteMobsItemScanner {
 
         try (var subPacks = Files.list(packRoot)) {
             subPacks.filter(Files::isDirectory)
+                    .sorted()
                     .forEach(subPack -> scanSubPack(subPack, result));
         } catch (IOException e) {
             log.warning("[ItemScanner] Failed to list sub-packs: " + e.getMessage());
@@ -90,7 +91,8 @@ public class EliteMobsItemScanner {
                 Path texturePath = resolveTexture2DOnly(subPack, modelRef);
                 if (texturePath == null) continue; // 3D or not found → skip
 
-                // Key: "em_<basename>" using the PNG filename without extension
+                // Key based on PNG filename for deduplication: multiple CMD values sharing
+                // the same texture get the same Bedrock key (intentional).
                 String texBaseName = texturePath.getFileName().toString().replace(".png", "");
                 String textureKey = "em_" + texBaseName;
 
@@ -138,6 +140,7 @@ public class EliteMobsItemScanner {
             if (!Files.exists(pngPath)) return null;
             return pngPath;
         } catch (Exception e) {
+            log.warning("[ItemScanner] Could not resolve model " + modelRef + ": " + e.getMessage());
             return null;
         }
     }
