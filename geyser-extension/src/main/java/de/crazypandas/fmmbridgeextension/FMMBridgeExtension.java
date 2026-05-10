@@ -53,9 +53,10 @@ public class FMMBridgeExtension implements Extension {
             }
 
             List<ResourcePackBuilder.EmItemEntry> emItems = packBuilder.embedEliteItems(inputDir);
+            List<ResourcePackBuilder.EmGearEntry> gearItems = packBuilder.embedGearItems(inputDir);
             packBuilder.zip(zipPath);
             this.logger().info("Generated Bedrock resource pack at " + zipPath
-                    + " (" + emItems.size() + " EM custom items embedded)");
+                    + " (" + emItems.size() + " EM custom items, " + gearItems.size() + " EM gear items embedded)");
         } catch (Exception e) {
             this.logger().error("Failed to generate Bedrock resource pack: " + e.getMessage(), e);
         }
@@ -112,6 +113,39 @@ public class FMMBridgeExtension implements Extension {
             this.logger().info("[Phase 7.2b] Registered " + registered + " / " + entries.size() + " EM custom items with Geyser.");
         } catch (Exception e) {
             this.logger().error("[Phase 7.2b] Failed to read em-items.json: " + e.getMessage(), e);
+        }
+
+        // Phase 7.2c: register 3D gear items
+        Path emGearJson = this.dataFolder().resolve("input/em-gear-items.json");
+        if (Files.exists(emGearJson)) {
+            try {
+                String gearJsonStr = Files.readString(emGearJson);
+                com.google.gson.reflect.TypeToken<java.util.List<ResourcePackBuilder.EmGearEntry>> gearToken =
+                        new com.google.gson.reflect.TypeToken<>() {};
+                java.util.List<ResourcePackBuilder.EmGearEntry> gearEntries = GSON.fromJson(gearJsonStr, gearToken.getType());
+
+                int gearRegistered = 0;
+                for (ResourcePackBuilder.EmGearEntry entry : gearEntries) {
+                    try {
+                        org.geysermc.geyser.api.item.custom.CustomItemData itemData =
+                                org.geysermc.geyser.api.item.custom.CustomItemData.builder()
+                                        .name(entry.bedrockKey())
+                                        .customItemOptions(
+                                                org.geysermc.geyser.api.item.custom.CustomItemOptions.builder()
+                                                        .customModelData(entry.customModelData())
+                                                        .build())
+                                        .icon(entry.bedrockKey())
+                                        .build();
+                        event.register(entry.javaMaterial(), itemData);
+                        gearRegistered++;
+                    } catch (Exception e) {
+                        this.logger().warning("[Phase 7.2c] Failed to register " + entry.bedrockKey() + ": " + e.getMessage());
+                    }
+                }
+                this.logger().info("[Phase 7.2c] Registered " + gearRegistered + " / " + gearEntries.size() + " EM gear items with Geyser.");
+            } catch (Exception e) {
+                this.logger().error("[Phase 7.2c] Failed to read em-gear-items.json: " + e.getMessage(), e);
+            }
         }
     }
 
