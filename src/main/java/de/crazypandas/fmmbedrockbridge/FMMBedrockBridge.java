@@ -1,11 +1,17 @@
 package de.crazypandas.fmmbedrockbridge;
 
 import de.crazypandas.fmmbedrockbridge.bridge.BedrockEntityBridge;
+import de.crazypandas.fmmbedrockbridge.bridge.EMCustomItem;
+import de.crazypandas.fmmbedrockbridge.bridge.EliteMobsItemScanner;
 import de.crazypandas.fmmbedrockbridge.commands.FMMBridgeCommand;
 import de.crazypandas.fmmbedrockbridge.converter.BedrockModelConverter;
 import de.crazypandas.fmmbedrockbridge.tracker.FMMEntityTracker;
 import org.bukkit.plugin.java.JavaPlugin;
 
+import java.io.File;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.logging.Logger;
 
 public class FMMBedrockBridge extends JavaPlugin {
@@ -77,6 +83,17 @@ public class FMMBedrockBridge extends JavaPlugin {
                     + elitemobsAvailable + ", combat-enabled=" + isPhase71cCombatEnabled() + ")");
         }
 
+        // Phase 7.2b — EliteMobs Custom Items
+        if (getConfig().getBoolean("elite-items.enabled", false)) {
+            String emPackPath = getConfig().getString("elite-items.resource-pack-path", "plugins/EliteMobs/resource_pack");
+            Path emPackRoot = getServer().getWorldContainer().toPath().resolve(emPackPath);
+            EliteMobsItemScanner itemScanner = new EliteMobsItemScanner(emPackRoot);
+            List<EMCustomItem> emItems = itemScanner.scan();
+            if (!emItems.isEmpty()) {
+                writeEmItemsJson(emItems);
+            }
+        }
+
         // Phase 3: Register converter command
         BedrockModelConverter converter = new BedrockModelConverter();
         FMMBridgeCommand cmd = new FMMBridgeCommand(converter, this);
@@ -97,6 +114,34 @@ public class FMMBedrockBridge extends JavaPlugin {
         if (bridge != null) bridge.shutdown();
         if (entityTracker != null) entityTracker.shutdown();
         log.info("FMMBedrockBridge disabled.");
+    }
+
+    private void writeEmItemsJson(List<EMCustomItem> items) {
+        try {
+            com.google.gson.Gson gson = new com.google.gson.GsonBuilder().setPrettyPrinting().create();
+            File outFile = new File(getDataFolder(), "bedrock-pack/em-items.json");
+            outFile.getParentFile().mkdirs();
+            File texDir = new File(getDataFolder(), "bedrock-pack/em-item-textures");
+            texDir.mkdirs();
+
+            List<EMCustomItem> exportItems = new ArrayList<>();
+            for (EMCustomItem item : items) {
+                File src = new File(item.sourceTexturePath());
+                if (!src.exists()) continue;
+                File dst = new File(texDir, item.bedrockTextureKey() + ".png");
+                java.nio.file.Files.copy(src.toPath(), dst.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                exportItems.add(new EMCustomItem(
+                        item.javaMaterial(),
+                        item.customModelData(),
+                        "em-item-textures/" + dst.getName(),
+                        item.bedrockTextureKey()));
+            }
+
+            java.nio.file.Files.writeString(outFile.toPath(), gson.toJson(exportItems));
+            log.info("[Phase 7.2b] Wrote " + exportItems.size() + " EM items to " + outFile.getAbsolutePath());
+        } catch (Exception e) {
+            log.warning("[Phase 7.2b] Failed to write em-items.json: " + e.getMessage());
+        }
     }
 
     public static FMMBedrockBridge getInstance() {

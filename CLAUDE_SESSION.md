@@ -679,3 +679,50 @@ Vor finalem Test: Geyser-Velocity `2.9.5-b1129` → `2.10.0-b1141` auf Proxy01 d
 ```
 /usr/share/idea/plugins/maven/lib/maven3/bin/mvn clean package
 ```
+
+---
+
+## Session: 2026-05-10 (Phase 7.2a Research + 7.2b Custom Items)
+
+### Abgeschlossen
+
+- **Phase 7.2 Aufteilung** in 7.2a (Research), 7.2b (2D Items), 7.2c (3D Items conditional), 7.3 (Bedrock Forms)
+- **Phase 7.2a Research** (SSH auf TestServer01 + Proxy01):
+  - EM Resource Pack liegt unter `plugins/EliteMobs/resource_pack/` mit Sub-Packs (`em_rsp_defaults/`, `em_ag_rsp/` etc.)
+  - 13 × 2D-UI-Icons gefunden (bag of coins, anvil hammer, white anvil, locks, crowns, …) — parent `item/generated`, kein `elements`-Array
+  - 3D-Gear (Waffen/Rüstung) existiert in EM — aber nur 2D-Items in Phase 7.2b in Scope
+  - Nitrosetups `.mcpack` auf Proxy01 als Referenz: `item_texture.json` braucht `texture_name: "atlas.items"`, Textur-Keys ohne `.png`-Extension
+  - Geyser `GeyserDefineCustomItemsEvent`: `event.register(javaMaterial, CustomItemData)` — pro CMD-Wert ein Aufruf
+
+- **Phase 7.2b implementiert auf Branch `phase-7.2b-custom-items`** (7 Commits):
+  - `EMCustomItem` Record (Spigot): javaMaterial, customModelData, sourceTexturePath, bedrockTextureKey
+  - `EliteMobsItemScanner` (Spigot): scannt alle Sub-Packs via `Files.list().sorted()`, filtert 3D-Modelle via `elements`-Check, bedrockTextureKey = `"em_" + pngBasename`
+  - `config.yml` erweitert: `elite-items.enabled` + `elite-items.resource-pack-path`
+  - `FMMBedrockBridge.onEnable()`: Phase-7.2b-Block ruft Scanner auf, schreibt `bedrock-pack/em-items.json` + kopiert PNGs nach `bedrock-pack/em-item-textures/`
+  - `ResourcePackBuilder.embedEliteItems()` (Geyser-Extension): liest em-items.json, kopiert nach `textures/em/<key>.png`, schreibt `textures/item_texture.json` mit `texture_name: "atlas.items"`
+  - `FMMBridgeExtension.onDefineCustomItems()`: `@Subscribe GeyserDefineCustomItemsEvent` → registriert alle Einträge per `event.register(javaMaterial, CustomItemData)`
+  - `FMMBridgeExtension.onPreInitialize()`: ruft `embedEliteItems()` vor `zip()` auf
+
+- **Deployment auf TestServer01 + Proxy01 verifiziert:**
+  - 13/13 EM Custom Items registriert (`[Phase 7.2b] Registered 13 / 13 EM custom items with Geyser.`)
+  - Geyser registriert 497 Custom Items gesamt (484 Nitrosetups + 13 FMMBridge)
+  - Bedrock-Client sieht Custom Icons in EliteMobs-Shops: Geldsack ✓, Ambosshammer ✓
+  - Weißer Amboss (CMD 31175) technisch korrekt registriert — erscheint nur im Unbind-Menü-Confirm-Button (slot 35); soulbound item + unbind scroll zum Testen nötig
+  - Vanilla-Smaragde in buy/sell/repair/enchant-Menüs (kein CMD) bleiben vanilla — expected, EM setzt dort kein `custom_model_data`
+
+### Erkenntnisse
+
+- **EM-Menüs mit CMD 31173 nutzen verschiedene Materialien** (EMERALD, GREEN_BANNER, REDSTONE) — wir registrieren nur für Materialien die im Resource Pack Override definiert sind; GREEN_BANNER-Slots bleiben vanilla
+- **`texture_name: "atlas.items"` ist Pflichtfeld** in item_texture.json — fehlt es, rendert Bedrock keine Custom-Texturen (aus Nitrosetups-Research)
+- **Weißer Amboss erscheint NUR im Unbind-Menü** — andere Menus zeigen echte Vanilla-Smaragde (kein CMD)
+
+### Offene Themen
+
+- Phase 7.2c: 3D Custom Items (Blockbench-Waffen/Rüstung als Bedrock Attachables)
+- Phase 7.3: Bedrock Forms (NPC-Dialoge via Cumulus API)
+- Phase 8: Polish-Backlog (Animation X/Z-Fix, Nametag Y-Offset, Hitbox-Scale, Hurt-Flash)
+
+### Build
+```
+/usr/share/idea/plugins/maven/lib/maven3/bin/mvn clean package
+```
