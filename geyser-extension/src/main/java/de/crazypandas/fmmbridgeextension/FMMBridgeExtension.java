@@ -52,8 +52,10 @@ public class FMMBridgeExtension implements Extension {
                         processModelDirectory(modelDir, packBuilder));
             }
 
+            List<ResourcePackBuilder.EmItemEntry> emItems = packBuilder.embedEliteItems(inputDir);
             packBuilder.zip(zipPath);
-            this.logger().info("Generated Bedrock resource pack at " + zipPath);
+            this.logger().info("Generated Bedrock resource pack at " + zipPath
+                    + " (" + emItems.size() + " EM custom items embedded)");
         } catch (Exception e) {
             this.logger().error("Failed to generate Bedrock resource pack: " + e.getMessage(), e);
         }

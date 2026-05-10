@@ -68,6 +68,59 @@ public class ResourcePackBuilder {
         }
     }
 
+    /**
+     * Reads em-items.json from inputDir, copies PNG textures into the pack,
+     * and writes textures/item_texture.json. Call before zip().
+     */
+    public List<EmItemEntry> embedEliteItems(Path inputDir) {
+        Path emItemsJson = inputDir.resolve("em-items.json");
+        if (!Files.exists(emItemsJson)) {
+            extension.logger().info("[Phase 7.2b] No em-items.json in input/ — skipping EM item embedding.");
+            return List.of();
+        }
+
+        List<EmItemEntry> entries = List.of();
+        try {
+            String json = Files.readString(emItemsJson);
+            com.google.gson.reflect.TypeToken<List<EmItemEntry>> token = new com.google.gson.reflect.TypeToken<>() {};
+            entries = GSON.fromJson(json, token.getType());
+
+            Path itemTexturesDir = packDir.resolve("textures/em");
+            Files.createDirectories(itemTexturesDir);
+
+            Map<String, Object> textureData = new LinkedHashMap<>();
+
+            for (EmItemEntry entry : entries) {
+                Path srcTexture = inputDir.resolve(entry.sourceTexturePath());
+                if (!Files.exists(srcTexture)) {
+                    extension.logger().warning("[Phase 7.2b] Texture not found: " + srcTexture);
+                    continue;
+                }
+                // Destination: textures/em/<bedrockTextureKey>.png
+                // bedrockTextureKey is already "em_foo", filename becomes "em_foo.png"
+                String filename = entry.bedrockTextureKey() + ".png";
+                Path dest = itemTexturesDir.resolve(filename);
+                Files.copy(srcTexture, dest, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+
+                // item_texture.json entry: key → "textures/em/<key>" (no .png extension)
+                textureData.put(entry.bedrockTextureKey(),
+                        Map.of("textures", "textures/em/" + entry.bedrockTextureKey()));
+            }
+
+            // Write textures/item_texture.json
+            Map<String, Object> itemTextureRoot = new LinkedHashMap<>();
+            itemTextureRoot.put("resource_pack_name", "fmmbridge");
+            itemTextureRoot.put("texture_name", "atlas.items");
+            itemTextureRoot.put("texture_data", textureData);
+            writeJson(packDir.resolve("textures/item_texture.json"), itemTextureRoot);
+
+            extension.logger().info("[Phase 7.2b] Embedded " + textureData.size() + " EM item textures into Bedrock pack.");
+        } catch (Exception e) {
+            extension.logger().error("[Phase 7.2b] Failed to embed EM items: " + e.getMessage(), e);
+        }
+        return entries;
+    }
+
     public void zip(Path zipPath) throws IOException {
         try (OutputStream outputStream = Files.newOutputStream(zipPath);
              ZipOutputStream zipOutputStream = new ZipOutputStream(outputStream);
@@ -171,4 +224,12 @@ public class ResourcePackBuilder {
             GSON.toJson(content, writer);
         }
     }
+
+    /** Mirrors EMCustomItem for deserialization within the extension. */
+    public record EmItemEntry(
+            String javaMaterial,
+            int customModelData,
+            String sourceTexturePath,  // relative path like "em-item-textures/em_foo.png"
+            String bedrockTextureKey   // e.g. "em_foo"
+    ) {}
 }
