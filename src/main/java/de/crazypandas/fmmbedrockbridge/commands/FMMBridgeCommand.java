@@ -130,6 +130,7 @@ public class FMMBridgeCommand implements CommandExecutor, TabCompleter {
         for (BedrockBossBarController ctrl : controllers.values()) {
             sender.sendMessage("  §d" + ctrl.getTitle()
                     + " §8|§7 own-claimed: " + (ctrl.hasOwnUuid() ? "§ayes" : "§7no")
+                    + " §8|§7 inCombat: " + (ctrl.isInCombat() ? "§ayes" : "§7no")
                     + " §8|§7 entityUuid=§7" + ctrl.getRealEntityUuid().toString().substring(0, 8) + "…");
         }
 
@@ -141,6 +142,7 @@ public class FMMBridgeCommand implements CommandExecutor, TabCompleter {
                     .plainText().serialize(nt.getCurrentText());
             sender.sendMessage("  §d" + text
                     + " §8|§7 textDisplayId=§7" + nt.getTextDisplayEntityId()
+                    + " §8|§7 inCombat: " + (nt.isInCombat() ? "§ayes" : "§7no")
                     + " §8|§7 entityUuid=§7" + nt.getRealEntityUuid().toString().substring(0, 8) + "…");
         }
     }

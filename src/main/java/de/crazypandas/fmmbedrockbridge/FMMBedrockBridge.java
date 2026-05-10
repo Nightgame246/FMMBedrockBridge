@@ -62,6 +62,21 @@ public class FMMBedrockBridge extends JavaPlugin {
             log.warning("PacketEvents not found — Bedrock entity bridging requires PacketEvents!");
         }
 
+        // Phase 7.1c — register combat trigger if EliteMobs is present and the toggle is on
+        boolean elitemobsAvailable = getServer().getPluginManager().getPlugin("EliteMobs") != null;
+        if (elitemobsAvailable && isPhase71cCombatEnabled()) {
+            try {
+                getServer().getPluginManager().registerEvents(
+                        new de.crazypandas.fmmbedrockbridge.bridge.BedrockCombatTrigger(bridge), this);
+                log.info("Phase 7.1c: combat trigger registered (BossBar + nametag combat-only)");
+            } catch (Throwable t) {
+                log.warning("Phase 7.1c: failed to register combat trigger — falling back to always-visible BossBar. Cause: " + t);
+            }
+        } else {
+            log.info("Phase 7.1c: combat trigger NOT registered (EliteMobs="
+                    + elitemobsAvailable + ", combat-enabled=" + isPhase71cCombatEnabled() + ")");
+        }
+
         // Phase 3: Register converter command
         BedrockModelConverter converter = new BedrockModelConverter();
         FMMBridgeCommand cmd = new FMMBridgeCommand(converter, this);
@@ -124,5 +139,15 @@ public class FMMBedrockBridge extends JavaPlugin {
         } else {
             logger.fine(message);
         }
+    }
+
+    /**
+     * Phase 7.1c — true if the combat-triggered visuals (BossBar combat-only, Nametag
+     * 3-line during combat) are enabled. When false, Phase 7.1a (BossBar always-visible)
+     * + Phase 7.1b (1-line nametag) behavior is preserved as a safety fallback.
+     */
+    public static boolean isPhase71cCombatEnabled() {
+        FMMBedrockBridge plugin = instance;
+        return plugin != null && plugin.getConfig().getBoolean("phase71c.combat-enabled", true);
     }
 }
