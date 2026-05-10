@@ -58,7 +58,8 @@ FMM spawns DynamicEntity (wraps LivingEntity)
 | 7.1a | BossBar with EliteMobs styled name on Bedrock (per-boss Bukkit BossBar + first-match suppress heuristic) | Done |
 | 7.1b | Bedrock Nametag — always-visible name above mob via Bukkit TextDisplay + Java packet-suppress; uses FMM displayName (the styled-name source EM populates) | Done |
 | 7.1c | Combat-only HP / health-bar / BossBar (combat-event trigger, crossplay fairness, multi-bossbar-rejoin fix) — depends on 7.1b | Done |
-| 7.2 | EliteMobs UI/UX (GUIs, custom items) | Planned |
+| 7.2b | EliteMobs 2D Custom Items für Bedrock — Geyser `GeyserDefineCustomItemsEvent` registriert 13 UI-Icons (bag of coins, anvil hammer, locks, crowns, …); Texturen automatisch aus EM Resource Pack extrahiert und ins Bedrock-Pack eingebettet | Done |
+| 7.2c | EliteMobs 3D Custom Items (Blockbench-Waffen/Rüstung) als Bedrock Attachables | Geplant (conditional — 3D Gear vorhanden) |
 | 7.3 | Java popup menus → Bedrock Forms (Cumulus API) | Planned |
 | 8 | Polish: hitbox scale, hurt flash, particles, config, performance, animation X/Z mirror for movement, production-readiness | Planned |
 
@@ -132,6 +133,9 @@ The Geyser Extension will:
 | `AnimationStateTracker` | Polls FMM animation state via reflection (idle/walk/attack/death/custom) |
 | `BedrockResourcePackGenerator` | Generates entity definitions, render controllers, `manifest.json`; zips the full pack |
 
+| `EMCustomItem` | Record: javaMaterial, customModelData, sourceTexturePath, bedrockTextureKey — serialisiert nach em-items.json |
+| `EliteMobsItemScanner` | Scannt EM Resource Pack (alle Sub-Packs), filtert 2D-Items (kein `elements`-Block), schreibt em-items.json + kopiert PNGs nach bedrock-pack/ |
+
 ### Geyser Extension (`geyser-extension/`)
 
 | Class | Role |
@@ -140,6 +144,7 @@ The Geyser Extension will:
 | `EntityRegistrar` | GeyserUtils reflection for entity + animation property registration |
 | `ResourcePackBuilder` | Generates entity defs, render controllers, manifest.json, zips pack |
 | `DownstreamMonitor` | Re-registers GeyserUtils packet listener on server switches |
+| `ResourcePackBuilder.EmItemEntry` | Inner record: javaMaterial, customModelData, sourceTexturePath, bedrockTextureKey — deserialisiert aus em-items.json |
 
 ### Known Issues
 
