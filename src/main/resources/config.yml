@@ -44,6 +44,7 @@ elite-items:
   # Wenn true, scannt das EM Resource Pack und registriert Custom Items für Bedrock.
   enabled: false
   # Pfad zum EliteMobs Resource Pack Ordner (relativ zum Server-Root).
-  # Dieser Ordner enthält Sub-Pack-Unterordner wie em_rsp_defaults/, em_ag_rsp/ etc.
-  # Ermittelter Pfad aus 7.2a Research: plugins/EliteMobs/resource_pack
   resource-pack-path: "plugins/EliteMobs/resource_pack"
+  # Phase 7.2c — 3D Gear Items (Schwerter, Äxte, Sensen, Dreizacks) als Bedrock Attachables.
+  gear-3d:
+    enabled: false
