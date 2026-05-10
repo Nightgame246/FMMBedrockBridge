@@ -80,39 +80,39 @@ public class FMMBridgeExtension implements Extension {
 
     @Subscribe
     public void onDefineCustomItems(org.geysermc.geyser.api.event.lifecycle.GeyserDefineCustomItemsEvent event) {
+        // Phase 7.2b: register 2D custom items
         Path emItemsJson = this.dataFolder().resolve("input/em-items.json");
-        if (!Files.exists(emItemsJson)) {
-            this.logger().info("[Phase 7.2b] No em-items.json in input/ — no EM custom items registered.");
-            return;
-        }
+        if (Files.exists(emItemsJson)) {
+            try {
+                String json = Files.readString(emItemsJson);
+                com.google.gson.reflect.TypeToken<java.util.List<ResourcePackBuilder.EmItemEntry>> token =
+                        new com.google.gson.reflect.TypeToken<>() {};
+                java.util.List<ResourcePackBuilder.EmItemEntry> entries = GSON.fromJson(json, token.getType());
 
-        try {
-            String json = Files.readString(emItemsJson);
-            com.google.gson.reflect.TypeToken<java.util.List<ResourcePackBuilder.EmItemEntry>> token =
-                    new com.google.gson.reflect.TypeToken<>() {};
-            java.util.List<ResourcePackBuilder.EmItemEntry> entries = GSON.fromJson(json, token.getType());
-
-            int registered = 0;
-            for (ResourcePackBuilder.EmItemEntry entry : entries) {
-                try {
-                    org.geysermc.geyser.api.item.custom.CustomItemData itemData =
-                            org.geysermc.geyser.api.item.custom.CustomItemData.builder()
-                                    .name(entry.bedrockTextureKey())
-                                    .customItemOptions(
-                                            org.geysermc.geyser.api.item.custom.CustomItemOptions.builder()
-                                                    .customModelData(entry.customModelData())
-                                                    .build())
-                                    .icon(entry.bedrockTextureKey())
-                                    .build();
-                    event.register(entry.javaMaterial(), itemData);
-                    registered++;
-                } catch (Exception e) {
-                    this.logger().warning("[Phase 7.2b] Failed to register " + entry.bedrockTextureKey() + ": " + e.getMessage());
+                int registered = 0;
+                for (ResourcePackBuilder.EmItemEntry entry : entries) {
+                    try {
+                        org.geysermc.geyser.api.item.custom.CustomItemData itemData =
+                                org.geysermc.geyser.api.item.custom.CustomItemData.builder()
+                                        .name(entry.bedrockTextureKey())
+                                        .customItemOptions(
+                                                org.geysermc.geyser.api.item.custom.CustomItemOptions.builder()
+                                                        .customModelData(entry.customModelData())
+                                                        .build())
+                                        .icon(entry.bedrockTextureKey())
+                                        .build();
+                        event.register(entry.javaMaterial(), itemData);
+                        registered++;
+                    } catch (Exception e) {
+                        this.logger().warning("[Phase 7.2b] Failed to register " + entry.bedrockTextureKey() + ": " + e.getMessage());
+                    }
                 }
+                this.logger().info("[Phase 7.2b] Registered " + registered + " / " + entries.size() + " EM custom items with Geyser.");
+            } catch (Exception e) {
+                this.logger().error("[Phase 7.2b] Failed to read em-items.json: " + e.getMessage(), e);
             }
-            this.logger().info("[Phase 7.2b] Registered " + registered + " / " + entries.size() + " EM custom items with Geyser.");
-        } catch (Exception e) {
-            this.logger().error("[Phase 7.2b] Failed to read em-items.json: " + e.getMessage(), e);
+        } else {
+            this.logger().info("[Phase 7.2b] No em-items.json in input/ — no EM custom items registered.");
         }
 
         // Phase 7.2c: register 3D gear items
