@@ -2,6 +2,7 @@ package de.crazypandas.fmmbedrockbridge;
 
 import de.crazypandas.fmmbedrockbridge.bridge.BedrockEntityBridge;
 import de.crazypandas.fmmbedrockbridge.bridge.EMCustomItem;
+import de.crazypandas.fmmbedrockbridge.bridge.EMGearItem;
 import de.crazypandas.fmmbedrockbridge.bridge.EliteMobsItemScanner;
 import de.crazypandas.fmmbedrockbridge.commands.FMMBridgeCommand;
 import de.crazypandas.fmmbedrockbridge.converter.BedrockModelConverter;
@@ -94,6 +95,18 @@ public class FMMBedrockBridge extends JavaPlugin {
             }
         }
 
+        // Phase 7.2c — EliteMobs 3D Gear Items
+        if (getConfig().getBoolean("elite-items.enabled", false)
+                && getConfig().getBoolean("elite-items.gear-3d.enabled", false)) {
+            String emPackPath = getConfig().getString("elite-items.resource-pack-path", "plugins/EliteMobs/resource_pack");
+            Path emPackRoot = getServer().getWorldContainer().toPath().resolve(emPackPath);
+            EliteMobsItemScanner gearScanner = new EliteMobsItemScanner(emPackRoot);
+            List<EMGearItem> gearItems = gearScanner.scan3DGear();
+            if (!gearItems.isEmpty()) {
+                writeEmGearItemsJson(gearItems);
+            }
+        }
+
         // Phase 3: Register converter command
         BedrockModelConverter converter = new BedrockModelConverter();
         FMMBridgeCommand cmd = new FMMBridgeCommand(converter, this);
@@ -141,6 +154,47 @@ public class FMMBedrockBridge extends JavaPlugin {
             log.info("[Phase 7.2b] Wrote " + exportItems.size() + " EM items to " + outFile.getAbsolutePath());
         } catch (Exception e) {
             log.warning("[Phase 7.2b] Failed to write em-items.json: " + e.getMessage());
+        }
+    }
+
+    private void writeEmGearItemsJson(List<EMGearItem> items) {
+        try {
+            com.google.gson.Gson gson = new com.google.gson.GsonBuilder().setPrettyPrinting().create();
+
+            File modelsDir = new File(getDataFolder(), "bedrock-pack/em-gear-models");
+            modelsDir.mkdirs();
+            File texturesDir = new File(getDataFolder(), "bedrock-pack/em-gear-textures");
+            texturesDir.mkdirs();
+
+            List<EMGearItem> exportItems = new ArrayList<>();
+            for (EMGearItem item : items) {
+                // Copy model JSON
+                File srcModel = new File(item.sourceModelPath());
+                if (!srcModel.exists()) continue;
+                File dstModel = new File(modelsDir, item.bedrockKey() + ".json");
+                java.nio.file.Files.copy(srcModel.toPath(), dstModel.toPath(),
+                        java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+
+                // Copy texture PNG
+                File srcTex = new File(item.sourceTexturePath());
+                if (!srcTex.exists()) continue;
+                File dstTex = new File(texturesDir, item.bedrockKey() + ".png");
+                java.nio.file.Files.copy(srcTex.toPath(), dstTex.toPath(),
+                        java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+
+                exportItems.add(new EMGearItem(
+                        item.javaMaterial(),
+                        item.customModelData(),
+                        item.bedrockKey(),
+                        "em-gear-models/" + dstModel.getName(),
+                        "em-gear-textures/" + dstTex.getName()));
+            }
+
+            File outFile = new File(getDataFolder(), "bedrock-pack/em-gear-items.json");
+            java.nio.file.Files.writeString(outFile.toPath(), gson.toJson(exportItems));
+            log.info("[Phase 7.2c] Wrote " + exportItems.size() + " 3D gear items to " + outFile.getAbsolutePath());
+        } catch (Exception e) {
+            log.warning("[Phase 7.2c] Failed to write em-gear-items.json: " + e.getMessage());
         }
     }
 
