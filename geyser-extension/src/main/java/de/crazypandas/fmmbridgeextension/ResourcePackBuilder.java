@@ -71,6 +71,7 @@ public class ResourcePackBuilder {
     /**
      * Reads em-items.json from inputDir, copies PNG textures into the pack,
      * and writes textures/item_texture.json. Call before zip().
+     * Returns only the successfully embedded entries (those with valid textures).
      */
     public List<EmItemEntry> embedEliteItems(Path inputDir) {
         Path emItemsJson = inputDir.resolve("em-items.json");
@@ -80,6 +81,7 @@ public class ResourcePackBuilder {
         }
 
         List<EmItemEntry> entries = List.of();
+        List<EmItemEntry> embedded = new ArrayList<>();
         try {
             String json = Files.readString(emItemsJson);
             com.google.gson.reflect.TypeToken<List<EmItemEntry>> token = new com.google.gson.reflect.TypeToken<>() {};
@@ -105,6 +107,9 @@ public class ResourcePackBuilder {
                 // item_texture.json entry: key → "textures/em/<key>" (no .png extension)
                 textureData.put(entry.bedrockTextureKey(),
                         Map.of("textures", "textures/em/" + entry.bedrockTextureKey()));
+
+                // Track successfully embedded entry
+                embedded.add(entry);
             }
 
             // Write textures/item_texture.json
@@ -114,11 +119,11 @@ public class ResourcePackBuilder {
             itemTextureRoot.put("texture_data", textureData);
             writeJson(packDir.resolve("textures/item_texture.json"), itemTextureRoot);
 
-            extension.logger().info("[Phase 7.2b] Embedded " + textureData.size() + " EM item textures into Bedrock pack.");
+            extension.logger().info("[Phase 7.2b] Embedded " + embedded.size() + " EM item textures into Bedrock pack.");
         } catch (Exception e) {
             extension.logger().error("[Phase 7.2b] Failed to embed EM items: " + e.getMessage(), e);
         }
-        return entries;
+        return embedded;
     }
 
     public void zip(Path zipPath) throws IOException {
