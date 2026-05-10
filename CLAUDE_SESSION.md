@@ -636,3 +636,46 @@ Branch ready for merge to main wenn akzeptiert.
 ```
 /usr/share/idea/plugins/maven/lib/maven3/bin/mvn clean package
 ```
+
+## Session: 2026-05-03/05/10 (Phase 7.1c — Combat-triggered Visuals)
+
+### Abgeschlossen
+- **Phase 7.1c Brainstorm + Spec + Plan + Implementation + Code-Reviews + Manual-Test** auf eigener Branch `phase-7.1c`
+- Combat-aware BossBar (Enter/Exit via EliteMobs Events) statt always-visible
+- Combat-aware Nametag (1 Zeile außerhalb Combat → 3 Zeilen HP / Bar / Name im Combat)
+- HP-Bar 10×█/░ farbcodiert (green ≥66% / yellow ≥33% / red <33%), HP-Number weiß
+- Config-Toggle `phase71c.combat-enabled: true` (Default), `false` = Phase-7.1a-Fallback
+- Multi-BossBar-Rejoin-Fix organisch via Lazy-Add in `BedrockBossBarController.addViewer`
+- `/fmmbridge debug` zeigt `inCombat: yes/no` pro Controller
+
+### Test-Ergebnis
+Fabi: "war die erste Phase die direkt funktioniert hat" — die 13-Test-Matrix lief ohne Bug-Fixes durch nach Deploy. Sauberes Spec/Plan/Review-Vorgehen hat sich ausgezahlt.
+
+### Code-Review-Fixes (während Implementierung gefangen)
+- `String.format` → `String.format(Locale.ROOT, ...)` — sonst rendert deutsche Locale "15,50 / 100,00" Komma-Decimal
+- `tickUpdate` `compose()` Call mit try/catch wrapped — Defense-in-depth gegen Scheduler-Spam
+
+### Branch-Stand
+Alle Phase-7.1c-Commits auf `phase-7.1c` Branch. 11 Commits inkl. Spec/Plan/Foundation + 6 Implementation-Commits + 2 Review-Fix-Commits + Final-Polish.
+
+```
+b78dc2c Phase 7.1c: /fmmbridge debug shows inCombat per controller
+6d23a67 Phase 7.1c: BedrockCombatTrigger listener + registration
+e79fc0b Phase 7.1c: restore defensive try/catch in BedrockNametagController.tickUpdate
+799049e Phase 7.1c: BedrockNametagController refactor — drop Supplier, use NametagTextBuilder
+07280d7 Phase 7.1c: reset isInCombat in BossBar cleanup() — defensive
+cb741b6 Phase 7.1c: BedrockBossBarController combat-aware (lazy-add, enter/exitCombat)
+9dd34de Phase 7.1c: NametagTextBuilder — use Locale.ROOT for HP formatting
+41bd24b Phase 7.1c: NametagTextBuilder — combat-aware 1/3-line component
+88d2bcd Phase 7.1c foundation: combat-enabled config toggle + helper
+7762815 Phase 7.1c implementation plan: combat-triggered visuals
+1575039 Phase 7.1c design: Combat-triggered visuals + multi-BossBar rejoin fix
+```
+
+### Server-Update am 2026-05-10
+Vor finalem Test: Geyser-Velocity `2.9.5-b1129` → `2.10.0-b1141` auf Proxy01 deployed (Bedrock-Protocol-Update). Floodgate-Spigot `b121` → `b132` auf Survival01 (kosmetisch). Alte JARs als `.bak` gesichert.
+
+### Build
+```
+/usr/share/idea/plugins/maven/lib/maven3/bin/mvn clean package
+```
