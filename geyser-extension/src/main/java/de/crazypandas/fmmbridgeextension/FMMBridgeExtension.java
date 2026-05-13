@@ -80,7 +80,7 @@ public class FMMBridgeExtension implements Extension {
 
     @Subscribe
     public void onDefineCustomItems(org.geysermc.geyser.api.event.lifecycle.GeyserDefineCustomItemsEvent event) {
-        // Phase 7.2b: register 2D custom items
+        // Phase 7.2b: register 2D custom items (v2 API — matches MC 1.21.4+ custom_model_data float format)
         Path emItemsJson = this.dataFolder().resolve("input/em-items.json");
         if (Files.exists(emItemsJson)) {
             try {
@@ -92,16 +92,21 @@ public class FMMBridgeExtension implements Extension {
                 int registered = 0;
                 for (ResourcePackBuilder.EmItemEntry entry : entries) {
                     try {
-                        org.geysermc.geyser.api.item.custom.CustomItemData itemData =
-                                org.geysermc.geyser.api.item.custom.CustomItemData.builder()
-                                        .name(entry.bedrockTextureKey())
-                                        .customItemOptions(
-                                                org.geysermc.geyser.api.item.custom.CustomItemOptions.builder()
-                                                        .customModelData(entry.customModelData())
-                                                        .build())
-                                        .icon(entry.bedrockTextureKey())
+                        String javaPath = entry.javaMaterial().replace("minecraft:", "");
+                        org.geysermc.geyser.api.util.Identifier javaId = org.geysermc.geyser.api.util.Identifier.of("minecraft", javaPath);
+                        // model() must be a unique non-default key so Geyser's CustomItemTranslator
+                        // can look it up via dataComponents.get(ITEM_MODEL). Using javaId (e.g.
+                        // minecraft:green_banner) fails because that is the default item_model and is
+                        // never sent in the 1.21.4+ protocol. The backend injects item_model =
+                        // geyser_custom:<key> into outgoing packets for Bedrock players.
+                        org.geysermc.geyser.api.util.Identifier bedrockId =
+                                org.geysermc.geyser.api.util.Identifier.of("geyser_custom", entry.bedrockTextureKey());
+                        org.geysermc.geyser.api.item.custom.v2.CustomItemDefinition def =
+                                org.geysermc.geyser.api.item.custom.v2.CustomItemDefinition.builder(bedrockId, bedrockId)
+                                        .bedrockOptions(org.geysermc.geyser.api.item.custom.v2.CustomItemBedrockOptions.builder()
+                                                .icon(entry.bedrockTextureKey()))
                                         .build();
-                        event.register(entry.javaMaterial(), itemData);
+                        event.register(javaId, def);
                         registered++;
                     } catch (Exception e) {
                         this.logger().warning("[Phase 7.2b] Failed to register " + entry.bedrockTextureKey() + ": " + e.getMessage());
@@ -115,7 +120,7 @@ public class FMMBridgeExtension implements Extension {
             this.logger().info("[Phase 7.2b] No em-items.json in input/ — no EM custom items registered.");
         }
 
-        // Phase 7.2c: register 3D gear items
+        // Phase 7.2c: register 3D gear items (v2 API)
         Path emGearJson = this.dataFolder().resolve("input/em-gear-items.json");
         if (Files.exists(emGearJson)) {
             try {
@@ -127,16 +132,19 @@ public class FMMBridgeExtension implements Extension {
                 int gearRegistered = 0;
                 for (ResourcePackBuilder.EmGearEntry entry : gearEntries) {
                     try {
-                        org.geysermc.geyser.api.item.custom.CustomItemData itemData =
-                                org.geysermc.geyser.api.item.custom.CustomItemData.builder()
-                                        .name(entry.bedrockKey())
-                                        .customItemOptions(
-                                                org.geysermc.geyser.api.item.custom.CustomItemOptions.builder()
-                                                        .customModelData(entry.customModelData())
-                                                        .build())
-                                        .icon(entry.bedrockKey())
+                        String javaPath = entry.javaMaterial().replace("minecraft:", "");
+                        org.geysermc.geyser.api.util.Identifier javaId = org.geysermc.geyser.api.util.Identifier.of("minecraft", javaPath);
+                        // Same pattern as 2D items: model() must be a unique geyser_custom key,
+                        // not the java item type, so Geyser can find it when the backend injects
+                        // item_model = geyser_custom:<key> for Bedrock players.
+                        org.geysermc.geyser.api.util.Identifier bedrockId =
+                                org.geysermc.geyser.api.util.Identifier.of("geyser_custom", entry.bedrockKey());
+                        org.geysermc.geyser.api.item.custom.v2.CustomItemDefinition def =
+                                org.geysermc.geyser.api.item.custom.v2.CustomItemDefinition.builder(bedrockId, bedrockId)
+                                        .bedrockOptions(org.geysermc.geyser.api.item.custom.v2.CustomItemBedrockOptions.builder()
+                                                .icon(entry.bedrockKey()))
                                         .build();
-                        event.register(entry.javaMaterial(), itemData);
+                        event.register(javaId, def);
                         gearRegistered++;
                     } catch (Exception e) {
                         this.logger().warning("[Phase 7.2c] Failed to register " + entry.bedrockKey() + ": " + e.getMessage());
