@@ -218,7 +218,11 @@ public class EliteMobsItemScanner {
                 GearModelInfo info = resolveGear3D(subPack, modelRef);
                 if (info == null) continue;
 
-                result.add(new EMGearItem(baseMaterial, cmd, bedrockKey,
+                // EM's item_model identifier is the modelRef as-is — that's what
+                // EM sets on real gear items in-game. If the ref lacks a namespace,
+                // Java/Bedrock defaults to "minecraft:"; but EM uses "elitemobs:".
+                String javaItemModel = modelRef.contains(":") ? modelRef : "minecraft:" + modelRef;
+                result.add(new EMGearItem(baseMaterial, cmd, bedrockKey, javaItemModel,
                         info.modelPath().toString(), info.texturePath().toString()));
             }
         } catch (Exception e) {

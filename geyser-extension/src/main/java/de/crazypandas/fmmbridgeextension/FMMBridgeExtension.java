@@ -94,11 +94,10 @@ public class FMMBridgeExtension implements Extension {
                     try {
                         String javaPath = entry.javaMaterial().replace("minecraft:", "");
                         org.geysermc.geyser.api.util.Identifier javaId = org.geysermc.geyser.api.util.Identifier.of("minecraft", javaPath);
-                        // model() must be a unique non-default key so Geyser's CustomItemTranslator
-                        // can look it up via dataComponents.get(ITEM_MODEL). Using javaId (e.g.
-                        // minecraft:green_banner) fails because that is the default item_model and is
-                        // never sent in the 1.21.4+ protocol. The backend injects item_model =
-                        // geyser_custom:<key> into outgoing packets for Bedrock players.
+                        // Strategy: def.model() = bedrockId. No predicates — the backend
+                        // PacketInterceptor will inject item_model = geyser_custom:<bedrockKey>
+                        // for matching (javaMaterial, cmd) pairs, giving Geyser a unique
+                        // multimap key that maps 1:1 to one definition.
                         org.geysermc.geyser.api.util.Identifier bedrockId =
                                 org.geysermc.geyser.api.util.Identifier.of("geyser_custom", entry.bedrockTextureKey());
                         org.geysermc.geyser.api.item.custom.v2.CustomItemDefinition def =
@@ -134,9 +133,10 @@ public class FMMBridgeExtension implements Extension {
                     try {
                         String javaPath = entry.javaMaterial().replace("minecraft:", "");
                         org.geysermc.geyser.api.util.Identifier javaId = org.geysermc.geyser.api.util.Identifier.of("minecraft", javaPath);
-                        // Same pattern as 2D items: model() must be a unique geyser_custom key,
-                        // not the java item type, so Geyser can find it when the backend injects
-                        // item_model = geyser_custom:<key> for Bedrock players.
+                        // Same strategy as 2D items: def.model() = bedrockId, no predicates.
+                        // Backend's PacketInterceptor overwrites the item's item_model
+                        // (originally elitemobs:gear/<name>) with our bedrockId, giving
+                        // Geyser a 1:1 multimap match.
                         org.geysermc.geyser.api.util.Identifier bedrockId =
                                 org.geysermc.geyser.api.util.Identifier.of("geyser_custom", entry.bedrockKey());
                         org.geysermc.geyser.api.item.custom.v2.CustomItemDefinition def =
