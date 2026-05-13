@@ -84,9 +84,10 @@ public class FMMBedrockBridge extends JavaPlugin {
                     + elitemobsAvailable + ", combat-enabled=" + isPhase71cCombatEnabled() + ")");
         }
 
-        // Phase 7.2: build item_model injection map (cmd → bedrockKey per java material)
-        // so PacketInterceptor can inject item_model into outgoing packets for Bedrock players.
-        java.util.Map<String, java.util.Map<Integer, String>> emModelMap = new java.util.HashMap<>();
+        // Phase 7.2: (javaMaterial, cmd) → bedrockKey mapping for item_model injection.
+        // PacketInterceptor will set item_model = geyser_custom:<bedrockKey> on matching
+        // items so Geyser's CustomItemTranslator finds our 1:1-keyed defs.
+        java.util.Map<String, java.util.Map<Integer, String>> emItemModelMap = new java.util.HashMap<>();
 
         // Phase 7.2b — EliteMobs Custom Items
         if (getConfig().getBoolean("elite-items.enabled", false)) {
@@ -97,13 +98,17 @@ public class FMMBedrockBridge extends JavaPlugin {
             if (!emItems.isEmpty()) {
                 writeEmItemsJson(emItems);
                 for (EMCustomItem item : emItems) {
-                    emModelMap.computeIfAbsent(item.javaMaterial(), k -> new java.util.HashMap<>())
-                              .put(item.customModelData(), item.bedrockTextureKey());
+                    emItemModelMap.computeIfAbsent(item.javaMaterial(), k -> new java.util.HashMap<>())
+                            .put(item.customModelData(), item.bedrockTextureKey());
                 }
             }
         }
 
         // Phase 7.2c — EliteMobs 3D Gear Items
+        // (javaMaterial, javaItemModel) → bedrockKey. EM gear items have
+        // item_model = elitemobs:gear/<name> set by EM itself (no CMD). We match
+        // on that exact identifier and overwrite with item_model = geyser_custom:em_<name>.
+        java.util.Map<String, java.util.Map<String, String>> emGearModelMap = new java.util.HashMap<>();
         if (getConfig().getBoolean("elite-items.enabled", false)
                 && getConfig().getBoolean("elite-items.gear-3d.enabled", false)) {
             String emPackPath = getConfig().getString("elite-items.resource-pack-path", "plugins/EliteMobs/resource_pack");
@@ -113,15 +118,15 @@ public class FMMBedrockBridge extends JavaPlugin {
             if (!gearItems.isEmpty()) {
                 writeEmGearItemsJson(gearItems);
                 for (EMGearItem item : gearItems) {
-                    emModelMap.computeIfAbsent(item.javaMaterial(), k -> new java.util.HashMap<>())
-                              .put(item.customModelData(), item.bedrockKey());
+                    emGearModelMap.computeIfAbsent(item.javaMaterial(), k -> new java.util.HashMap<>())
+                            .put(item.javaItemModel(), item.bedrockKey());
                 }
             }
         }
 
-        // Pass item_model map to PacketInterceptor (if PacketEvents is available for interception)
-        if (packetEventsAvailable && !emModelMap.isEmpty()) {
-            bridge.getPacketInterceptor().setEmItemModelMap(emModelMap);
+        if (packetEventsAvailable) {
+            if (!emItemModelMap.isEmpty()) bridge.getPacketInterceptor().setEmItemModelMap(emItemModelMap);
+            if (!emGearModelMap.isEmpty()) bridge.getPacketInterceptor().setEmGearModelMap(emGearModelMap);
         }
 
         // Phase 3: Register converter command
@@ -203,6 +208,7 @@ public class FMMBedrockBridge extends JavaPlugin {
                         item.javaMaterial(),
                         item.customModelData(),
                         item.bedrockKey(),
+                        item.javaItemModel(),
                         "em-gear-models/" + dstModel.getName(),
                         "em-gear-textures/" + dstTex.getName()));
             }

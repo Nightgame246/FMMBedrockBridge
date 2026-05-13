@@ -4,6 +4,8 @@ import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import org.geysermc.geyser.api.extension.Extension;
 
+import javax.imageio.ImageIO;
+import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.io.Writer;
@@ -20,7 +22,7 @@ import java.util.zip.ZipOutputStream;
  */
 public class ResourcePackBuilder {
 
-    private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
+    private static final Gson GSON = new GsonBuilder().setPrettyPrinting().disableHtmlEscaping().create();
 
     private final Path packDir;
     private final Extension extension;
@@ -132,6 +134,7 @@ public class ResourcePackBuilder {
              Stream<Path> pathStream = Files.walk(packDir)) {
             pathStream
                     .filter(Files::isRegularFile)
+                    .sorted()
                     .forEach(path -> addToZip(path, zipOutputStream));
         }
     }
@@ -145,6 +148,92 @@ public class ResourcePackBuilder {
         } catch (IOException e) {
             throw new IllegalStateException("Failed to zip file " + file, e);
         }
+    }
+
+    private void writeGearAnimations(Path packDir) throws IOException {
+        // Hand-positioning animations for all gear items.
+        // All gear geos share the same bone names (geyser_custom_x/y/z/geyser_custom),
+        // so a single animation set suffices. Values are the GeyserUtils/NitroSetups
+        // standard for simple flat-sprite items held in hand.
+        Map<String, Object> tp3Main = boneAnim(
+                new double[]{0, 0, 0}, new double[]{0, 4, 2.5}, new double[]{0.85, 0.85, 0.85},
+                new double[]{0, -90, 0}, null, null,
+                new double[]{0, 0, 55}, null, null,
+                new double[]{90, 0, 0}, new double[]{0, 13, -3}, null);
+        Map<String, Object> tp3Off = boneAnim(
+                new double[]{0, 0, 0}, new double[]{0, 4, 2.5}, new double[]{0.85, 0.85, 0.85},
+                new double[]{0, 90, 0}, null, null,
+                new double[]{0, 0, -55}, null, null,
+                new double[]{90, 0, 0}, new double[]{0, 13, -3}, null);
+        Map<String, Object> tp3Head = boneAnimSimple(0.625, new double[]{0, 19.9, 0});
+        Map<String, Object> fp1Main = boneAnim(
+                null, new double[]{0, 1.6, -0.8}, new double[]{0.68, 0.68, 0.68},
+                new double[]{0, -90, 0}, null, null,
+                new double[]{0, 0, 25}, null, null,
+                new double[]{53.79601, 51.7101, -83.00307}, new double[]{-2, 12, 5}, new double[]{1.5, 1.5, 1.5});
+        Map<String, Object> fp1Off = boneAnim(
+                null, new double[]{0, 1.6, -0.8}, new double[]{0.68, 0.68, 0.68},
+                new double[]{0, 90, 0}, null, null,
+                new double[]{0, 0, -25}, null, null,
+                new double[]{90, 60, -40}, new double[]{4, 10, 4}, new double[]{1.5, 1.5, 1.5});
+        Map<String, Object> disable = new LinkedHashMap<>();
+        disable.put("loop", true);
+        Map<String, Object> disableBones = new LinkedHashMap<>();
+        Map<String, Object> disableX = new LinkedHashMap<>();
+        disableX.put("scale", 0);
+        disableBones.put("geyser_custom_x", disableX);
+        disable.put("bones", disableBones);
+
+        Map<String, Object> allAnims = new LinkedHashMap<>();
+        allAnims.put("animation.fmmbridge.gear.thirdperson_main_hand", tp3Main);
+        allAnims.put("animation.fmmbridge.gear.thirdperson_off_hand",  tp3Off);
+        allAnims.put("animation.fmmbridge.gear.head",                  tp3Head);
+        allAnims.put("animation.fmmbridge.gear.firstperson_main_hand", fp1Main);
+        allAnims.put("animation.fmmbridge.gear.firstperson_off_hand",  fp1Off);
+        allAnims.put("animation.fmmbridge.gear.disable",               disable);
+
+        Map<String, Object> root = new LinkedHashMap<>();
+        root.put("format_version", "1.8.0");
+        root.put("animations", allAnims);
+        writeJson(packDir.resolve("animations/fmmbridge_gear.json"), root);
+    }
+
+    private Map<String, Object> boneAnim(
+            double[] xRot, double[] xPos, double[] xScale,
+            double[] yRot, double[] yPos, double[] yScale,
+            double[] zRot, double[] zPos, double[] zScale,
+            double[] gcRot, double[] gcPos, double[] gcScale) {
+        Map<String, Object> anim = new LinkedHashMap<>();
+        anim.put("loop", true);
+        Map<String, Object> bones = new LinkedHashMap<>();
+        bones.put("geyser_custom_x", buildBone(xRot, xPos, xScale));
+        bones.put("geyser_custom_y", buildBone(yRot, yPos, yScale));
+        bones.put("geyser_custom_z", buildBone(zRot, zPos, zScale));
+        bones.put("geyser_custom",   buildBone(gcRot, gcPos, gcScale));
+        anim.put("bones", bones);
+        return anim;
+    }
+
+    private Map<String, Object> boneAnimSimple(double xScale, double[] gcPos) {
+        Map<String, Object> anim = new LinkedHashMap<>();
+        anim.put("loop", true);
+        Map<String, Object> bones = new LinkedHashMap<>();
+        Map<String, Object> bx = new LinkedHashMap<>();
+        bx.put("scale", xScale);
+        bones.put("geyser_custom_x", bx);
+        Map<String, Object> bgc = new LinkedHashMap<>();
+        bgc.put("position", gcPos);
+        bones.put("geyser_custom", bgc);
+        anim.put("bones", bones);
+        return anim;
+    }
+
+    private Map<String, Object> buildBone(double[] rot, double[] pos, double[] scale) {
+        Map<String, Object> b = new LinkedHashMap<>();
+        if (rot   != null) b.put("rotation", rot);
+        if (pos   != null) b.put("position", pos);
+        if (scale != null) b.put("scale",    scale);
+        return b;
     }
 
     private void writeManifest(Path manifestPath) throws IOException {
@@ -243,6 +332,7 @@ public class ResourcePackBuilder {
             String javaMaterial,
             int customModelData,
             String bedrockKey,
+            String javaItemModel,     // e.g. "elitemobs:gear/bronze_sword"
             String sourceModelPath,   // relative: "em-gear-models/em_bronze_sword.json"
             String sourceTexturePath  // relative: "em-gear-textures/em_bronze_sword.png"
     ) {}
@@ -269,6 +359,10 @@ public class ResourcePackBuilder {
 
             JavaItemGeometryConverter converter = new JavaItemGeometryConverter();
 
+            // Write shared hand-positioning animation file for all gear items.
+            // Values match the GeyserUtils / NitroSetups item convention (geyser_custom_x/y/z bones).
+            writeGearAnimations(packDir);
+
             // Read existing item_texture.json (written by embedEliteItems) or start fresh
             Path itemTextureJsonPath = packDir.resolve("textures/item_texture.json");
             Map<String, Object> itemTextureRoot = new LinkedHashMap<>();
@@ -286,9 +380,14 @@ public class ResourcePackBuilder {
                 itemTextureRoot.put("texture_name", "atlas.items");
             }
 
+            // Item geometry goes in models/entity/ — the standard Bedrock path for geometry
+            // loaded by attachables; models/blocks/ is for block custom geometry only.
+            Path geoDir = packDir.resolve("models/entity");
+            Files.createDirectories(geoDir);
+
             for (EmGearEntry entry : entries) {
                 try {
-                    // 1. Read and convert Java model JSON → Bedrock geo.json
+                    // 1. Read and convert Java model JSON → Bedrock geometry
                     Path modelSrc = inputDir.resolve(entry.sourceModelPath());
                     if (!Files.exists(modelSrc)) {
                         extension.logger().warning("[Phase 7.2c] Model not found: " + modelSrc);
@@ -297,8 +396,6 @@ public class ResourcePackBuilder {
                     com.google.gson.JsonObject javaModel = GSON.fromJson(
                             Files.readString(modelSrc), com.google.gson.JsonObject.class);
                     Map<String, Object> geoJson = converter.convertToGeo(javaModel, entry.bedrockKey());
-                    Path geoDir = packDir.resolve("geometry/em");
-                    Files.createDirectories(geoDir);
                     writeJson(geoDir.resolve(entry.bedrockKey() + ".geo.json"), geoJson);
 
                     // 2. Generate attachable definition
@@ -307,16 +404,28 @@ public class ResourcePackBuilder {
                     Files.createDirectories(attachDir);
                     writeJson(attachDir.resolve("fmmbridge_" + entry.bedrockKey() + ".json"), attachable);
 
-                    // 3. Copy texture PNG
+                    // 3. Copy texture PNG — crop to declared texture_size if PNG is animated (taller than declared)
                     Path texSrc = inputDir.resolve(entry.sourceTexturePath());
                     if (!Files.exists(texSrc)) {
                         extension.logger().warning("[Phase 7.2c] Texture not found: " + texSrc);
                         continue;
                     }
+                    int texW = 64, texH = 64;
+                    if (javaModel.has("texture_size")) {
+                        com.google.gson.JsonArray ts = javaModel.getAsJsonArray("texture_size");
+                        texW = ts.get(0).getAsInt();
+                        texH = ts.get(1).getAsInt();
+                    }
                     Path texDir = packDir.resolve("textures/items/em/gear");
                     Files.createDirectories(texDir);
-                    Files.copy(texSrc, texDir.resolve(entry.bedrockKey() + ".png"),
-                            StandardCopyOption.REPLACE_EXISTING);
+                    Path texDest = texDir.resolve(entry.bedrockKey() + ".png");
+                    BufferedImage fullImg = ImageIO.read(texSrc.toFile());
+                    if (fullImg != null && fullImg.getHeight() > texH) {
+                        BufferedImage cropped = fullImg.getSubimage(0, 0, texW, texH);
+                        ImageIO.write(cropped, "PNG", texDest.toFile());
+                    } else {
+                        Files.copy(texSrc, texDest, StandardCopyOption.REPLACE_EXISTING);
+                    }
 
                     // 4. Add to item_texture.json (for inventory display)
                     textureData.put(entry.bedrockKey(),
@@ -337,5 +446,42 @@ public class ResourcePackBuilder {
             extension.logger().error("[Phase 7.2c] Failed to embed gear items: " + e.getMessage(), e);
         }
         return embedded;
+    }
+
+    /** Minimal test geo — single sword-shaped cube, integer UVs, 16x16 texture space. */
+    private Map<String, Object> buildTestGeo(String bedrockKey) {
+        Map<String, Object> cube = new LinkedHashMap<>();
+        cube.put("origin", new int[]{-1, -6, -1});
+        cube.put("size",   new int[]{2, 12, 2});
+        Map<String, Object> faces = new LinkedHashMap<>();
+        for (String f : List.of("north","south","east","west","up","down")) {
+            Map<String, Object> fd = new LinkedHashMap<>();
+            fd.put("uv",      new int[]{0, 0});
+            fd.put("uv_size", new int[]{2, 12});
+            faces.put(f, fd);
+        }
+        cube.put("uv", faces);
+
+        Map<String, Object> bone = new LinkedHashMap<>();
+        bone.put("name",  "root");
+        bone.put("pivot", new int[]{0, 0, 0});
+        bone.put("cubes", List.of(cube));
+
+        Map<String, Object> desc = new LinkedHashMap<>();
+        desc.put("identifier",            "geometry.fmmbridge." + bedrockKey);
+        desc.put("texture_width",         16);
+        desc.put("texture_height",        16);
+        desc.put("visible_bounds_width",  4);
+        desc.put("visible_bounds_height", 4);
+        desc.put("visible_bounds_offset", new int[]{0, 2, 0});
+
+        Map<String, Object> geo = new LinkedHashMap<>();
+        geo.put("description", desc);
+        geo.put("bones", List.of(bone));
+
+        Map<String, Object> root = new LinkedHashMap<>();
+        root.put("format_version", "1.12.0");
+        root.put("minecraft:geometry", List.of(geo));
+        return root;
     }
 }

@@ -11,14 +11,14 @@ import com.github.retrooper.packetevents.protocol.item.ItemStack;
 import com.github.retrooper.packetevents.protocol.packettype.PacketType;
 import com.github.retrooper.packetevents.resources.ResourceLocation;
 import com.github.retrooper.packetevents.wrapper.play.client.WrapperPlayClientInteractEntity;
+import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerSetSlot;
+import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerWindowItems;
 import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerBossBar;
 import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerEntityMetadata;
 import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerEntityPositionSync;
 import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerEntityRelativeMove;
 import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerEntityRelativeMoveAndRotation;
 import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerEntityTeleport;
-import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerSetSlot;
-import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerWindowItems;
 import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerSpawnEntity;
 import de.crazypandas.fmmbedrockbridge.FMMBedrockBridge;
 import net.kyori.adventure.text.Component;
@@ -29,13 +29,12 @@ import org.bukkit.entity.Player;
 import org.geysermc.floodgate.api.FloodgateApi;
 
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.logging.Logger;
 
 /**
@@ -50,10 +49,19 @@ public class PacketInterceptor {
     private final Map<Integer, Set<Player>> hiddenEntityIds = new ConcurrentHashMap<>();
     private final Map<Integer, Integer> fakeToRealEntityId = new ConcurrentHashMap<>();
 
-    // Phase 7.2: item_model → injected for Bedrock players so Geyser's CustomItemTranslator
-    // can find our custom item definitions (which are keyed by model(), not by java item type).
-    // Maps: "minecraft:diamond_sword" → { cmd → "em_bronze_sword" }
+    // Phase 7.2: (javaMaterial, cmd) → bedrockKey mapping. For Bedrock players we
+    // inject item_model = geyser_custom:<bedrockKey> on matching items so Geyser's
+    // CustomItemTranslator finds our v2 CustomItemDefinition (registered with
+    // def.model() = bedrockId, no predicates). 1:1 deterministic mapping; no
+    // predicate evaluation needed on the Geyser side.
     private volatile Map<String, Map<Integer, String>> emItemModelMap = Collections.emptyMap();
+    // Phase 7.2c: (javaMaterial, item_model identifier) → bedrockKey for 3D gear.
+    // EM gear items have item_model = elitemobs:gear/<name> but no custom_model_data,
+    // so the CMD-based path doesn't apply. We overwrite item_model with our bedrockId
+    // by matching on the EM identifier.
+    private volatile Map<String, Map<String, String>> emGearModelMap = Collections.emptyMap();
+    private final AtomicInteger injectCount = new AtomicInteger();
+    private final AtomicInteger gearInjectCount = new AtomicInteger();
 
     /**
      * Phase 7.1b — entity IDs that must be hidden from ALL Java (non-Floodgate) players.
@@ -75,29 +83,83 @@ public class PacketInterceptor {
     }
 
     public void setEmItemModelMap(Map<String, Map<Integer, String>> map) {
-        this.emItemModelMap = Collections.unmodifiableMap(new HashMap<>(map));
-        log.info("[BRIDGE] EM item_model injection map loaded: "
-                + map.values().stream().mapToInt(Map::size).sum() + " entries");
+        java.util.Map<String, java.util.Map<Integer, String>> copy = new java.util.HashMap<>();
+        for (var e : map.entrySet()) copy.put(e.getKey(), java.util.Map.copyOf(e.getValue()));
+        this.emItemModelMap = java.util.Map.copyOf(copy);
+        int total = map.values().stream().mapToInt(Map::size).sum();
+        log.info("[BRIDGE] EM item_model injection map loaded: " + total + " entries across "
+                + map.size() + " materials");
+    }
+
+    public void setEmGearModelMap(Map<String, Map<String, String>> map) {
+        java.util.Map<String, java.util.Map<String, String>> copy = new java.util.HashMap<>();
+        for (var e : map.entrySet()) copy.put(e.getKey(), java.util.Map.copyOf(e.getValue()));
+        this.emGearModelMap = java.util.Map.copyOf(copy);
+        int total = map.values().stream().mapToInt(Map::size).sum();
+        log.info("[BRIDGE] EM gear item_model map loaded: " + total + " entries across "
+                + map.size() + " materials");
     }
 
     /**
-     * Injects item_model = geyser_custom:<key> into the given PacketEvents ItemStack.
-     * Returns true if the component was added (packet must be re-encoded).
-     * The item_model component makes Geyser's CustomItemTranslator look up our custom
-     * item definition instead of returning null on the item_model null-check.
+     * For Bedrock players, set item_model = javaId on EliteMobs items so Geyser's
+     * CustomItemTranslator finds the matching CustomItemDefinition (registered with
+     * model() = javaId in the geyser-extension). Geyser's lookup returns null
+     * immediately if item_model is absent — Paper omits the component when it equals
+     * the item's default, so we must set it explicitly. Skips items that already have
+     * an item_model set, and items without CMD (Geyser would not match anyway).
      */
     private boolean injectItemModelIfNeeded(ItemStack item) {
         if (item == null || item.isEmpty()) return false;
-        String typeName = item.getType().getName().toString(); // e.g. "minecraft:diamond_sword"
+        String typeName = item.getType().getName().toString();
+
+        // 2D path: (material, cmd) → bedrockKey
         Map<Integer, String> cmdMap = emItemModelMap.get(typeName);
-        if (cmdMap == null) return false;
-        Optional<Integer> cmdOpt = item.getComponent(ComponentTypes.CUSTOM_MODEL_DATA);
-        if (cmdOpt.isEmpty()) return false;
-        String bedrockKey = cmdMap.get(cmdOpt.get());
-        if (bedrockKey == null) return false;
-        item.setComponent(ComponentTypes.ITEM_MODEL,
-                new ItemModel(new ResourceLocation("geyser_custom", bedrockKey)));
-        return true;
+        if (cmdMap != null) {
+            java.util.Optional<com.github.retrooper.packetevents.protocol.component.builtin.item.ItemCustomModelData> cmdLists =
+                    item.getComponent(ComponentTypes.CUSTOM_MODEL_DATA_LISTS);
+            java.util.Optional<Integer> cmdLegacy = item.getComponent(ComponentTypes.CUSTOM_MODEL_DATA);
+            Integer cmd = null;
+            if (cmdLists.isPresent() && !cmdLists.get().getFloats().isEmpty()) {
+                cmd = cmdLists.get().getFloats().get(0).intValue();
+            } else if (cmdLegacy.isPresent()) {
+                cmd = cmdLegacy.get();
+            }
+            if (cmd != null) {
+                String bedrockKey = cmdMap.get(cmd);
+                if (bedrockKey != null) {
+                    item.setComponent(ComponentTypes.ITEM_MODEL,
+                            new ItemModel(new ResourceLocation("geyser_custom", bedrockKey)));
+                    int n = injectCount.incrementAndGet();
+                    if (n <= 10 || n % 100 == 0) {
+                        log.info("[BRIDGE] Injected item_model=geyser_custom:" + bedrockKey
+                                + " for " + typeName + " cmd=" + cmd + " (n=" + n + ")");
+                    }
+                    return true;
+                }
+            }
+        }
+
+        // 3D gear path: (material, item_model identifier) → bedrockKey
+        Map<String, String> gearMap = emGearModelMap.get(typeName);
+        if (gearMap != null) {
+            java.util.Optional<ItemModel> existing = item.getComponent(ComponentTypes.ITEM_MODEL);
+            if (existing.isPresent()) {
+                String existingId = existing.get().getModelLocation().toString();
+                String bedrockKey = gearMap.get(existingId);
+                if (bedrockKey != null) {
+                    item.setComponent(ComponentTypes.ITEM_MODEL,
+                            new ItemModel(new ResourceLocation("geyser_custom", bedrockKey)));
+                    int n = gearInjectCount.incrementAndGet();
+                    if (n <= 10 || n % 100 == 0) {
+                        log.info("[BRIDGE] Injected gear item_model=geyser_custom:" + bedrockKey
+                                + " for " + typeName + " was=" + existingId + " (n=" + n + ")");
+                    }
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 
     public void register() {
@@ -107,9 +169,9 @@ public class PacketInterceptor {
                 Object eventPlayer = event.getPlayer();
                 if (!(eventPlayer instanceof Player playerObj)) return;
 
-                // Phase 7.2: inject item_model component for Bedrock players so Geyser's
-                // CustomItemTranslator can find our registered custom item definitions.
-                if (!emItemModelMap.isEmpty() && floodgateAvailable
+                // Phase 7.2: inject item_model on inventory packets for Bedrock players
+                // so Geyser's CustomItemTranslator can locate our v2 custom item definitions.
+                if ((!emItemModelMap.isEmpty() || !emGearModelMap.isEmpty()) && floodgateAvailable
                         && FloodgateApi.getInstance().isFloodgatePlayer(playerObj.getUniqueId())) {
                     if (event.getPacketType() == PacketType.Play.Server.SET_SLOT) {
                         try {
@@ -127,7 +189,6 @@ public class PacketInterceptor {
                             for (ItemStack item : wrapper.getItems()) {
                                 if (injectItemModelIfNeeded(item)) modified = true;
                             }
-                            // Also check the carried item (item on cursor)
                             wrapper.getCarriedItem().ifPresent(ci -> injectItemModelIfNeeded(ci));
                             if (modified) event.markForReEncode(true);
                         } catch (Throwable t) {
