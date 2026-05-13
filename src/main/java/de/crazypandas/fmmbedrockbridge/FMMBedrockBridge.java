@@ -84,6 +84,10 @@ public class FMMBedrockBridge extends JavaPlugin {
                     + elitemobsAvailable + ", combat-enabled=" + isPhase71cCombatEnabled() + ")");
         }
 
+        // Phase 7.2: build item_model injection map (cmd → bedrockKey per java material)
+        // so PacketInterceptor can inject item_model into outgoing packets for Bedrock players.
+        java.util.Map<String, java.util.Map<Integer, String>> emModelMap = new java.util.HashMap<>();
+
         // Phase 7.2b — EliteMobs Custom Items
         if (getConfig().getBoolean("elite-items.enabled", false)) {
             String emPackPath = getConfig().getString("elite-items.resource-pack-path", "plugins/EliteMobs/resource_pack");
@@ -92,6 +96,10 @@ public class FMMBedrockBridge extends JavaPlugin {
             List<EMCustomItem> emItems = itemScanner.scan();
             if (!emItems.isEmpty()) {
                 writeEmItemsJson(emItems);
+                for (EMCustomItem item : emItems) {
+                    emModelMap.computeIfAbsent(item.javaMaterial(), k -> new java.util.HashMap<>())
+                              .put(item.customModelData(), item.bedrockTextureKey());
+                }
             }
         }
 
@@ -104,7 +112,16 @@ public class FMMBedrockBridge extends JavaPlugin {
             List<EMGearItem> gearItems = gearScanner.scan3DGear();
             if (!gearItems.isEmpty()) {
                 writeEmGearItemsJson(gearItems);
+                for (EMGearItem item : gearItems) {
+                    emModelMap.computeIfAbsent(item.javaMaterial(), k -> new java.util.HashMap<>())
+                              .put(item.customModelData(), item.bedrockKey());
+                }
             }
+        }
+
+        // Pass item_model map to PacketInterceptor (if PacketEvents is available for interception)
+        if (packetEventsAvailable && !emModelMap.isEmpty()) {
+            bridge.getPacketInterceptor().setEmItemModelMap(emModelMap);
         }
 
         // Phase 3: Register converter command
