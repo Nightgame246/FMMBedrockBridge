@@ -120,7 +120,8 @@ The Geyser Extension will:
 |-------|------|
 | `FMMEntityTracker` | Polls `ModeledEntityManager.getAllEntities()` every second, diffs for spawns/despawns |
 | `BedrockEntityBridge` | Manages fake PacketEntities for Bedrock players, delegates to PacketInterceptor and ViewerManager |
-| `PacketInterceptor` | Suppresses spawn/metadata packets for hidden real entities, redirects interact packets from fake to real |
+| `PacketInterceptor` | Suppresses spawn/metadata packets for hidden real entities, redirects interact packets from fake to real, injects `item_model` on EM custom items for Bedrock players (`SET_SLOT` / `WINDOW_ITEMS` / `ENTITY_METADATA` of dropped item-entities) |
+| `BedrockInventoryRefresher` | Listener: schedules `Player.updateInventory()` one tick after a Bedrock player's `InventoryClick`/`InventoryDrag`/`ItemHeld` event — client-side moves send no server packet, so this forces a `WINDOW_ITEMS` resend the interceptor can re-inject |
 | `ViewerManager` | Tracks Bedrock players (via Floodgate), handles join/quit events, range checks |
 | `IBridgeEntityData` | Common interface for DynamicEntity and StaticEntity bridge data |
 | `FMMEntityData` | Per-DynamicEntity state: wraps ModeledEntity + PacketEntity + viewer set, handles addViewer/removeViewer lifecycle, sends nametag metadata |
@@ -150,7 +151,7 @@ The Geyser Extension will:
 ### Known Issues
 
 - **3D Gear rendert flach in der Hand (Phase 7.2c):** `JavaItemGeometryConverter.convertToGeo()` ist aktuell ein Flat-Sprite-Stub — die echte Java-`elements`→Bedrock-`geo`-Konvertierung (unter `geyser_custom`-Bone-Hierarchie mit `binding`, UV-Skalierung × `texture_size`/16) ist noch nicht implementiert. Custom-Gear erscheint auf Bedrock als flache Textur statt 3D-Modell.
-- **Custom-Items fallen beim Droppen / Slot-Wechsel auf Vanilla zurück:** Der `PacketInterceptor` injectet `item_model` nur auf `SET_SLOT` + `WINDOW_ITEMS`. Item-Entities am Boden (`SPAWN_ENTITY`/`ENTITY_METADATA`) und `SET_CURSOR_ITEM` (1.21.2+) sind nicht abgedeckt → Bedrock zeigt dort das Vanilla-Item bzw. ein fremdes nitrosetups-V1-Mapping (z.B. Question Mark → `rpg_roll_down`). Betrifft 2D- und 3D-Items gleichermaßen.
+- **Kurzes Flackern beim Inventar-Umsortieren (Phase 8 Polish):** Verschiebt ein Bedrock-Spieler ein Custom-Item zwischen Slots oder wechselt den Hotbar-Slot, sagt der Client den Move voraus und zeigt ~1 Tick (50 ms) das rohe Vanilla-Item, bevor der `BedrockInventoryRefresher` per `updateInventory()` ein `WINDOW_ITEMS`-Resend auslöst und der `PacketInterceptor` `item_model` neu injectet. Funktional korrekt (Item endet custom), nur kosmetisch. Eliminierbar nur durch invasives Umschreiben der server-seitigen ItemStacks.
 - **Animationen mit Bewegung in X/Z laufen rückwärts (Phase 8):** Die UV-Face-Swap aus Phase 6.4 dreht das Modell visuell 180°, aber Animation-Keyframes bleiben im ursprünglichen Koordinatensystem. Boss-Animationen, die den Wolf nach vorne schnappen lassen, verschieben ihn jetzt visuell rückwärts. Fix: Position- und Rotation-X/Z-Werte in `BedrockAnimationConverter` negieren.
 - **Hitbox zu klein:** Bedrock-Hitbox nutzt unveränderte Java-Entity-Dimensionen; das visuelle Model wird mit `scale: 1.6` gerendert → Hitbox wirkt kleiner (Phase 8).
 - **Kein Hurt-Flash:** Damage-Metadata der Real-Entity wird vollständig supprimiert; Bedrock zeigt keinen roten Blitz bei Treffer (Phase 8).

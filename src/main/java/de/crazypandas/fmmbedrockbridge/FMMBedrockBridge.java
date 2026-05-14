@@ -129,6 +129,14 @@ public class FMMBedrockBridge extends JavaPlugin {
             if (!emGearModelMap.isEmpty()) bridge.getPacketInterceptor().setEmGearModelMap(emGearModelMap);
         }
 
+        // Phase 7.2c — re-send Bedrock inventories after client-side item moves so the
+        // PacketInterceptor can re-inject item_model (no server packet fires otherwise).
+        if (floodgateAvailable && (!emItemModelMap.isEmpty() || !emGearModelMap.isEmpty())) {
+            getServer().getPluginManager().registerEvents(
+                    new de.crazypandas.fmmbedrockbridge.bridge.BedrockInventoryRefresher(this), this);
+            log.info("Phase 7.2c: BedrockInventoryRefresher registered");
+        }
+
         // Phase 3: Register converter command
         BedrockModelConverter converter = new BedrockModelConverter();
         FMMBridgeCommand cmd = new FMMBridgeCommand(converter, this);
