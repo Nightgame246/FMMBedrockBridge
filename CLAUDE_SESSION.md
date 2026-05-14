@@ -729,28 +729,34 @@ Vor finalem Test: Geyser-Velocity `2.9.5-b1129` → `2.10.0-b1141` auf Proxy01 d
 
 ---
 
-## Session: 2026-05-14 (Phase 7.2c In-Game-Test + Scanner-Fix)
+## Session: 2026-05-14 (Phase 7.2c In-Game-Test + Scanner-Fix + Paket-Abdeckung)
 
 ### Abgeschlossen
 
 - **7.2c In-Game getestet** (Bedrock-Spieler): Map+Inject + Pack-Pipeline funktionieren — Backend injectet `item_model`, Geyser registriert, Attachables/Geometrien/Texturen im Pack strukturell korrekt. **Aber:** Gear rendert **flach in der Hand**.
   - Root-Cause: `JavaItemGeometryConverter.convertToGeo()` ist ein Flat-Sprite-Stub. Commit `032bee3` hatte echte `elements`→`geo`-Konvertierung, `59e9f17` ("Phase 7.2 WIP") ersetzte sie durch `texture_meshes`-Sprite. 3D-in-der-Hand war nie fertig.
-- **Scanner-Bug gefixt** (TDD, Branch `phase-7.2c-gear-3d`): `EliteMobsItemScanner.resolveGear3D()` hatte Textur-Key `"0"` hartkodiert; Blockbench vergibt beliebige Keys (`"29"`, `"1"`, …) → `ultimatium_sword`, `corrupted_trident`, `magmaguys_toothpick` wurden übersprungen.
+- **Scanner-Bug gefixt** (TDD, commit `c225770`): `EliteMobsItemScanner.resolveGear3D()` hatte Textur-Key `"0"` hartkodiert; Blockbench vergibt beliebige Keys (`"29"`, `"1"`, …) → `ultimatium_sword`, `corrupted_trident`, `magmaguys_toothpick` wurden übersprungen.
   - `pickGearTextureRef()` extrahiert (erster Key ≠ `"particle"`), 5 JUnit-Tests, JUnit 5 + surefire neu in `pom.xml`.
   - Logger-Init in `EliteMobsItemScanner` null-sicher gemacht (`getInstance().getLogger()` warf NPE im Test-Kontext).
   - **End-to-End verifiziert:** Backend scannt 21 → **24**, Proxy registriert **24/24**, Live-Inject aller 3 freigeschalteten Items im Log bestätigt.
+- **Paket-Abdeckung gefixt** (systematic-debugging, Diagnostic-Build → Reproduktion → Fix): Custom-Items fielen beim Droppen / Slot-Wechsel auf Vanilla zurück.
+  - Diagnostic-Befund: Droppen → `ENTITY_METADATA` einer Item-Entity (nicht injiziert). Slot-/Hotbar-Wechsel → **gar kein** Server-Paket (client-seitig vorhergesagt; `SET_CURSOR_ITEM`/`SET_PLAYER_INVENTORY` feuerten 0×).
+  - **Teil A:** `ENTITY_METADATA`-Branch im `PacketInterceptor` — ItemStack aus Entity-Metadata extrahieren + injizieren.
+  - **Teil B:** neuer `BedrockInventoryRefresher` (Listener) — `updateInventory()` einen Tick nach `InventoryClick`/`InventoryDrag`/`ItemHeld` von Bedrock-Spielern → erzwingt `WINDOW_ITEMS`-Resend.
+  - Verifiziert: Droppen + Aufheben halten sauber; Slot-/Hotbar-Wechsel haben sub-Tick-Flackern, enden aber custom.
 - **Cleanup TestServer01:** doppelte/stale `FMMBedrockBridge-0.1.0-SNAPSHOT.jar` (plugins/ + .paper-remapped/) entfernt — Paper meldete "Ambiguous plugin name".
 
 ### Erkenntnisse
 
 - **`convertToGeo` Stub vs. echte Konvertierung:** Der erste Versuch (`032bee3`) erzeugte "near-invisible geometry" weil die Element-Bones unparented Root-Bones ohne `geyser_custom`-Binding-Hierarchie waren. Fix-Richtung: echte `elements`-Konvertierung UNTER `geyser_custom_x/y/z`-Bones mit `binding`, UVs × `texture_size`/16 skalieren.
-- **PacketInterceptor-Lücke:** `item_model`-Inject läuft nur auf `SET_SLOT` + `WINDOW_ITEMS`. Gedroppte Items (Item-Entity `SPAWN_ENTITY`/`ENTITY_METADATA`) und `SET_CURSOR_ITEM` (1.21.2+) sind nicht abgedeckt → Bedrock fällt auf Vanilla zurück bzw. matcht ein fremdes nitrosetups-V1-Mapping (Question Mark → `rpg_roll_down`). Betrifft 2D + 3D gleichermaßen.
+- **Bedrock client-seitige Inventar-Moves senden kein Server-Paket:** Verschiebt ein Bedrock-Spieler ein Item zwischen Slots, sagt der Client den Move voraus und der Backend schickt nichts (Diagnostic bestätigt: 0× `SET_CURSOR_ITEM`/`SET_PLAYER_INVENTORY` über die ganze Session). Ein Paket-in-flight-Inject kann das nicht abfangen → braucht einen `updateInventory()`-Re-Send-Trigger über Bukkit-Events.
+- **Inject ist Paket-in-flight, nicht persistent:** Alles was den Bedrock-Client über einen nicht abgefangenen Pfad erreicht, behält das Original-`item_model`. Daher müssen alle Pfade (Inventar, Item-Entity, künftig evtl. `ENTITY_EQUIPMENT`) explizit abgedeckt werden.
 
 ### Offene Themen
 
 - **7.2c Haupt-Task:** echte 3D-`elements`→`geo`-Konvertierung in `convertToGeo()` implementieren (Flat-Sprite-Stub ersetzen)
-- **PacketInterceptor-Paket-Abdeckung:** Droppen / Cursor / Slot-Wechsel abdecken
-- Phase 7.2d (Rüstung/Bögen/Armbrüste), 7.3 (Bedrock Forms), Phase 8 (Polish)
+- **Phase 8 Polish:** sub-Tick-Flackern beim Inventar-Umsortieren (nur kosmetisch); ggf. `ENTITY_EQUIPMENT`-Pfad für von anderen gehaltene Items
+- Phase 7.2d (Rüstung/Bögen/Armbrüste), 7.3 (Bedrock Forms), Phase 8 (Polish-Backlog)
 
 ### Build
 ```

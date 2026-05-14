@@ -7,6 +7,7 @@ import com.github.retrooper.packetevents.event.PacketReceiveEvent;
 import com.github.retrooper.packetevents.event.PacketSendEvent;
 import com.github.retrooper.packetevents.protocol.component.ComponentTypes;
 import com.github.retrooper.packetevents.protocol.component.builtin.item.ItemModel;
+import com.github.retrooper.packetevents.protocol.entity.data.EntityData;
 import com.github.retrooper.packetevents.protocol.item.ItemStack;
 import com.github.retrooper.packetevents.protocol.packettype.PacketType;
 import com.github.retrooper.packetevents.resources.ResourceLocation;
@@ -190,6 +191,23 @@ public class PacketInterceptor {
                                 if (injectItemModelIfNeeded(item)) modified = true;
                             }
                             wrapper.getCarriedItem().ifPresent(ci -> injectItemModelIfNeeded(ci));
+                            if (modified) event.markForReEncode(true);
+                        } catch (Throwable t) {
+                            // Wrapper API mismatch — fail soft
+                        }
+                    } else if (event.getPacketType() == PacketType.Play.Server.ENTITY_METADATA) {
+                        // Dropped items reach Bedrock as item-entity metadata, not via an
+                        // inventory packet — without this branch the ground item keeps its
+                        // original item_model and Geyser renders vanilla / a foreign mapping.
+                        try {
+                            WrapperPlayServerEntityMetadata wrapper = new WrapperPlayServerEntityMetadata(event);
+                            boolean modified = false;
+                            for (EntityData<?> data : wrapper.getEntityMetadata()) {
+                                if (data.getValue() instanceof ItemStack stack
+                                        && injectItemModelIfNeeded(stack)) {
+                                    modified = true;
+                                }
+                            }
                             if (modified) event.markForReEncode(true);
                         } catch (Throwable t) {
                             // Wrapper API mismatch — fail soft
