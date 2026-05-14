@@ -726,3 +726,33 @@ Vor finalem Test: Geyser-Velocity `2.9.5-b1129` → `2.10.0-b1141` auf Proxy01 d
 ```
 /usr/share/idea/plugins/maven/lib/maven3/bin/mvn clean package
 ```
+
+---
+
+## Session: 2026-05-14 (Phase 7.2c In-Game-Test + Scanner-Fix)
+
+### Abgeschlossen
+
+- **7.2c In-Game getestet** (Bedrock-Spieler): Map+Inject + Pack-Pipeline funktionieren — Backend injectet `item_model`, Geyser registriert, Attachables/Geometrien/Texturen im Pack strukturell korrekt. **Aber:** Gear rendert **flach in der Hand**.
+  - Root-Cause: `JavaItemGeometryConverter.convertToGeo()` ist ein Flat-Sprite-Stub. Commit `032bee3` hatte echte `elements`→`geo`-Konvertierung, `59e9f17` ("Phase 7.2 WIP") ersetzte sie durch `texture_meshes`-Sprite. 3D-in-der-Hand war nie fertig.
+- **Scanner-Bug gefixt** (TDD, Branch `phase-7.2c-gear-3d`): `EliteMobsItemScanner.resolveGear3D()` hatte Textur-Key `"0"` hartkodiert; Blockbench vergibt beliebige Keys (`"29"`, `"1"`, …) → `ultimatium_sword`, `corrupted_trident`, `magmaguys_toothpick` wurden übersprungen.
+  - `pickGearTextureRef()` extrahiert (erster Key ≠ `"particle"`), 5 JUnit-Tests, JUnit 5 + surefire neu in `pom.xml`.
+  - Logger-Init in `EliteMobsItemScanner` null-sicher gemacht (`getInstance().getLogger()` warf NPE im Test-Kontext).
+  - **End-to-End verifiziert:** Backend scannt 21 → **24**, Proxy registriert **24/24**, Live-Inject aller 3 freigeschalteten Items im Log bestätigt.
+- **Cleanup TestServer01:** doppelte/stale `FMMBedrockBridge-0.1.0-SNAPSHOT.jar` (plugins/ + .paper-remapped/) entfernt — Paper meldete "Ambiguous plugin name".
+
+### Erkenntnisse
+
+- **`convertToGeo` Stub vs. echte Konvertierung:** Der erste Versuch (`032bee3`) erzeugte "near-invisible geometry" weil die Element-Bones unparented Root-Bones ohne `geyser_custom`-Binding-Hierarchie waren. Fix-Richtung: echte `elements`-Konvertierung UNTER `geyser_custom_x/y/z`-Bones mit `binding`, UVs × `texture_size`/16 skalieren.
+- **PacketInterceptor-Lücke:** `item_model`-Inject läuft nur auf `SET_SLOT` + `WINDOW_ITEMS`. Gedroppte Items (Item-Entity `SPAWN_ENTITY`/`ENTITY_METADATA`) und `SET_CURSOR_ITEM` (1.21.2+) sind nicht abgedeckt → Bedrock fällt auf Vanilla zurück bzw. matcht ein fremdes nitrosetups-V1-Mapping (Question Mark → `rpg_roll_down`). Betrifft 2D + 3D gleichermaßen.
+
+### Offene Themen
+
+- **7.2c Haupt-Task:** echte 3D-`elements`→`geo`-Konvertierung in `convertToGeo()` implementieren (Flat-Sprite-Stub ersetzen)
+- **PacketInterceptor-Paket-Abdeckung:** Droppen / Cursor / Slot-Wechsel abdecken
+- Phase 7.2d (Rüstung/Bögen/Armbrüste), 7.3 (Bedrock Forms), Phase 8 (Polish)
+
+### Build
+```
+/usr/share/idea/plugins/maven/lib/maven3/bin/mvn clean package
+```

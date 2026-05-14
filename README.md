@@ -59,7 +59,7 @@ FMM spawns DynamicEntity (wraps LivingEntity)
 | 7.1b | Bedrock Nametag — always-visible name above mob via Bukkit TextDisplay + Java packet-suppress; uses FMM displayName (the styled-name source EM populates) | Done |
 | 7.1c | Combat-only HP / health-bar / BossBar (combat-event trigger, crossplay fairness, multi-bossbar-rejoin fix) — depends on 7.1b | Done |
 | 7.2b | EliteMobs 2D Custom Items für Bedrock — Geyser `GeyserDefineCustomItemsEvent` registriert 13 UI-Icons (bag of coins, anvil hammer, locks, crowns, …); Texturen automatisch aus EM Resource Pack extrahiert und ins Bedrock-Pack eingebettet | Done |
-| 7.2c | EliteMobs 3D Custom Items (Blockbench-Waffen/Rüstung) als Bedrock Attachables | Geplant (conditional — 3D Gear vorhanden) |
+| 7.2c | EliteMobs 3D Gear Items — Scanner + Map+Inject + Pack-Pipeline (24 Items registriert & verifiziert); 3D-Geometrie in der Hand noch ausstehend (`convertToGeo` ist Flat-Sprite-Stub) | In Arbeit |
 | 7.3 | Java popup menus → Bedrock Forms (Cumulus API) | Planned |
 | 8 | Polish: hitbox scale, hurt flash, particles, config, performance, animation X/Z mirror for movement, production-readiness | Planned |
 
@@ -134,7 +134,8 @@ The Geyser Extension will:
 | `BedrockResourcePackGenerator` | Generates entity definitions, render controllers, `manifest.json`; zips the full pack |
 
 | `EMCustomItem` | Record: javaMaterial, customModelData, sourceTexturePath, bedrockTextureKey — serialisiert nach em-items.json |
-| `EliteMobsItemScanner` | Scannt EM Resource Pack (alle Sub-Packs), filtert 2D-Items (kein `elements`-Block), schreibt em-items.json + kopiert PNGs nach bedrock-pack/ |
+| `EMGearItem` | Record für 3D-Gear: javaMaterial, customModelData, bedrockKey, javaItemModel, sourceModelPath, sourceTexturePath — serialisiert nach em-gear-items.json |
+| `EliteMobsItemScanner` | Scannt EM Resource Pack (alle Sub-Packs) für 2D-Items (kein `elements`-Block) und 3D-Gear (mit `elements`); `pickGearTextureRef()` wählt den Blockbench-Textur-Key dynamisch (erster Key ≠ `"particle"`, nicht hartkodiert `"0"`); schreibt em-items.json / em-gear-items.json + kopiert Assets nach bedrock-pack/ |
 
 ### Geyser Extension (`geyser-extension/`)
 
@@ -148,6 +149,8 @@ The Geyser Extension will:
 
 ### Known Issues
 
+- **3D Gear rendert flach in der Hand (Phase 7.2c):** `JavaItemGeometryConverter.convertToGeo()` ist aktuell ein Flat-Sprite-Stub — die echte Java-`elements`→Bedrock-`geo`-Konvertierung (unter `geyser_custom`-Bone-Hierarchie mit `binding`, UV-Skalierung × `texture_size`/16) ist noch nicht implementiert. Custom-Gear erscheint auf Bedrock als flache Textur statt 3D-Modell.
+- **Custom-Items fallen beim Droppen / Slot-Wechsel auf Vanilla zurück:** Der `PacketInterceptor` injectet `item_model` nur auf `SET_SLOT` + `WINDOW_ITEMS`. Item-Entities am Boden (`SPAWN_ENTITY`/`ENTITY_METADATA`) und `SET_CURSOR_ITEM` (1.21.2+) sind nicht abgedeckt → Bedrock zeigt dort das Vanilla-Item bzw. ein fremdes nitrosetups-V1-Mapping (z.B. Question Mark → `rpg_roll_down`). Betrifft 2D- und 3D-Items gleichermaßen.
 - **Animationen mit Bewegung in X/Z laufen rückwärts (Phase 8):** Die UV-Face-Swap aus Phase 6.4 dreht das Modell visuell 180°, aber Animation-Keyframes bleiben im ursprünglichen Koordinatensystem. Boss-Animationen, die den Wolf nach vorne schnappen lassen, verschieben ihn jetzt visuell rückwärts. Fix: Position- und Rotation-X/Z-Werte in `BedrockAnimationConverter` negieren.
 - **Hitbox zu klein:** Bedrock-Hitbox nutzt unveränderte Java-Entity-Dimensionen; das visuelle Model wird mit `scale: 1.6` gerendert → Hitbox wirkt kleiner (Phase 8).
 - **Kein Hurt-Flash:** Damage-Metadata der Real-Entity wird vollständig supprimiert; Bedrock zeigt keinen roten Blitz bei Treffer (Phase 8).

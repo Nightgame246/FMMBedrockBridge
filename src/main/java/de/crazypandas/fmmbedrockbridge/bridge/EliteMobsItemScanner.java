@@ -11,6 +11,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.logging.Logger;
 
 /**
@@ -25,8 +26,15 @@ import java.util.logging.Logger;
  */
 public class EliteMobsItemScanner {
 
-    private static final Logger log = FMMBedrockBridge.getInstance().getLogger();
+    private static final Logger log = resolveLogger();
     private static final Gson GSON = new Gson();
+
+    // Falls back to a standalone logger when the plugin singleton isn't available
+    // (e.g. in unit tests), so this class can be loaded without a running server.
+    private static Logger resolveLogger() {
+        FMMBedrockBridge instance = FMMBedrockBridge.getInstance();
+        return instance != null ? instance.getLogger() : Logger.getLogger("FMMBedrockBridge");
+    }
 
     private final Path packRoot;
 
@@ -231,6 +239,20 @@ public class EliteMobsItemScanner {
     }
 
     /**
+     * Picks the texture reference from a 3D model's "textures" object.
+     * Blockbench assigns arbitrary numeric keys ("0", "29", "1", ...), so we
+     * take the first entry that isn't the "particle" key rather than assuming "0".
+     * Returns null if there is no usable texture entry.
+     */
+    static String pickGearTextureRef(JsonObject textures) {
+        for (Map.Entry<String, JsonElement> e : textures.entrySet()) {
+            if (e.getKey().equals("particle")) continue;
+            return e.getValue().getAsString();
+        }
+        return null;
+    }
+
+    /**
      * Resolves a gear model reference, verifying it has "elements" (3D).
      * Returns null if not 3D, not found, or texture missing.
      */
@@ -252,9 +274,8 @@ public class EliteMobsItemScanner {
             if (!model.has("textures")) return null;
             JsonObject textures = model.getAsJsonObject("textures");
 
-            // 3D models use "0" as texture key (not "layer0")
-            String texRef = null;
-            if (textures.has("0")) texRef = textures.get("0").getAsString();
+            // 3D models use a numeric texture key (Blockbench-assigned: "0", "29", ...) — not "layer0"
+            String texRef = pickGearTextureRef(textures);
             if (texRef == null) return null;
 
             String[] texParts = texRef.split(":");
