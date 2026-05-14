@@ -745,17 +745,24 @@ Vor finalem Test: Geyser-Velocity `2.9.5-b1129` → `2.10.0-b1141` auf Proxy01 d
   - **Teil B:** neuer `BedrockInventoryRefresher` (Listener) — `updateInventory()` einen Tick nach `InventoryClick`/`InventoryDrag`/`ItemHeld` von Bedrock-Spielern → erzwingt `WINDOW_ITEMS`-Resend.
   - Verifiziert: Droppen + Aufheben halten sauber; Slot-/Hotbar-Wechsel haben sub-Tick-Flackern, enden aber custom.
 - **Cleanup TestServer01:** doppelte/stale `FMMBedrockBridge-0.1.0-SNAPSHOT.jar` (plugins/ + .paper-remapped/) entfernt — Paper meldete "Ambiguous plugin name".
+- **Echte 3D-`elements`→`geo`-Konvertierung** (TDD, 5 JUnit-Tests, JUnit5+surefire neu in `geyser-extension/pom.xml`): `JavaItemGeometryConverter.convertToGeo()` ersetzt den Flat-Sprite-Stub durch echte Cube-Geometrie.
+  - Referenz: Kafal-java2bedrock-Pack auf Proxy01 (`packs/Kafal-Java2Bedrock-gui-offsets.zip1`) hat konvertierte EM-Equipment-Geometrien — daran verifiziert statt zu raten.
+  - Transform: `origin = [from.x-8, from.y, from.z-8]` (Y NICHT verschoben — das war `032bee3`s Bug), `size = to-from`, UV direkt kopiert, `texture_width/height` aus `texture_size`.
+  - Rotierte Elemente → eigener Child-Bone von `geyser_custom_z` (Bone-Rotation, nicht Cube), X/Y negiert / Z behalten.
+  - Extension-JAR auf Proxy01 deployt — **Bedrock-In-Game-Verifikation noch ausstehend** (Proxy-Neustart + visueller Test).
 
 ### Erkenntnisse
 
-- **`convertToGeo` Stub vs. echte Konvertierung:** Der erste Versuch (`032bee3`) erzeugte "near-invisible geometry" weil die Element-Bones unparented Root-Bones ohne `geyser_custom`-Binding-Hierarchie waren. Fix-Richtung: echte `elements`-Konvertierung UNTER `geyser_custom_x/y/z`-Bones mit `binding`, UVs × `texture_size`/16 skalieren.
+- **`032bee3`s Bug war der Y-Shift:** der erste Konvertierungs-Versuch subtrahierte 8 auch von Y und nutzte unparented Root-Bones ohne `geyser_custom`-Binding → "near-invisible geometry". Korrekt (Kafal-Referenz): nur X/Z um -8 verschieben, Cubes unter die `geyser_custom`-Hierarchie hängen.
+- **nitrosetups ist KEINE 3D-Referenz:** nitrosetups-"3D"-Items sind `texture_meshes`-Flat-Sprites (die Items sind in Java auch nur 2D-Sprites). Für echte Cube-Geometrie war der Kafal-java2bedrock-Pack die richtige Referenz.
+- **EM-Gear-Texturen sind teils animiert:** `bronzesword.png` ist 64×768 (12 Frames). Kafal splittet das in 12 Texturen + Render-Controller; wir croppen auf Frame 0 (statisch) — voller Animations-Support = Phase 8.
 - **Bedrock client-seitige Inventar-Moves senden kein Server-Paket:** Verschiebt ein Bedrock-Spieler ein Item zwischen Slots, sagt der Client den Move voraus und der Backend schickt nichts (Diagnostic bestätigt: 0× `SET_CURSOR_ITEM`/`SET_PLAYER_INVENTORY` über die ganze Session). Ein Paket-in-flight-Inject kann das nicht abfangen → braucht einen `updateInventory()`-Re-Send-Trigger über Bukkit-Events.
 - **Inject ist Paket-in-flight, nicht persistent:** Alles was den Bedrock-Client über einen nicht abgefangenen Pfad erreicht, behält das Original-`item_model`. Daher müssen alle Pfade (Inventar, Item-Entity, künftig evtl. `ENTITY_EQUIPMENT`) explizit abgedeckt werden.
 
 ### Offene Themen
 
-- **7.2c Haupt-Task:** echte 3D-`elements`→`geo`-Konvertierung in `convertToGeo()` implementieren (Flat-Sprite-Stub ersetzen)
-- **Phase 8 Polish:** sub-Tick-Flackern beim Inventar-Umsortieren (nur kosmetisch); ggf. `ENTITY_EQUIPMENT`-Pfad für von anderen gehaltene Items
+- **7.2c Bedrock-Verifikation:** Proxy01 neu starten, `bronze_sword`/`bronze_axe` (keine Rotation) + `ultimatium_sword`/Scythe (mit Rotation) in der Hand testen — Form/Textur/Rotation korrekt?
+- **Phase 8 Polish:** animierte Gear-Texturen (statisch → Frame-Splitting); sub-Tick-Flackern beim Inventar-Umsortieren; ggf. `ENTITY_EQUIPMENT`-Pfad für von anderen gehaltene Items
 - Phase 7.2d (Rüstung/Bögen/Armbrüste), 7.3 (Bedrock Forms), Phase 8 (Polish-Backlog)
 
 ### Build
