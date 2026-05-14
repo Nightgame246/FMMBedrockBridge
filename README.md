@@ -144,13 +144,14 @@ The Geyser Extension will:
 |-------|------|
 | `FMMBridgeExtension` | Lifecycle event handling (PreInitialize, DefineResourcePacks, PostInitialize) |
 | `EntityRegistrar` | GeyserUtils reflection for entity + animation property registration |
-| `ResourcePackBuilder` | Generates entity defs, render controllers, manifest.json, zips pack |
+| `ResourcePackBuilder` | Generates entity defs, render controllers, manifest.json; embeds EM 2D items + 3D gear (attachables, geometry, textures); zips pack |
+| `JavaItemGeometryConverter` | Converts a Java item model's `elements` to a Bedrock `.geo.json` under the `geyser_custom` binding hierarchy (x/z centred at -8, per-face UV copied, rotated elements → child bones with X/Y-negated rotation); generates the attachable definition |
 | `DownstreamMonitor` | Re-registers GeyserUtils packet listener on server switches |
 | `ResourcePackBuilder.EmItemEntry` | Inner record: javaMaterial, customModelData, sourceTexturePath, bedrockTextureKey — deserialisiert aus em-items.json |
 
 ### Known Issues
 
-- **3D Gear rendert flach in der Hand (Phase 7.2c):** `JavaItemGeometryConverter.convertToGeo()` ist aktuell ein Flat-Sprite-Stub — die echte Java-`elements`→Bedrock-`geo`-Konvertierung (unter `geyser_custom`-Bone-Hierarchie mit `binding`, UV-Skalierung × `texture_size`/16) ist noch nicht implementiert. Custom-Gear erscheint auf Bedrock als flache Textur statt 3D-Modell.
+- **3D Gear — animierte Texturen statisch (Phase 8 Polish):** `JavaItemGeometryConverter.convertToGeo()` konvertiert die Java-`elements` jetzt zu echter Bedrock-Cube-Geometrie. EM-Gear-Texturen sind teils animierte Sprite-Sheets (z.B. `bronzesword.png` 64×768 = 12 Frames); `embedGearItems` croppt auf den ersten Frame, das 3D-Modell zeigt also eine statische Textur. Voller Animations-Support (Render-Controller + Frame-Splitting wie im java2bedrock-Tool) ist Phase-8-Polish.
 - **Kurzes Flackern beim Inventar-Umsortieren (Phase 8 Polish):** Verschiebt ein Bedrock-Spieler ein Custom-Item zwischen Slots oder wechselt den Hotbar-Slot, sagt der Client den Move voraus und zeigt ~1 Tick (50 ms) das rohe Vanilla-Item, bevor der `BedrockInventoryRefresher` per `updateInventory()` ein `WINDOW_ITEMS`-Resend auslöst und der `PacketInterceptor` `item_model` neu injectet. Funktional korrekt (Item endet custom), nur kosmetisch. Eliminierbar nur durch invasives Umschreiben der server-seitigen ItemStacks.
 - **Animationen mit Bewegung in X/Z laufen rückwärts (Phase 8):** Die UV-Face-Swap aus Phase 6.4 dreht das Modell visuell 180°, aber Animation-Keyframes bleiben im ursprünglichen Koordinatensystem. Boss-Animationen, die den Wolf nach vorne schnappen lassen, verschieben ihn jetzt visuell rückwärts. Fix: Position- und Rotation-X/Z-Werte in `BedrockAnimationConverter` negieren.
 - **Hitbox zu klein:** Bedrock-Hitbox nutzt unveränderte Java-Entity-Dimensionen; das visuelle Model wird mit `scale: 1.6` gerendert → Hitbox wirkt kleiner (Phase 8).
