@@ -70,8 +70,8 @@ public class JavaItemGeometryConverter {
         }
 
         // Standard Geyser custom-item binding hierarchy. The binding attaches the
-        // root to the player's hand/head bone; the shared gear animations
-        // (animations/fmmbridge_gear.json) position geyser_custom_x/y/z in hand.
+        // root to the player's hand/head bone; per-item animations generated from
+        // the Java model's display section position geyser_custom_x in that slot.
         Map<String, Object> boneRoot = bone("geyser_custom", null);
         boneRoot.put("binding", "c.item_slot == 'head' ? 'head' : q.item_slot_to_bone_name(c.item_slot)");
         Map<String, Object> boneX = bone("geyser_custom_x", "geyser_custom");
@@ -176,15 +176,21 @@ public class JavaItemGeometryConverter {
      *
      * @param bedrockKey e.g. "em_bronze_sword"
      */
-    public Map<String, Object> generateAttachable(String bedrockKey) {
+    public Map<String, Object> generateAttachable(JsonObject javaModel, String bedrockKey) {
         Map<String, Object> description = new LinkedHashMap<>();
-        description.put("identifier",        "geyser_custom:" + bedrockKey);
-        // controller.render.item_default (Bedrock 1.21+) requires both "default" and "enchanted"
-        // entries in materials and textures; missing either causes a Molang error that silently
-        // falls back to 2D icon display instead of rendering the custom geometry.
+        String bedrockId = "geyser_custom:" + bedrockKey;
+        description.put("identifier", bedrockId);
+        // "item" maps this attachable to a specific Bedrock item identifier with a
+        // condition. Microsoft's custom_items sample uses it; not strictly required when
+        // the attachable identifier already matches the item, but recommended.
+        description.put("item", Map.of(bedrockId, "query.is_owner_identifier_any('minecraft:player')"));
+        // Materials must use the standard Bedrock names. The official Microsoft sample
+        // pairs entity_alphatest (default) with entity_alphatest_glint (enchanted).
+        // entity_alphatest_glint_item is NOT a standard Bedrock material — using it
+        // causes silent attachable rejection and falls back to 2D icon display.
         Map<String, Object> materials = new LinkedHashMap<>();
         materials.put("default",   "entity_alphatest");
-        materials.put("enchanted", "entity_alphatest_glint_item");
+        materials.put("enchanted", "entity_alphatest_glint");
         description.put("materials", materials);
 
         Map<String, Object> textures = new LinkedHashMap<>();
@@ -194,16 +200,16 @@ public class JavaItemGeometryConverter {
         description.put("geometry",          Map.of("default", "geometry.fmmbridge." + bedrockKey));
         description.put("render_controllers", List.of("controller.render.item_default"));
 
-        // Shared positioning animations (defined once in animations/fmmbridge_gear.json).
-        // All gear items use the same bone names (geyser_custom_x/y/z/geyser_custom) so
-        // one animation set covers all of them.
+        String animationPrefix = "animation.fmmbridge.gear." + bedrockKey + ".";
         Map<String, Object> animations = new LinkedHashMap<>();
-        animations.put("thirdperson_main_hand", "animation.fmmbridge.gear.thirdperson_main_hand");
-        animations.put("thirdperson_off_hand",  "animation.fmmbridge.gear.thirdperson_off_hand");
-        animations.put("head",                  "animation.fmmbridge.gear.head");
-        animations.put("firstperson_main_hand", "animation.fmmbridge.gear.firstperson_main_hand");
-        animations.put("firstperson_off_hand",  "animation.fmmbridge.gear.firstperson_off_hand");
-        animations.put("disable",               "animation.fmmbridge.gear.disable");
+        animations.put("thirdperson_main_hand", animationPrefix + "thirdperson_main_hand");
+        animations.put("thirdperson_off_hand",  animationPrefix + "thirdperson_off_hand");
+        animations.put("firstperson_main_hand", animationPrefix + "firstperson_main_hand");
+        animations.put("firstperson_off_hand",  animationPrefix + "firstperson_off_hand");
+        animations.put("disable",               animationPrefix + "disable");
+        if (hasDisplayTransform(javaModel, "head")) {
+            animations.put("head", animationPrefix + "head");
+        }
         description.put("animations", animations);
 
         List<String> preAnimation = List.of(
@@ -211,17 +217,20 @@ public class JavaItemGeometryConverter {
                 "v.off_hand = c.item_slot == 'off_hand';",
                 "v.head = c.item_slot == 'head';"
         );
-        List<Object> animate = List.of(
-                Map.of("thirdperson_main_hand", "v.main_hand && !c.is_first_person"),
-                Map.of("thirdperson_off_hand",  "v.off_hand && !c.is_first_person"),
-                Map.of("head",                  "v.head && !c.is_first_person"),
-                Map.of("firstperson_main_hand", "v.main_hand && c.is_first_person"),
-                Map.of("firstperson_off_hand",  "v.off_hand && c.is_first_person"),
-                Map.of("disable",               "c.is_first_person && v.head")
-        );
+        List<Object> animate = new ArrayList<>();
+        animate.add(Map.of("thirdperson_main_hand", "v.main_hand && !c.is_first_person"));
+        animate.add(Map.of("thirdperson_off_hand",  "v.off_hand && !c.is_first_person"));
+        animate.add(Map.of("firstperson_main_hand", "v.main_hand && c.is_first_person"));
+        animate.add(Map.of("firstperson_off_hand",  "v.off_hand && c.is_first_person"));
+        if (hasDisplayTransform(javaModel, "head")) {
+            animate.add(Map.of("head", "v.head && !c.is_first_person"));
+            animate.add(Map.of("disable", "c.is_first_person && v.head"));
+        } else {
+            animate.add(Map.of("disable", "v.head"));
+        }
         Map<String, Object> scripts = new LinkedHashMap<>();
         scripts.put("pre_animation", preAnimation);
-        scripts.put("animate",       animate);
+        scripts.put("animate", animate);
         description.put("scripts", scripts);
 
         Map<String, Object> attachable = new LinkedHashMap<>();
@@ -231,5 +240,211 @@ public class JavaItemGeometryConverter {
         root.put("format_version", "1.10.0");
         root.put("minecraft:attachable", attachable);
         return root;
+    }
+
+    /**
+     * Converts Java's per-slot display transforms into attachable animations.
+     * The source EM models already contain the item-specific hand/head offsets;
+     * reusing them avoids forcing every 3D model through one sprite-oriented pose.
+     */
+    public Map<String, Object> generateAnimations(JsonObject javaModel, String bedrockKey) {
+        JsonObject display = javaModel.has("display") && javaModel.get("display").isJsonObject()
+                ? javaModel.getAsJsonObject("display")
+                : new JsonObject();
+
+        Map<String, Object> animations = new LinkedHashMap<>();
+        String prefix = "animation.fmmbridge.gear." + bedrockKey + ".";
+        animations.put(prefix + "thirdperson_main_hand",
+                transformAnimation(displayTransform(display, "thirdperson_righthand"), BasePose.THIRD_PERSON_MAIN_HAND));
+        animations.put(prefix + "thirdperson_off_hand",
+                transformAnimation(displayTransform(display, "thirdperson_lefthand", "thirdperson_righthand"),
+                        BasePose.THIRD_PERSON_OFF_HAND));
+        animations.put(prefix + "firstperson_main_hand",
+                transformAnimation(displayTransform(display, "firstperson_righthand"), BasePose.FIRST_PERSON_MAIN_HAND));
+        animations.put(prefix + "firstperson_off_hand",
+                transformAnimation(displayTransform(display, "firstperson_lefthand", "firstperson_righthand"),
+                        BasePose.FIRST_PERSON_OFF_HAND));
+        if (display.has("head") && display.get("head").isJsonObject()) {
+            animations.put(prefix + "head", transformAnimation(display.getAsJsonObject("head"), BasePose.HEAD));
+        }
+        animations.put(prefix + "disable", disableAnimation());
+
+        Map<String, Object> root = new LinkedHashMap<>();
+        root.put("format_version", "1.8.0");
+        root.put("animations", animations);
+        return root;
+    }
+
+    private boolean hasDisplayTransform(JsonObject javaModel, String slot) {
+        return javaModel.has("display")
+                && javaModel.get("display").isJsonObject()
+                && javaModel.getAsJsonObject("display").has(slot)
+                && javaModel.getAsJsonObject("display").get(slot).isJsonObject();
+    }
+
+    private JsonObject displayTransform(JsonObject display, String primarySlot, String... fallbackSlots) {
+        if (display.has(primarySlot) && display.get(primarySlot).isJsonObject()) {
+            return display.getAsJsonObject(primarySlot);
+        }
+        for (String fallbackSlot : fallbackSlots) {
+            if (display.has(fallbackSlot) && display.get(fallbackSlot).isJsonObject()) {
+                return display.getAsJsonObject(fallbackSlot);
+            }
+        }
+        return new JsonObject();
+    }
+
+    private Map<String, Object> transformAnimation(JsonObject displayTransform, BasePose basePose) {
+        Map<String, Object> animation = new LinkedHashMap<>();
+        animation.put("loop", true);
+
+        Map<String, Object> bones = new LinkedHashMap<>();
+        bones.put("geyser_custom_x", composeDelta(basePose.xBone(), displayTransform));
+        bones.put("geyser_custom_y", cloneBone(basePose.yBone()));
+        bones.put("geyser_custom_z", cloneBone(basePose.zBone()));
+        bones.put("geyser_custom", cloneBone(basePose.rootBone()));
+        animation.put("bones", bones);
+        return animation;
+    }
+
+    private Map<String, Object> disableAnimation() {
+        Map<String, Object> animation = new LinkedHashMap<>();
+        animation.put("loop", true);
+
+        Map<String, Object> hiddenBone = new LinkedHashMap<>();
+        hiddenBone.put("scale", 0);
+
+        Map<String, Object> bones = new LinkedHashMap<>();
+        bones.put("geyser_custom_x", hiddenBone);
+        animation.put("bones", bones);
+        return animation;
+    }
+
+    private Map<String, Object> composeDelta(BoneTransform base, JsonObject displayTransform) {
+        Map<String, Object> composed = cloneBone(base);
+
+        double[] rotationDelta = readVector(displayTransform, "rotation");
+        if (rotationDelta != null) {
+            composed.put("rotation", addVectors(base.rotation(), rotationDelta));
+        }
+
+        double[] translationDelta = readVector(displayTransform, "translation");
+        if (translationDelta != null) {
+            composed.put("position", addVectors(base.position(), translationDelta));
+        }
+
+        double[] scaleDelta = readVector(displayTransform, "scale");
+        if (scaleDelta != null) {
+            composed.put("scale", multiplyVectors(base.scale(), scaleDelta));
+        }
+        return composed;
+    }
+
+    private Map<String, Object> cloneBone(BoneTransform transform) {
+        Map<String, Object> bone = new LinkedHashMap<>();
+        putVectorIfPresent(bone, "rotation", transform.rotation());
+        putVectorIfPresent(bone, "position", transform.position());
+        putVectorIfPresent(bone, "scale", transform.scale());
+        return bone;
+    }
+
+    private void putVectorIfPresent(Map<String, Object> target, String key, double[] vector) {
+        if (vector != null) {
+            target.put(key, vector.clone());
+        }
+    }
+
+    private double[] readVector(JsonObject source, String sourceKey) {
+        if (!source.has(sourceKey) || !source.get(sourceKey).isJsonArray()) {
+            return null;
+        }
+        JsonArray vector = source.getAsJsonArray(sourceKey);
+        if (vector.size() != 3) {
+            return null;
+        }
+        return new double[]{
+                vector.get(0).getAsDouble(),
+                vector.get(1).getAsDouble(),
+                vector.get(2).getAsDouble()
+        };
+    }
+
+    private double[] addVectors(double[] base, double[] delta) {
+        double[] left = base != null ? base : new double[]{0, 0, 0};
+        return new double[]{
+                left[0] + delta[0],
+                left[1] + delta[1],
+                left[2] + delta[2]
+        };
+    }
+
+    private double[] multiplyVectors(double[] base, double[] factor) {
+        double[] left = base != null ? base : new double[]{1, 1, 1};
+        return new double[]{
+                left[0] * factor[0],
+                left[1] * factor[1],
+                left[2] * factor[2]
+        };
+    }
+
+    private record BoneTransform(double[] rotation, double[] position, double[] scale) {
+    }
+
+    private enum BasePose {
+        THIRD_PERSON_MAIN_HAND(
+                new BoneTransform(new double[]{0, 0, 0}, new double[]{0, 4, 2.5}, new double[]{0.85, 0.85, 0.85}),
+                new BoneTransform(new double[]{0, -90, 0}, null, null),
+                new BoneTransform(new double[]{0, 0, 55}, null, null),
+                new BoneTransform(new double[]{90, 0, 0}, new double[]{0, 13, -3}, null)),
+        THIRD_PERSON_OFF_HAND(
+                new BoneTransform(new double[]{0, 0, 0}, new double[]{0, 4, 2.5}, new double[]{0.85, 0.85, 0.85}),
+                new BoneTransform(new double[]{0, 90, 0}, null, null),
+                new BoneTransform(new double[]{0, 0, -55}, null, null),
+                new BoneTransform(new double[]{90, 0, 0}, new double[]{0, 13, -3}, null)),
+        FIRST_PERSON_MAIN_HAND(
+                new BoneTransform(null, new double[]{0, 1.6, -0.8}, new double[]{0.68, 0.68, 0.68}),
+                new BoneTransform(new double[]{0, -90, 0}, null, null),
+                new BoneTransform(new double[]{0, 0, 25}, null, null),
+                new BoneTransform(new double[]{53.79601, 51.7101, -83.00307},
+                        new double[]{-2, 12, 5}, new double[]{1.5, 1.5, 1.5})),
+        FIRST_PERSON_OFF_HAND(
+                new BoneTransform(null, new double[]{0, 1.6, -0.8}, new double[]{0.68, 0.68, 0.68}),
+                new BoneTransform(new double[]{0, 90, 0}, null, null),
+                new BoneTransform(new double[]{0, 0, -25}, null, null),
+                new BoneTransform(new double[]{90, 60, -40},
+                        new double[]{4, 10, 4}, new double[]{1.5, 1.5, 1.5})),
+        HEAD(
+                new BoneTransform(null, null, new double[]{0.625, 0.625, 0.625}),
+                new BoneTransform(null, null, null),
+                new BoneTransform(null, null, null),
+                new BoneTransform(null, new double[]{0, 19.9, 0}, null));
+
+        private final BoneTransform xBone;
+        private final BoneTransform yBone;
+        private final BoneTransform zBone;
+        private final BoneTransform rootBone;
+
+        BasePose(BoneTransform xBone, BoneTransform yBone, BoneTransform zBone, BoneTransform rootBone) {
+            this.xBone = xBone;
+            this.yBone = yBone;
+            this.zBone = zBone;
+            this.rootBone = rootBone;
+        }
+
+        private BoneTransform xBone() {
+            return xBone;
+        }
+
+        private BoneTransform yBone() {
+            return yBone;
+        }
+
+        private BoneTransform zBone() {
+            return zBone;
+        }
+
+        private BoneTransform rootBone() {
+            return rootBone;
+        }
     }
 }

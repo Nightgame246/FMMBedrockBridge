@@ -139,10 +139,16 @@ public class FMMBridgeExtension implements Extension {
                         // Geyser a 1:1 multimap match.
                         org.geysermc.geyser.api.util.Identifier bedrockId =
                                 org.geysermc.geyser.api.util.Identifier.of("geyser_custom", entry.bedrockKey());
+                        // displayHandheld(true) only enables Bedrock's handheld/tool pose;
+                        // it does NOT switch on 3D rendering. The 3D model is selected
+                        // separately by the matching attachable identifier in the resource
+                        // pack (Bedrock auto-links them when bedrock_identifier == attachable
+                        // identifier and a valid attachable file is loaded).
                         org.geysermc.geyser.api.item.custom.v2.CustomItemDefinition def =
                                 org.geysermc.geyser.api.item.custom.v2.CustomItemDefinition.builder(bedrockId, bedrockId)
                                         .bedrockOptions(org.geysermc.geyser.api.item.custom.v2.CustomItemBedrockOptions.builder()
-                                                .icon(entry.bedrockKey()))
+                                                .icon(entry.bedrockKey())
+                                                .displayHandheld(true))
                                         .build();
                         event.register(javaId, def);
                         gearRegistered++;
