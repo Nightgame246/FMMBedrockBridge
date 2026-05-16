@@ -139,4 +139,96 @@ class JavaItemGeometryConverterTest {
         assertEquals(64, ((Number) desc.get("texture_height")).intValue());
         assertEquals("geometry.fmmbridge.em_test", desc.get("identifier"));
     }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void composesJavaDisplayTransformsOntoBedrockBasePose() {
+        Map<String, Object> root = converter.generateAnimations(model("""
+                {"display":{
+                  "thirdperson_righthand":{"translation":[0,1.25,1.75]},
+                  "thirdperson_lefthand":{"translation":[0,1.25,1.5]},
+                  "firstperson_righthand":{"rotation":[0,13,0],"translation":[3.5,-0.5,-0.5],"scale":[0.9,0.9,0.9]},
+                  "head":{"translation":[0,-3.75,0],"scale":[1.55,1.55,1.55]}
+                }}"""), "em_test");
+
+        Map<String, Object> animations = (Map<String, Object>) root.get("animations");
+        Map<String, Object> thirdPerson = (Map<String, Object>) animations.get(
+                "animation.fmmbridge.gear.em_test.thirdperson_main_hand");
+        Map<String, Object> firstPerson = (Map<String, Object>) animations.get(
+                "animation.fmmbridge.gear.em_test.firstperson_main_hand");
+        Map<String, Object> offHand = (Map<String, Object>) animations.get(
+                "animation.fmmbridge.gear.em_test.firstperson_off_hand");
+        Map<String, Object> head = (Map<String, Object>) animations.get(
+                "animation.fmmbridge.gear.em_test.head");
+
+        Map<String, Object> thirdPersonBone = animationBone(thirdPerson, "geyser_custom_x");
+        assertArrayEquals(new double[]{0, 5.25, 4.25}, (double[]) thirdPersonBone.get("position"), 1e-6);
+        assertArrayEquals(new double[]{0.85, 0.85, 0.85}, (double[]) thirdPersonBone.get("scale"), 1e-6);
+        assertArrayEquals(new double[]{0, -90, 0},
+                (double[]) animationBone(thirdPerson, "geyser_custom_y").get("rotation"), 1e-6);
+        assertArrayEquals(new double[]{90, 0, 0},
+                (double[]) animationBone(thirdPerson, "geyser_custom").get("rotation"), 1e-6);
+
+        Map<String, Object> firstPersonBone = animationBone(firstPerson, "geyser_custom_x");
+        assertArrayEquals(new double[]{0, 13, 0}, (double[]) firstPersonBone.get("rotation"), 1e-6);
+        assertArrayEquals(new double[]{3.5, 1.1, -1.3}, (double[]) firstPersonBone.get("position"), 1e-6);
+        assertArrayEquals(new double[]{0.612, 0.612, 0.612}, (double[]) firstPersonBone.get("scale"), 1e-6);
+
+        Map<String, Object> offHandBone = animationBone(offHand, "geyser_custom_x");
+        assertArrayEquals(new double[]{0, 13, 0}, (double[]) offHandBone.get("rotation"), 1e-6);
+        assertArrayEquals(new double[]{3.5, 1.1, -1.3}, (double[]) offHandBone.get("position"), 1e-6);
+
+        Map<String, Object> headBone = animationBone(head, "geyser_custom_x");
+        assertArrayEquals(new double[]{0, -3.75, 0}, (double[]) headBone.get("position"), 1e-6);
+        assertArrayEquals(new double[]{0.96875, 0.96875, 0.96875}, (double[]) headBone.get("scale"), 1e-6);
+        assertArrayEquals(new double[]{0, 19.9, 0},
+                (double[]) animationBone(head, "geyser_custom").get("position"), 1e-6);
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void attachableUsesDisableAnimationForHeadWhenModelHasNoHeadTransform() {
+        Map<String, Object> attachable = converter.generateAttachable(model("""
+                {"display":{"thirdperson_righthand":{"translation":[0,1.25,1.75]}}}
+                """), "em_test");
+        assertEquals("1.10.0", attachable.get("format_version"));
+        Map<String, Object> description = (Map<String, Object>) ((Map<String, Object>) attachable.get("minecraft:attachable"))
+                .get("description");
+        Map<String, Object> animations = (Map<String, Object>) description.get("animations");
+        Map<String, Object> scripts = (Map<String, Object>) description.get("scripts");
+        List<Object> animate = (List<Object>) scripts.get("animate");
+
+        assertFalse(animations.containsKey("head"));
+        assertTrue(animate.contains(Map.of("disable", "v.head")));
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void corruptedTridentStyleDisplayKeepsBaseWeaponPose() {
+        Map<String, Object> root = converter.generateAnimations(model("""
+                {"display":{
+                  "thirdperson_righthand":{"translation":[0,1.25,1.75]},
+                  "thirdperson_lefthand":{"translation":[0,1.25,1.5]},
+                  "firstperson_righthand":{"translation":[2.75,3,0]},
+                  "firstperson_lefthand":{"translation":[2.75,3,0]}
+                }}"""), "em_corrupted_trident");
+
+        Map<String, Object> animations = (Map<String, Object>) root.get("animations");
+        Map<String, Object> thirdPerson = (Map<String, Object>) animations.get(
+                "animation.fmmbridge.gear.em_corrupted_trident.thirdperson_main_hand");
+
+        assertArrayEquals(new double[]{0, 5.25, 4.25},
+                (double[]) animationBone(thirdPerson, "geyser_custom_x").get("position"), 1e-6);
+        assertArrayEquals(new double[]{0, -90, 0},
+                (double[]) animationBone(thirdPerson, "geyser_custom_y").get("rotation"), 1e-6);
+        assertArrayEquals(new double[]{0, 0, 55},
+                (double[]) animationBone(thirdPerson, "geyser_custom_z").get("rotation"), 1e-6);
+        assertArrayEquals(new double[]{90, 0, 0},
+                (double[]) animationBone(thirdPerson, "geyser_custom").get("rotation"), 1e-6);
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> animationBone(Map<String, Object> animation, String boneName) {
+        return (Map<String, Object>) ((Map<String, Object>) animation.get("bones")).get(boneName);
+    }
 }
