@@ -827,3 +827,112 @@ Vor finalem Test: Geyser-Velocity `2.9.5-b1129` → `2.10.0-b1141` auf Proxy01 d
 ```
 /usr/share/idea/plugins/maven/lib/maven3/bin/mvn clean package
 ```
+
+---
+
+## Session: 2026-05-24 (FMM 2.6.0 + RPM 1.8.0 — großer Pivot, Bridge-Refactor)
+
+### Hintergrund
+
+MagmaGuy hat in **FMM 2.6.0** nativen Bedrock/Geyser-Support eingebaut (`Bedrock players now see custom-modeled entities correctly on first display through Geyser`), und **ResourcePackManager 1.8.0** konvertiert jetzt JEDE Plugin-Resource-Pack automatisch zu Bedrock — inklusive 3D-Items, Armor, attachable geometry 1.21.0, flipbook texture icons, bedrock_display_offsets.yml für Pose-Tuning. Dadurch sind Phasen 1-6 + 7.2c/d unserer Bridge **redundant**.
+
+### Updates & Deploys
+
+- **References-Repos aktualisiert** (`git pull` auf master/main, FMM von `build-bone-fix` Branch zu master gewechselt, Stash für drift): EliteMobs (10.2.1+), GeyserModelEngine, FreeMinecraftModels (2.6.0). ResourcePackManager + BetterStructures als neue Refs hinzugefügt.
+- **TestServer01 Deploys:** FMM 2.5.0 → 2.6.0, EM 10.2.0 → 10.3.1, RPM 1.7.6 → 1.8.0 (über Public-Maven), BetterStructures 2.3.0 → 2.3.1 (Nightbreak). Alte JARs als `.bak` gesichert.
+- **Manueller Pack-Transfer:** RPM generiert `ResourcePackManager_Bedrock.zip` (64 MB, 1555 Bones aus 204 Models) + `rspm_geyser_mappings.json` (667 Einträge) auf TestServer01, aber Geyser läuft auf Proxy01 → manuell kopiert nach `Geyser-Velocity/packs/ResourcePackManager_Bedrock.mcpack` + `custom_mappings/rspm_geyser_mappings.json`. RPM warnt "Geyser installation not detected" — Multi-Host-Architektur erfordert den manuellen Schritt.
+
+### Test 1: FMM native solo (Bridge + Extension deaktiviert)
+
+Bridge-JAR + FMMBridgeExtension als `.bak` weggenommen, FMM-Config `sendCustomModelsToBedrockClients: true`. Geyser registrierte **2701 custom items** (vorher 497).
+
+**Funktioniert nativ:** Mob-Models (besser als unsere Bridge!), Animationen, 3D Schwerter/Rüstung, Combat-BossBar bei manchen Bossen, LevelUp-BossBar, statische Möbel.
+
+**Fehlt nativ:**
+- 2D UI-Icons (BagOfCoin etc.) — EM nutzt legacy `custom_model_data` overrides auf Emerald + CMD 31173, RPM scannt nur 1.21.4+ `items/`-Format
+- BossBar bei manchen Bossen (Ice Elemental: nein, Alpha Wolf: ja — EM-Inkonsistenz)
+- Combat-Nametag mit HP/Bar (FMM zeigt nativ nur statischen Namen)
+- EM-GUIs als Popup (nur Inventory, nicht "popup")
+- 3D-Waffenpose teilweise falsch (RPM `bedrock_display_offsets.yml` muss eingestellt werden)
+
+**RPM-Bugs (an MagmaGuy melden):** schwarze Schatten auf allen Custom Models, 80-Zeichen-Pfade in Pack.
+
+### Test 2: Bridge + FMM native koexistierend
+
+Bridge wieder aktiv, `gear-3d.enabled: false`, FMM-Config bleibt `true`. **Klare Konflikte:**
+- Doppel-Spawn aller Mobs + Static-Möbel (Bridge fake-PIG + FMM nativ)
+- Doppel-Nametag (Bridge 3-Zeilen + FMM-statisch)
+- BossBar-Suppression-Race-Conditions
+
+→ Coexistence ohne Refactor unmöglich.
+
+### Refactor: Bridge → EM-UX-Layer
+
+**Branch `refactor-em-ux`.** Vor Refactor: **Archive-Tag `archive/2026-05-24-pre-rpm18-pivot`** auf `phase-7.2c-gear-3d` HEAD gepushed (komplette Bridge-Historie gesichert).
+
+**Gelöscht** (27 → 16 Backend-Klassen, JAR 104 KB → 54 KB):
+- `geyser-extension/` komplett (5 Klassen + pom + test) — RPM macht jetzt Pack-Generation + Custom-Item-Registration
+- `converter/` Package (5 Klassen) — Java→Bedrock-Konvertierung war RPM-redundant
+- `bridge/AnimationStateTracker.java` — FMM nativ
+- `bridge/EMGearItem.java` — RPM macht 3D Gear
+- `bridge/IBridgeEntityData.java` — kein Polymorphismus nötig wenn nur DynamicEntity
+- `bridge/StaticEntityData.java` — Statics sind FMM nativ
+- `bridge/PacketEntity.java` — keine fake-PIGs mehr
+- `EliteMobsItemScannerTest.java` — testete `pickGearTextureRef` (3D-Gear)
+
+**Strippes** (Bridge-Pipeline raus, Controller-Logik bleibt):
+- `FMMBedrockBridge` (283 → 200 LoC): keine entityTracker-bridge-Init für Mob-Pipeline-Render, kein Phase 7.2c gear-3d-Block, kein `BedrockModelConverter` Command-Init, `writeEmGearItemsJson` raus
+- `BedrockEntityBridge` (300 → 200 LoC): kein bedrockId/GeyserUtils-Verweis, kein StaticEntity-Branch, kein `animationNamesCache`/`getAnimationNames`, `entityDataMap` ist jetzt `Map<ModeledEntity, FMMEntityData>`
+- `FMMEntityData` (482 → 170 LoC): kein packetEntity/bedrockEntityId/sortedAnimationNames, kein hideEntity/setCustomEntity in addViewer, kein syncPosition/syncAnimation/sendInitialAnimation. Nur noch BossBar+Nametag-Controller-Holder.
+- `PacketInterceptor` (461 → 250 LoC): kein Mob-Suppression (hiddenEntityIds/hideEntity/unhideEntity), kein fake-real Interact-Redirect, kein 3D-gear-Inject. Bleibt: 2D-Item-Inject + BossBar-Suppression + Java-TextDisplay-Suppress.
+- `EliteMobsItemScanner` (296 → 155 LoC): `scan3DGear()` + helpers + `pickGearTextureRef` raus
+- `FMMBridgeCommand` (156 → 110 LoC): `convert all`-Subcommand raus, nur `debug` bleibt
+
+**Config aufgeräumt:** alte `converter.*` und `elite-items.gear-3d` Sektionen raus. Neue Header-Kommentare beschreiben "EM↔Bedrock UX-Bridge" Architektur.
+
+### Test 3: Refactored Bridge + FMM native koexistierend
+
+`elite-items.gear-3d` als Config nicht mehr nötig (Code weg), FMM `sendCustom: true`. Bridge sauber gestartet, **keine Errors**.
+
+**Test-Ergebnisse:**
+- ✅ Mobs single-spawn (kein Doppel mehr)
+- ✅ Static-Möbel single-spawn
+- ✅ 2D-Items (BagOfCoin etc.) sichtbar in EM-Shop
+- ✅ Wolf Alpha BossBar: "Wilder Alphawolf" styled
+- ✅ Wolf Alpha Combat-Nametag: HP/Bar/Name 3 Zeilen
+- ⚠️ **Doppel-Nametag** (Bridge 3-Zeilen + FMM native Name) → **Fix:** `NametagTextBuilder.compose()` out-of-combat liefert jetzt `Component.empty()`, in-combat nur HP+Bar (kein Name) — FMM zeigt Name nativ
+- ❌ **Ice Elemental BossBar: "Evoker | 2"** (statt styled "Tier 13 Eis-Elementar")
+- ❌ **Combat-Nametag verschwindet nach Stoppen, kommt bei re-attack nicht wieder** (EM-Combat-Event-Issue — nur 1× enterCombat, keine zweite)
+
+### Diagnose & Fix Ice Elemental BossBar
+
+`EliteMobsHook.getStyledName()` Pfad geprüft:
+- EM 10.3.1: für EVOKER-basierte CustomBosses (Ice Elemental: `entityType: EVOKER`, `disguise: POLAR_BEAR`) gibt SOWOHL `livingEntity.getCustomName()` ALS AUCH `eliteEntity.getName()` "Evoker | 2" zurück — kein API-Pfad liefert den YAML-`name: $bossLevel &9Ice Elemental`
+- ABER: `modeledEntity.getDisplayName()` (FMM-API) liefert den korrekten styled Namen — Java rendert ja den Mob-Nametag aus genau dieser Quelle
+- **Fix:** `FMMEntityData.createBossBarControllerIfElite()` nutzt jetzt `modeledEntity.getDisplayName()` als primary, `EliteMobsHook.getStyledName()` als Fallback (gleiche Source-Priorität wie Nametag)
+- **Deployed, aber visueller Test ausstehend** — Session beendet vor finalem Restart
+
+### Branch-Stand
+
+`refactor-em-ux` (lokal, **noch nicht gepushed**). Uncommitted: alle Refactor-Files + neuer Plan-File `docs/superpowers/plans/2026-05-24-refactor-em-ux.md`.
+
+### Memory + Doc Updates
+
+- Neues Memory `magmaguy_native_bedrock_2026-05-24.md` — komplette Auswertung was nativ funktioniert + Lücken
+- `project_state.md` umgeschrieben — "EM-UX-Bridge"
+- `next_implementation.md` umgeschrieben — Refactor + Coexistence-Test + Phase 7.3
+- `MEMORY.md` index aktualisiert (RPM + BetterStructures als refs, obsolete Memories markiert)
+- `README.md` + `AGENTS.md` komplett überarbeitet für neue Architektur
+
+### Offen für nächste Session
+
+1. **Visueller Verify Ice Elemental BossBar-Fix** (TestServer-Restart + Bedrock-Test) — `modeledEntity.getDisplayName()` als BossBar-Source sollte styled "Eis-Elementar" zeigen
+2. **Combat-Nametag-Issue:** Untersuchen warum `EliteMobExitCombatEvent` nicht feuert (oder `EliteMobEnterCombatEvent` nicht bei re-attack). Eventuell eigenes Damage-Tracking als Heuristik statt EM-Events
+3. **Refactor-Branch committen + pushen** (zwei logische Commits: Refactor + BossBar-Source-Fix)
+4. **Phase 7.3 starten:** EM-Adventurer's-Guild-Menu + Shop-GUIs als native Bedrock-Forms (Cumulus API)
+5. **Schwarze-Schatten + 80-Zeichen-Pfade** an MagmaGuy melden (RPM-Bugs)
+
+### Build
+```
+/usr/share/idea/plugins/maven/lib/maven3/bin/mvn clean package
+```

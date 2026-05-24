@@ -16,12 +16,14 @@ import java.util.Locale;
  *
  * <p>Layout depends on {@code inCombat}:
  * <ul>
- *   <li>{@code inCombat == false}: 1 line — {@link #buildNameLine name only}</li>
- *   <li>{@code inCombat == true}: 3 lines — HP-number / health-bar / name</li>
+ *   <li>{@code inCombat == false}: empty — FMM 2.6.0 renders the name natively for Bedrock,
+ *       no need for our overlay (avoids the double-name we'd otherwise see)</li>
+ *   <li>{@code inCombat == true}: 2 lines — HP-number / health-bar (name is FMM-native)</li>
  * </ul>
  *
- * <p>Name source (same as Phase 7.1b): {@code modeledEntity.getDisplayName()}
- * primary (parsed via legacy §-codes), {@code realEntity.customName()} fallback.
+ * <p>{@link #hasNameSource} reports whether the mob has any displayable name — used
+ * by FMMEntityData to decide whether to spawn a TextDisplay at all (we only need one
+ * if there's HP to show in combat, and that's gated by the mob being a LivingEntity).
  *
  * <p>Health-bar: 10 chars, '█' filled (green ≥66% / yellow ≥33% / red &lt;33%),
  * '░' empty (dark-gray). Never fully empty unless dead.
@@ -40,27 +42,28 @@ public final class NametagTextBuilder {
 
     /**
      * Composes the Component for the TextDisplay text. Never returns null —
-     * empty Component if everything is missing.
+     * empty Component when out-of-combat (FMM renders the name natively).
      */
     public static Component compose(Entity realEntity, ModeledEntity modeledEntity, boolean inCombat) {
-        Component nameLine = buildNameLine(realEntity, modeledEntity);
-
         if (!inCombat || !(realEntity instanceof LivingEntity living)) {
-            return nameLine != null ? nameLine : Component.empty();
+            return Component.empty();
         }
-
         Component hpLine = buildHpLine(living);
         Component barLine = buildBarLine(living);
         if (hpLine == null || barLine == null) {
-            // No health attribute — fall back to name-only
-            return nameLine != null ? nameLine : Component.empty();
+            return Component.empty();
         }
+        return hpLine.append(Component.newline()).append(barLine);
+    }
 
-        Component out = hpLine.append(Component.newline()).append(barLine);
-        if (nameLine != null) {
-            out = out.append(Component.newline()).append(nameLine);
-        }
-        return out;
+    /**
+     * True if the mob has a displayable name (FMM displayName or vanilla customName).
+     * Used by FMMEntityData to gate TextDisplay spawn — un-named mobs (e.g. neutral
+     * villagers) get no Bridge nametag.
+     */
+    public static boolean hasNameSource(Entity realEntity, ModeledEntity modeledEntity) {
+        Component name = buildNameLine(realEntity, modeledEntity);
+        return name != null && !name.equals(Component.empty());
     }
 
     private static Component buildNameLine(Entity realEntity, ModeledEntity modeledEntity) {

@@ -55,37 +55,38 @@ public final class EliteMobsHook {
      *
      * <p>Resolution order:
      * <ol>
-     *   <li>{@code livingEntity.getCustomName()} — verified reliable across boss
-     *       types in EM 10.2.0 (the Mob-Nametag visible on Java is sourced from this).</li>
-     *   <li>{@code eliteEntity.getName()} — fallback when customName is not yet set
-     *       (constructor-time race) or when the entity isn't an EliteMob.</li>
+     *   <li>{@code eliteEntity.getName()} — EliteMobs' canonical styled name from the
+     *       YAML config. EM 10.3.1 (verified 2026-05-24) returns the proper styled name
+     *       for all CustomBoss types via this API.</li>
+     *   <li>{@code livingEntity.getCustomName()} — fallback for non-EM-tracked entities
+     *       (vanilla / non-EM-named).</li>
      * </ol>
      *
-     * <p>Empirically (2026-05-03 testing) {@code eliteEntity.getName()} is inconsistent
-     * for some boss types — e.g. EVOKER-based custom bosses like
-     * {@code primis_ice_village_the_ice_elemental} produce "Evoker | 2" instead of
-     * the YAML-configured styled name. The Mob-customName path stays correct.
+     * <p><b>History:</b> Phase 7.1a (2026-05-03, EM 10.2.0) had customName as primary
+     * after observing EVOKER-based CustomBosses returning "Evoker | 2" from eliteEntity.getName().
+     * Reversed 2026-05-24 (EM 10.3.1) because customName now returns the Vanilla "Evoker | 2"
+     * format for the same EVOKER-based bosses, while eliteEntity.getName() returns the styled
+     * YAML name. customName remains as fallback for non-EM-tracked entities.
      */
     public static String getStyledName(LivingEntity entity) {
         if (entity == null) return null;
 
-        // Primary: LivingEntity customName (set by EM via setName, reliable per current testing)
-        String customName = entity.getCustomName();
-        if (customName != null && !customName.isEmpty()) {
-            return customName;
+        // Primary: EliteMobs canonical styled name
+        if (isAvailable()) {
+            EliteEntity elite = getEliteEntity(entity);
+            if (elite != null) {
+                try {
+                    String name = elite.getName();
+                    if (name != null && !name.isEmpty()) return name;
+                } catch (Throwable t) {
+                    markApiBroken(t);
+                }
+            }
         }
 
-        // Fallback: ask EliteMobs for the styled name
-        if (!isAvailable()) return null;
-        EliteEntity elite = getEliteEntity(entity);
-        if (elite == null) return null;
-        try {
-            String name = elite.getName();
-            return (name == null || name.isEmpty()) ? null : name;
-        } catch (Throwable t) {
-            markApiBroken(t);
-            return null;
-        }
+        // Fallback: LivingEntity customName (non-EM-tracked entities)
+        String customName = entity.getCustomName();
+        return (customName == null || customName.isEmpty()) ? null : customName;
     }
 
     private static void markApiBroken(Throwable t) {
