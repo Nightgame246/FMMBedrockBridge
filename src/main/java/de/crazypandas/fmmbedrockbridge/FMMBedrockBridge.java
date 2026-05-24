@@ -2,10 +2,8 @@ package de.crazypandas.fmmbedrockbridge;
 
 import de.crazypandas.fmmbedrockbridge.bridge.BedrockEntityBridge;
 import de.crazypandas.fmmbedrockbridge.bridge.EMCustomItem;
-import de.crazypandas.fmmbedrockbridge.bridge.EMGearItem;
 import de.crazypandas.fmmbedrockbridge.bridge.EliteMobsItemScanner;
 import de.crazypandas.fmmbedrockbridge.commands.FMMBridgeCommand;
-import de.crazypandas.fmmbedrockbridge.converter.BedrockModelConverter;
 import de.crazypandas.fmmbedrockbridge.tracker.FMMEntityTracker;
 import org.bukkit.plugin.java.JavaPlugin;
 
@@ -15,6 +13,21 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.logging.Logger;
 
+/**
+ * FMMBedrockBridge — EM↔Bedrock UX-Bridge.
+ *
+ * Requires:
+ *  - FreeMinecraftModels 2.6.0+ with sendCustomModelsToBedrockClients: true (mob/static rendering)
+ *  - ResourcePackManager 1.8.0+ (Java→Bedrock pack conversion)
+ *  - PacketEvents (packet manipulation)
+ *  - Floodgate (Bedrock player detection)
+ *
+ * What this plugin does (and what MagmaGuy doesn't cover):
+ *  - Phase 7.1a/c: Combat-triggered styled BossBar with HP sync, suppresses EM's vanilla "Evoker | 2"
+ *  - Phase 7.1b/c: Combat-triggered 3-line nametag (HP / HP-Bar / Name)
+ *  - Phase 7.2b: 2D EM UI icons (BagOfCoin, AnvilHammer, …) via item_model packet injection — fills
+ *    RPM's gap for legacy custom_model_data overrides on Emerald
+ */
 public class FMMBedrockBridge extends JavaPlugin {
 
     private static FMMBedrockBridge instance;
@@ -31,7 +44,6 @@ public class FMMBedrockBridge extends JavaPlugin {
         instance = this;
         log = getLogger();
 
-        // Check dependencies
         fmmAvailable = getServer().getPluginManager().getPlugin("FreeMinecraftModels") != null;
         floodgateAvailable = getServer().getPluginManager().getPlugin("floodgate") != null;
 
@@ -40,36 +52,28 @@ public class FMMBedrockBridge extends JavaPlugin {
             getServer().getPluginManager().disablePlugin(this);
             return;
         }
-
         if (!floodgateAvailable) {
             log.warning("Floodgate not found! Bedrock player detection will not work.");
         }
 
-        // Save default config
         saveDefaultConfig();
 
-        boolean geyserUtilsAvailable = getServer().getPluginManager().getPlugin("GeyserUtils") != null;
-        if (!geyserUtilsAvailable) {
-            log.warning("GeyserUtils not found! Bedrock entity bridging will not work.");
-        }
-
-        // Start FMM entity tracker with Bedrock bridge
         entityTracker = new FMMEntityTracker(null);
-        bridge = new BedrockEntityBridge(floodgateAvailable, geyserUtilsAvailable, entityTracker);
+        bridge = new BedrockEntityBridge(floodgateAvailable, entityTracker);
         entityTracker.setBridge(bridge);
         entityTracker.start();
         getServer().getPluginManager().registerEvents(bridge.getViewerManager(), this);
 
         boolean packetEventsAvailable = getServer().getPluginManager().getPlugin("packetevents") != null
                 || getServer().getPluginManager().getPlugin("PacketEvents") != null;
-        if (packetEventsAvailable && geyserUtilsAvailable) {
+        if (packetEventsAvailable) {
             bridge.start();
-            log.info("PacketEvents: found — fake entity bridge active");
-        } else if (!packetEventsAvailable) {
-            log.warning("PacketEvents not found — Bedrock entity bridging requires PacketEvents!");
+            log.info("PacketEvents: found — packet interception active");
+        } else {
+            log.warning("PacketEvents not found — Phase 7.1a BossBar suppression + Phase 7.2b 2D-item inject disabled");
         }
 
-        // Phase 7.1c — register combat trigger if EliteMobs is present and the toggle is on
+        // Phase 7.1c — register combat trigger if EliteMobs is present
         boolean elitemobsAvailable = getServer().getPluginManager().getPlugin("EliteMobs") != null;
         if (elitemobsAvailable && isPhase71cCombatEnabled()) {
             try {
@@ -84,12 +88,8 @@ public class FMMBedrockBridge extends JavaPlugin {
                     + elitemobsAvailable + ", combat-enabled=" + isPhase71cCombatEnabled() + ")");
         }
 
-        // Phase 7.2: (javaMaterial, cmd) → bedrockKey mapping for item_model injection.
-        // PacketInterceptor will set item_model = geyser_custom:<bedrockKey> on matching
-        // items so Geyser's CustomItemTranslator finds our 1:1-keyed defs.
+        // Phase 7.2b — EliteMobs 2D Custom Items (Map+Inject)
         java.util.Map<String, java.util.Map<Integer, String>> emItemModelMap = new java.util.HashMap<>();
-
-        // Phase 7.2b — EliteMobs Custom Items
         if (getConfig().getBoolean("elite-items.enabled", false)) {
             String emPackPath = getConfig().getString("elite-items.resource-pack-path", "plugins/EliteMobs/resource_pack");
             Path emPackRoot = getServer().getWorldContainer().toPath().resolve(emPackPath);
@@ -104,48 +104,21 @@ public class FMMBedrockBridge extends JavaPlugin {
             }
         }
 
-        // Phase 7.2c — EliteMobs 3D Gear Items
-        // (javaMaterial, javaItemModel) → bedrockKey. EM gear items have
-        // item_model = elitemobs:gear/<name> set by EM itself (no CMD). We match
-        // on that exact identifier and overwrite with item_model = geyser_custom:em_<name>.
-        java.util.Map<String, java.util.Map<String, String>> emGearModelMap = new java.util.HashMap<>();
-        if (getConfig().getBoolean("elite-items.enabled", false)
-                && getConfig().getBoolean("elite-items.gear-3d.enabled", false)) {
-            String emPackPath = getConfig().getString("elite-items.resource-pack-path", "plugins/EliteMobs/resource_pack");
-            Path emPackRoot = getServer().getWorldContainer().toPath().resolve(emPackPath);
-            EliteMobsItemScanner gearScanner = new EliteMobsItemScanner(emPackRoot);
-            List<EMGearItem> gearItems = gearScanner.scan3DGear();
-            if (!gearItems.isEmpty()) {
-                writeEmGearItemsJson(gearItems);
-                for (EMGearItem item : gearItems) {
-                    emGearModelMap.computeIfAbsent(item.javaMaterial(), k -> new java.util.HashMap<>())
-                            .put(item.javaItemModel(), item.bedrockKey());
-                }
-            }
+        if (packetEventsAvailable && !emItemModelMap.isEmpty()) {
+            bridge.getPacketInterceptor().setEmItemModelMap(emItemModelMap);
         }
 
-        if (packetEventsAvailable) {
-            if (!emItemModelMap.isEmpty()) bridge.getPacketInterceptor().setEmItemModelMap(emItemModelMap);
-            if (!emGearModelMap.isEmpty()) bridge.getPacketInterceptor().setEmGearModelMap(emGearModelMap);
-        }
-
-        // Phase 7.2c — re-send Bedrock inventories after client-side item moves so the
+        // Phase 7.2b — re-send Bedrock inventories after client-side item moves so the
         // PacketInterceptor can re-inject item_model (no server packet fires otherwise).
-        if (floodgateAvailable && (!emItemModelMap.isEmpty() || !emGearModelMap.isEmpty())) {
+        if (floodgateAvailable && !emItemModelMap.isEmpty()) {
             getServer().getPluginManager().registerEvents(
                     new de.crazypandas.fmmbedrockbridge.bridge.BedrockInventoryRefresher(this), this);
-            log.info("Phase 7.2c: BedrockInventoryRefresher registered");
+            log.info("Phase 7.2b: BedrockInventoryRefresher registered");
         }
 
-        // Phase 3: Register converter command
-        BedrockModelConverter converter = new BedrockModelConverter();
-        FMMBridgeCommand cmd = new FMMBridgeCommand(converter, this);
+        FMMBridgeCommand cmd = new FMMBridgeCommand(this);
         getCommand("fmmbridge").setExecutor(cmd);
         getCommand("fmmbridge").setTabCompleter(cmd);
-
-        log.info("GeyserUtils: " + (geyserUtilsAvailable ? "found" : "NOT FOUND"));
-
-        // TODO Phase 3: Resource pack conversion
 
         log.info("FMMBedrockBridge v" + getDescription().getVersion() + " enabled!");
         log.info("FreeMinecraftModels: " + (fmmAvailable ? "found" : "NOT FOUND"));
@@ -187,48 +160,6 @@ public class FMMBedrockBridge extends JavaPlugin {
         }
     }
 
-    private void writeEmGearItemsJson(List<EMGearItem> items) {
-        try {
-            com.google.gson.Gson gson = new com.google.gson.GsonBuilder().setPrettyPrinting().create();
-
-            File modelsDir = new File(getDataFolder(), "bedrock-pack/em-gear-models");
-            modelsDir.mkdirs();
-            File texturesDir = new File(getDataFolder(), "bedrock-pack/em-gear-textures");
-            texturesDir.mkdirs();
-
-            List<EMGearItem> exportItems = new ArrayList<>();
-            for (EMGearItem item : items) {
-                // Copy model JSON
-                File srcModel = new File(item.sourceModelPath());
-                if (!srcModel.exists()) continue;
-                File dstModel = new File(modelsDir, item.bedrockKey() + ".json");
-                java.nio.file.Files.copy(srcModel.toPath(), dstModel.toPath(),
-                        java.nio.file.StandardCopyOption.REPLACE_EXISTING);
-
-                // Copy texture PNG
-                File srcTex = new File(item.sourceTexturePath());
-                if (!srcTex.exists()) continue;
-                File dstTex = new File(texturesDir, item.bedrockKey() + ".png");
-                java.nio.file.Files.copy(srcTex.toPath(), dstTex.toPath(),
-                        java.nio.file.StandardCopyOption.REPLACE_EXISTING);
-
-                exportItems.add(new EMGearItem(
-                        item.javaMaterial(),
-                        item.customModelData(),
-                        item.bedrockKey(),
-                        item.javaItemModel(),
-                        "em-gear-models/" + dstModel.getName(),
-                        "em-gear-textures/" + dstTex.getName()));
-            }
-
-            File outFile = new File(getDataFolder(), "bedrock-pack/em-gear-items.json");
-            java.nio.file.Files.writeString(outFile.toPath(), gson.toJson(exportItems));
-            log.info("[Phase 7.2c] Wrote " + exportItems.size() + " 3D gear items to " + outFile.getAbsolutePath());
-        } catch (Exception e) {
-            log.warning("[Phase 7.2c] Failed to write em-gear-items.json: " + e.getMessage());
-        }
-    }
-
     public static FMMBedrockBridge getInstance() {
         return instance;
     }
@@ -245,22 +176,11 @@ public class FMMBedrockBridge extends JavaPlugin {
         return fmmAvailable;
     }
 
-    /**
-     * True if the {@code debug} key in config.yml is enabled. Plugin subsystems use this
-     * to gate verbose-but-useful diagnostic logging — call {@link #debugLog(String)} for
-     * the most common pattern (info-when-debug, fine-otherwise).
-     */
     public static boolean isDebugEnabled() {
         FMMBedrockBridge plugin = instance;
         return plugin != null && plugin.getConfig().getBoolean("debug", false);
     }
 
-    /**
-     * Logs at INFO level if {@code debug=true} in config.yml, otherwise at FINE level.
-     * Used for diagnostic messages that are noise in normal operation but valuable when
-     * troubleshooting — flip {@code debug: true} to surface them in latest.log without
-     * a code change.
-     */
     public static void debugLog(String message) {
         if (instance == null) return;
         Logger logger = instance.getLogger();
@@ -271,11 +191,6 @@ public class FMMBedrockBridge extends JavaPlugin {
         }
     }
 
-    /**
-     * Phase 7.1c — true if the combat-triggered visuals (BossBar combat-only, Nametag
-     * 3-line during combat) are enabled. When false, Phase 7.1a (BossBar always-visible)
-     * + Phase 7.1b (1-line nametag) behavior is preserved as a safety fallback.
-     */
     public static boolean isPhase71cCombatEnabled() {
         FMMBedrockBridge plugin = instance;
         return plugin != null && plugin.getConfig().getBoolean("phase71c.combat-enabled", true);

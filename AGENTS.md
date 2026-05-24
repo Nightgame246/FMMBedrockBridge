@@ -3,165 +3,144 @@
 ## Pflichtlektüre beim Start
 
 Lies immer zuerst:
-1. `CLAUDE.md` — Projektübersicht, Architektur, Konventionen, Server-Setup
-2. `CLAUDE_SESSION.md` — aktueller Stand, fertige Phasen, nächste Schritte
+1. `CLAUDE.md` — Projektübersicht, Server-Setup, Konventionen
+2. `CLAUDE_SESSION.md` — letzte Session-Logs (chronologisch); insbesondere "Session: 2026-05-24" (großer Architektur-Pivot)
+3. `README.md` — aktuelle Architektur (post-Refactor)
+
+---
+
+## Großer Pivot 2026-05-24
+
+MagmaGuy hat in **FMM 2.6.0** nativen Bedrock/Geyser-Support eingebaut, und **ResourcePackManager 1.8.0** konvertiert jeden Java-Pack zu Bedrock (3D-Items, Armor, attachable geometry 1.21.0, `bedrock_display_offsets.yml`). Dadurch wurden Phasen 1-6 + 7.2c/d unserer Bridge **redundant**.
+
+Die alte Bridge (mit fake-PIG-Pipeline + Geyser-Extension) ist als git tag **`archive/2026-05-24-pre-rpm18-pivot`** gesichert. Aktuelle Bridge ist eine reine **EM↔Bedrock UX-Bridge**.
 
 ---
 
 ## Deine Rolle
 
-Du bist **Implementierer & Diagnose-Partner** für das Plugin. Dein Default-Scope ist das Backend-Plugin (`src/`), aber Fabi kann dich gezielt für die Geyser Extension (`geyser-extension/`) einsetzen — z.B. wenn ein Bug an der Pack-/Custom-Item-Generierung tief in Bedrock-Spec, Geyser-API oder Pack-Format steckt.
+Du bist **Implementierer & Diagnose-Partner** für das Backend-Plugin. Geyser-Extension existiert nicht mehr.
+
+Default-Scope: `src/main/java/de/crazypandas/fmmbedrockbridge/` (Backend).
 
 ---
 
 ## Scope
 
-**Dein Standard-Bereich (Backend):**
-- `src/main/java/de/crazypandas/fmmbedrockbridge/` — alle Backend-Klassen
-- `pom.xml` (Root + Module) — nur bei Dependency-/Build-Änderungen
+**Dein Bereich:**
+- `src/main/java/de/crazypandas/fmmbedrockbridge/` — alle Klassen
 - `src/main/resources/` — `plugin.yml`, `config.yml`
-
-**Geyser Extension (auf Anweisung):**
-- `geyser-extension/src/main/java/de/crazypandas/fmmbridgeextension/`
-- `geyser-extension/pom.xml`
-- Wenn Fabi dich dorthin schickt: gilt — sonst Hands off.
+- `pom.xml` — bei Dependency- oder Build-Änderungen
+- `src/test/java/...` — JUnit-Tests
 
 **Nicht dein Bereich:**
-- `CLAUDE.md`, `CLAUDE_SESSION.md`, `README.md` — werden vom Orchestrator (Claude) gepflegt
-- Server-Deployment, SSH, Remote-Aktionen — Fabi/Claude macht das
+- `CLAUDE.md`, `CLAUDE_SESSION.md`, `README.md`, `AGENTS.md` — pflegt Claude
+- Server-Deployment, SSH, Remote-Aktionen — Fabi/Claude
+- `references/` — andere MagmaGuy-Repos zum Querlesen, nicht editieren
 
 ---
 
-## Aktueller Phasenplan
+## Aktueller Phasenplan (post-Pivot)
 
 | Phase | Beschreibung | Status |
 |-------|-------------|--------|
-| 1–5.6 | Core Bridge + Format Fixes + Animationen | Done |
-| 6 | Static Entities (Props/Möbel) | Done |
-| 6.1–6.4 | Console-Spam-Fix, Blockbench v5, 4× Scale, Head/Body Orientation | Done |
-| 7.1a/b/c | BossBar + Nametag + Combat-Trigger | Done & gemergt |
-| 7.2b | 2D Custom Items via Map+Inject | Done & verified |
-| 7.2c | 3D Gear Items via Map+Inject (`item_model` match) | **In progress — 3D rendert, aber Transform/Scale/Position falsch** |
-| 7.2d | Bögen, Crossbows, Helmets, Armor | Geplant |
-| 7.3 | Popup → Bedrock Forms (Cumulus API) | Geplant |
-| 8 | Polish-Backlog (animierte Texturen, Hurt-Flash, etc.) | Geplant |
+| 7.1a | Combat-styled BossBar (replaces EM Vanilla "Evoker | 2") | Done & live |
+| 7.1b | Combat-Nametag mit HP/Bar (FMM rendert Name separat) | Done — visueller Verify nach `modeledEntity.getDisplayName()`-Source-Fix ausstehend |
+| 7.1c | Combat-Event-Trigger (`EliteMobEnterCombatEvent` → setCombatState) | Done — Issue: bei manchen Mobs feuert kein zweiter EnterCombat, Combat-Nametag verschwindet (zu untersuchen) |
+| 7.2b | 2D EM UI-Items via Map+Inject (`item_model` Component-Set auf SET_SLOT/WINDOW_ITEMS/ENTITY_METADATA) | Done & verified |
+| **7.3** | EM-Adventurer-Guild / Shop-GUIs als native Bedrock-Forms (Cumulus API) | **Geplant — NEUE PRIO 1** |
 
-### Phase 7.2c — aktueller Stand
-
-Branch `phase-7.2c-gear-3d`. Bestätigt durch Codex (16. Mai): Identifier-Match + Pack-Loading funktionieren, das Item rendert tatsächlich als 3D-Attachable — aber **Transform/Scale/Origin sind falsch** (Modell zu groß/falsch ausgerichtet am Spieler).
-
-Verbleibender Debugging-Fokus:
-1. `geyser-extension/.../ResourcePackBuilder.java` — Methode die `animations/fmmbridge_gear.json` schreibt (ab ~Z. 154). Die hartcodierten Werte für `geyser_custom_x/y/z/geyser_custom` Position/Rotation/Scale (für `thirdperson_main_hand`, `firstperson_main_hand`, etc.) sind die wahrscheinlichen Übeltäter.
-2. `geyser-extension/.../JavaItemGeometryConverter.java` — Bone-Hierarchie + Cube-Origin/Size aus Java-`elements` (achten auf `origin = [fx-8, fy, fz-8]` Konvention und die `texture_size`-UV-Skala).
-
-**Schon ausgeschlossen:** `displayHandheld(true)` schaltet kein 3D ein (nur Handheld-Pose), `NonVanillaCustomItemDefinition` ist falsch für diesen Use-Case, `blockDefinition=cyan_terracotta` im Geyser-Log ist Geyser's Pseudo-Block (Red Herring), Identifier-Match `geyser_custom:em_<name>` ↔ Attachable funktioniert.
+Mob-Rendering, Animationen, 3D-Items, Static-Props → **FMM 2.6.0 + RPM 1.8.0 nativ**, nicht mehr Bridge-Zuständigkeit.
 
 ---
 
 ## Constraints
 
-- Java 21, Maven — keine neuen Dependencies ohne Grund
-- Kein `System.out` — nur Java Logger (`FMMBedrockBridge.getInstance().getLogger()`)
-- **PacketEvents 2.11.2** ersetzt ProtocolLib (ProtocolLib hat BUNDLE-Problem auf MC 1.21.x) — alle Packet-Manipulation läuft über PacketEvents
-- `FileModelConverter.getConvertedFileModels()` nur auf Main Thread aufrufen
-- File-I/O asynchron via `Bukkit.getScheduler().runTaskAsynchronously()`
-- Package: `de.crazypandas.fmmbedrockbridge` (Backend) / `de.crazypandas.fmmbridgeextension` (Extension)
-- Naming: camelCase für Methoden/Variablen, PascalCase für Klassen
-- Keine neuen Klassen wenn eine bestehende reicht — bestehende Architektur respektieren
+- **Java 21, Maven** — keine neuen Dependencies ohne klare Notwendigkeit
+- **Kein `System.out`** — nur Java Logger (`FMMBedrockBridge.getInstance().getLogger()`) oder `FMMBedrockBridge.debugLog()`
+- **PacketEvents 2.12.1+** ersetzt ProtocolLib (BUNDLE-Problem auf MC 1.21.x)
+- **Package:** `de.crazypandas.fmmbedrockbridge`
+- **Naming:** camelCase Methoden/Variablen, PascalCase Klassen
+- **Server-Config gating:** `sendCustomModelsToBedrockClients: true` in FMM-Config ist die NEUE Erwartung (ab 2026-05-24). FMM kümmert sich um Mob-Render.
+- **Keine fake-PIG-Pipeline mehr** — das war Phase 1-6, ist obsolet
 
 ---
 
 ## Build
 
 ```bash
-# Root (baut Backend + Extension)
 /usr/share/idea/plugins/maven/lib/maven3/bin/mvn clean package
-
-# Nur ein Modul
-cd geyser-extension && /usr/share/idea/plugins/maven/lib/maven3/bin/mvn clean package
+# Output: target/FMMBedrockBridge-<version>.jar (~54 KB)
 ```
 
-Outputs:
-- Backend: `target/FMMBedrockBridge-0.1.0-SNAPSHOT-<timestamp>.jar`
-- Extension: `geyser-extension/target/FMMBridgeExtension-0.1.0-SNAPSHOT.jar`
+Kein Submodul mehr — `geyser-extension/` ist gelöscht.
 
 ---
 
-## Wichtige Klassen — Backend (`src/`)
+## Aktuelle Klassen (16 total)
 
-### Entity Bridge (Phase 1–5)
+### Plugin-Kern
 | Klasse | Verantwortung |
 |--------|---------------|
-| `FMMBedrockBridge` | Plugin Main-Klasse, Lifecycle, Listener-Registrierung |
-| `BedrockEntityBridge` | Viewer-Tracking, Packet-Suppression, Interact-Redirect, Tick-Sync |
-| `FMMEntityData` | Pro-Entity State: ModeledEntity + PacketEntity + Viewer-Set + Animation-Sync |
-| `FMMEntityTracker` | Polling von FMM `ModeledEntityManager`, erkennt Spawn/Despawn |
-| `PacketEntity` | Fake PIG Entity (Packet-only, ID 300M–400M) via PacketEvents |
-| `AnimationStateTracker` | Reflection-Chain zu FMM `AnimationManager` für aktuelle Animation |
-| `ViewerManager` | Welche Bedrock-Spieler sehen welche Entity (Range-basiert) |
+| `FMMBedrockBridge` | Main: lifecycle, dep checks, controller wire-up |
+| `commands/FMMBridgeCommand` | `/fmmbridge debug` (zeigt active Controllers + ready Bedrock-Spieler) |
+| `tracker/FMMEntityTracker` | Pollt `ModeledEntityManager.getAllEntities()` jede Sekunde |
 
-### Resource Pack (Phase 2–6)
+### Bridge / Controllers
 | Klasse | Verantwortung |
 |--------|---------------|
-| `BedrockModelConverter` | Liest .bbmodel, generiert geometry.json + Textur-Atlas |
-| `BedrockGeometryGenerator` | .bbmodel → Bedrock .geo.json Konvertierung |
-| `BedrockAnimationConverter` | .bbmodel Animationen → Bedrock .animation.json |
-| `BedrockAnimationControllerGenerator` | Bitmask-basierte Animation-Controller State Machines |
-| `BedrockResourcePackGenerator` | Entity-Definitionen, Render Controller, manifest.json, ZIP |
+| `bridge/BedrockEntityBridge` | Hält `entityDataMap`, BossBar-Map, Nametag-Map, ViewerManager, per-tick sync |
+| `bridge/FMMEntityData` | Pro-Mob-Container: BossBar+Nametag-Controller, viewers-Set, kein Render |
+| `bridge/ViewerManager` | Bedrock-Player-Tracking via Floodgate, Range-Check |
+| `bridge/PacketInterceptor` | PacketEvents-Listener: BossBar suppress, Java-TextDisplay suppress, 2D-item_model inject |
 
-### Static Entities (Phase 6)
+### Phase 7.1 (BossBar + Nametag)
 | Klasse | Verantwortung |
 |--------|---------------|
-| `IBridgeEntityData` | Gemeinsames Interface (FMMEntityData + StaticEntityData) |
-| `StaticEntityData` | Variante ohne Mob-Basis (Props/Möbel) |
+| `bridge/BedrockBossBarController` | Per-Boss Bukkit-BossBar, addViewer/cleanup, combat-state |
+| `bridge/BedrockNametagController` | Per-Mob TextDisplay, combat-state, position/text-tick |
+| `bridge/BedrockCombatTrigger` | Bukkit-Listener: `EliteMob{Enter,Exit}CombatEvent` → setCombatState |
+| `bridge/BossBarRegistry` | UUID-Set: erfasste EM-BossBars für Suppression |
+| `bridge/NametagTextBuilder` | Pure-Util: out-of-combat empty, in-combat HP+Bar (kein Name — FMM rendert Name) |
+| `elite/EliteMobsHook` | Soft-dep wrapper, einziger Import von `com.magmaguy.elitemobs.*` |
 
-### EliteMobs UI (Phase 7.1)
+### Phase 7.2b (2D UI-Items)
 | Klasse | Verantwortung |
 |--------|---------------|
-| `BedrockBossBarController` | BossBar-Spiegelung an Bedrock-Spieler |
-| `BossBarRegistry` | Aktive BossBars pro Spieler tracken |
-| `BedrockNametagController` | EM-Nametag-Sync für Bedrock |
-| `NametagTextBuilder` | Nametag-Inhalt aus FMM/EM zusammenbauen |
-| `BedrockCombatTrigger` | Combat-State-Trigger für UI-Updates |
-
-### Custom Items (Phase 7.2)
-| Klasse | Verantwortung |
-|--------|---------------|
-| `EliteMobsHook` | EM-Spawn-/RemoveEvent-Listener, EMCustomItem/Gear-Wrapping |
-| `EliteMobsItemScanner` | Scannt `plugins/EliteMobs/...` nach Custom-Items, baut `em-items.json` + `em-gear-items.json` für Extension |
-| `EMCustomItem` | 2D Custom Item (Phase 7.2b) — CMD-basiert |
-| `EMGearItem` | 3D Gear Item (Phase 7.2c) — `item_model`-basiert |
-| `PacketInterceptor` | **Kern von 7.2:** schreibt `item_model` auf Bedrock-Spieler-Items in `SET_SLOT`/`WINDOW_ITEMS`/`ENTITY_METADATA` Paketen um |
-| `BedrockInventoryRefresher` | Triggert `updateInventory()` nach Inventory-Click/Slot-Wechsel (Sub-Tick-Sync) |
-| `FMMBridgeCommand` | Admin-Commands (`/fmmbridge reload`, etc.) |
+| `bridge/EliteMobsItemScanner` | Scannt EM-Resource-Pack nach legacy `custom_model_data` overrides |
+| `bridge/EMCustomItem` | Record: javaMaterial, customModelData, texturePath, bedrockKey |
+| `bridge/BedrockInventoryRefresher` | Bukkit-Listener: `updateInventory()` 1 Tick nach Bedrock-Spieler Click/Drag/Hotbar-Switch (forciert WINDOW_ITEMS-Resend) |
 
 ---
 
-## Wichtige Klassen — Extension (`geyser-extension/`)
+## Bekannte Knackpunkte
 
-| Klasse | Verantwortung |
-|--------|---------------|
-| `FMMBridgeExtension` | Geyser-Extension-Hauptklasse: Events (`onGeyserPreInitialize`, `onDefineCustomItems`, `onDefineResourcePacks`) |
-| `EntityRegistrar` | Custom-Entity-Registrierung via GeyserUtils-Reflection |
-| `ResourcePackBuilder` | Generiert Bedrock-Pack (manifest, entity defs, animations, attachables, item_texture.json) und packt als ZIP |
-| `JavaItemGeometryConverter` | **Phase 7.2c-Kern:** Java-`elements` → Bedrock `.geo.json` (Cubes + UVs + Bones) + Attachable JSON |
-| `DownstreamMonitor` | Re-Registriert GeyserUtils-PacketListener auf Downstream-Server-Switch (Hub→Game) |
+### EliteMobs API
+- **EM 10.3.1 EVOKER-basierte CustomBosses** (z.B. Ice Elemental) liefern aus **beiden** API-Pfaden ("Evoker | 2"):
+  - `livingEntity.getCustomName()` ← Vanilla-Format
+  - `eliteEntity.getName()` ← Vanilla-Format
+  - **Lösung:** `modeledEntity.getDisplayName()` (FMM-API) liefert den korrekten YAML-Namen — gleiche Source-Priorität wie für den Nametag. Wird in `FMMEntityData.createBossBarControllerIfElite()` als primary verwendet, `EliteMobsHook.getStyledName()` als Fallback.
+- **`EliteMobEnterCombatEvent` feuert nicht zuverlässig wieder** nach Combat-Pause — Untersuchung steht aus (eventuell eigene Damage-Heuristik statt EM-Event)
 
----
+### PacketEvents
+- BOSS_EVENT-Suppression läuft auf Netty-IO-Thread, nicht Bukkit-Main-Thread → ThreadLocal-Bypass funktioniert nicht
+- **Lösung:** First-Match-Heuristik in `PacketInterceptor.handleBossEvent` — erste title-matchende ADD per Controller ist unsere, spätere sind EM-Duplikate
 
-## Bekannte Knackpunkte (aus Memory + Sessions)
+### FMM-Config
+- `sendCustomModelsToBedrockClients: true` ist Pflicht ab FMM 2.6.0 (vorher war `false` Pflicht — alter Stand)
 
-- **GeyserUtils-NPE in `loadSkin`** beim Proxy-Start — ist Skin-JSON-Bug auf dem Server, NICHT unser Code; blockiert Geyser-Start nicht
-- **Bedrock-Pack-Cache:** UUID wird mit `UUID.randomUUID()` pro Build neu generiert → Bedrock-Client lädt neu
-- **`packetInject` ist Paket-in-flight, nicht persistent:** jeder Pfad zum Bedrock-Client muss explizit abgedeckt werden (SET_SLOT, WINDOW_ITEMS, ENTITY_METADATA, ENTITY_EQUIPMENT…)
-- **FMM `sendCustomModelsToBedrockClients: false`** in `config.yml` MUSS so bleiben — sonst kollidiert FMM mit unserer Bridge
-- **`per_texture_uv_size` in Bedrock-Pack-config.json muss Integer sein** (Float verursacht silent rejection — bekannter Blockbench-Bug)
+### Multi-Host Pack-Transfer
+- RPM generiert Bedrock-Pack auf Backend-Server (`plugins/ResourcePackManager/output/`)
+- Geyser läuft auf Proxy → Pack muss manuell rüber (`Geyser-Velocity/packs/` + `custom_mappings/`)
+- RPM warnt "Geyser installation not detected" — normal in Multi-Host, ignorieren
 
 ---
 
 ## Hinweise
 
-- Fabi kommuniziert auf **Deutsch** — antworte auf Deutsch.
-- Bei Geyser/Bedrock-Spec-Fragen: Quellen sind https://wiki.bedrock.dev, https://learn.microsoft.com/en-us/minecraft/creator/, https://geysermc.org/wiki/, https://github.com/microsoft/minecraft-samples.
-- Vor jedem `git push`: `README.md` + `CLAUDE_SESSION.md` werden vom Orchestrator aktualisiert.
-- Wenn du Dateien lesen willst: tu es direkt — frag Fabi nicht danach.
+- **Fabi kommuniziert auf Deutsch** — antworte auf Deutsch
+- **Server-Memory:** [memory] Dateien im Claude-Memory-Folder enthalten kuratierten Kontext zu Project-State, Workflows, bekannten Issues
+- **Tests laufen lassen** vor Deploy: `mvn package` führt JUnit-Tests aus
+- **Vor `git push`:** `README.md` + `CLAUDE_SESSION.md` werden vom Orchestrator (Claude) aktualisiert
+- **Quellen für Bedrock-Spec-Fragen:** https://wiki.bedrock.dev, https://learn.microsoft.com/en-us/minecraft/creator/, https://geysermc.org/wiki/
+- **Alte Architektur einsehen:** `git checkout archive/2026-05-24-pre-rpm18-pivot` (read-only, danach zurück auf aktuelle Branch)

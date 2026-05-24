@@ -296,36 +296,31 @@ Die Konvertierung muss folgendes leisten:
 - Existierende GeyserModelEngine-Dateien auf dem Server können als Referenz für das Bedrock-Format dienen (Pfad: `/home/amp/.ampdata/instances/Proxy01/Minecraft/plugins/Geyser-Velocity/extensions/geysermodelengineextension/input_backup/`)
 - **Vor jedem git push:** `README.md` und `CLAUDE_SESSION.md` aktualisieren (Status-Tabelle, neue Klassen, Deployment-Schritte, Session-Fortschritt)
 
-## Bekannte Probleme & Erkenntnisse (aus Implementierung)
+## Architektur-Pivot 2026-05-24
 
-### FMM Config
-- `sendCustomModelsToBedrockClients: false` in `plugins/FreeMinecraftModels/config.yml` **MUSS so bleiben**
-- Mit `true`: FMM aktiviert eigene (kaputte) Bedrock-Implementierung → Vanilla Wolf verschwindet komplett
-- Mit `false`: Bedrock-Spieler sehen das Basis-Mob (Wolf) — das ist der korrekte Ausgangszustand für unsere Bridge
-- **Bugfix in post-2.4.0 (Bone.java):** Die Bedingung `if (isBedrock && sendCustomModelsToBedrockClients)` war invertiert (`!` fehlte). Auf dem Server (FMM 2.4.0) ist der Bug noch aktiv — mit `false` hat FMM trotzdem Display Entities an Bedrock gesendet. Nach FMM-Update (nächste Release) verhält sich `false` korrekt: FMM überspringt Display Entities für Bedrock, unsere Bridge übernimmt vollständig.
+**Wichtig:** FMM 2.6.0 + ResourcePackManager 1.8.0 übernehmen die Mob/Item-Render-Pipeline nativ. Phasen 1-6 + 7.2c/d wurden in einem Refactor entfernt (git tag `archive/2026-05-24-pre-rpm18-pivot` sichert den alten Stand).
 
-### GeyserUtils — Downstream Listener Problem (gelöst)
-- `GeyserUtils.registerPacketListener()` wird in `onSessionJoin` mit 80ms Delay aufgerufen
-- In Multi-Server-Setup (Hub → TestServer01): Listener landet auf Hub-Session-Objekt
-- **Fix:** Downstream-Monitor in FMMBridgeExtension re-registriert den Listener periodisch
+Aktuelle Bridge-Verantwortung: **EM↔Bedrock UX-Layer** — Combat-styled BossBar, Combat-Nametag (HP/Bar), 2D legacy UI-Items. Mob-Rendering, Animationen, 3D-Items, Static-Props laufen nativ über FMM 2.6.0 + RPM 1.8.0.
 
-### GeyserUtils — setCustomEntity Timing (gelöst)
-- Spawn-Paket kommt sofort, `setCustomEntity` muss VORHER im Cache sein
-- **Fix:** Fake-Entity-Ansatz — eigenes PIG-Entity spawnen mit 2-Tick Delay nach setCustomEntity
-- Cache hat 30s Expiry, wird pro Bedrock-Spieler befüllt
+## Bekannte Probleme & Erkenntnisse
 
-### GeyserUtils — Classloader (gelöst)
-- Reflection mit `GeyserExtensionClassLoader` findet GeyserUtils korrekt
-- `addCustomEntity` via Reflection erfolgreich → 188 Entities in `LOADED_ENTITY_DEFINITIONS`
+### FMM Config (post-pivot)
+- `sendCustomModelsToBedrockClients: true` in `plugins/FreeMinecraftModels/config.yml` ist die NEUE Erwartung (ab FMM 2.6.0). FMM rendert Mobs nativ für Bedrock-Clients.
+- (Historisch: vor FMM 2.6.0 war `false` Pflicht — die alte Bridge übernahm dann das Rendering. Siehe `archive/2026-05-24-pre-rpm18-pivot` tag.)
 
-### Geyser API
-- `GeyserPreInitializeEvent` → für Entity-Registrierung und Pack-Generierung (korrekt)
-- `GeyserDefineResourcePacksEvent` → `event.register(ResourcePack.create(PackCodec.path(zipPath)))` (korrekt)
-- `GeyserDefineEntityPropertiesEvent` ist NICHT in der öffentlichen API (2.7.0-SNAPSHOT) — nur intern in GeyserUtils
+### ResourcePackManager — Multi-Host-Setup
+- RPM generiert Bedrock-Pack + Geyser-Mappings auf dem **Backend-Server** (`plugins/ResourcePackManager/output/`)
+- Geyser läuft auf dem **Proxy** — RPM warnt "Geyser installation not detected", das ist normal in Multi-Host-Setups
+- Manueller Transfer: `output/ResourcePackManager_Bedrock.zip` → Proxy `Geyser-Velocity/packs/<name>.mcpack`, `output/rspm_geyser_mappings.json` → Proxy `Geyser-Velocity/custom_mappings/`
+- RPM-Bugs (an MagmaGuy melden): schwarze Schatten auf Custom Models, 80-Zeichen-Pfade in Pack
 
-### PacketEvents (aktiv genutzt)
-- packetevents 2.11.2 auf TestServer01 installiert
+### EliteMobs 10.3.1 — styled Name für EVOKER-Bosses
+- Für EVOKER-basierte CustomBosses (Ice Elemental etc.) liefern BEIDE `livingEntity.getCustomName()` UND `eliteEntity.getName()` "Evoker | 2" statt des YAML-`name:`-Werts
+- **Lösung:** `modeledEntity.getDisplayName()` (FMM-API) liefert den korrekten YAML-Namen — gleiche Source wie der Java-Mob-Nametag
+- In `FMMEntityData.createBossBarControllerIfElite()` ist FMM-displayName primary, `EliteMobsHook.getStyledName()` Fallback
+
+### PacketEvents
+- packetevents 2.12.1 auf TestServer01 installiert
 - Ersetzt ProtocolLib komplett (ProtocolLib hat BUNDLE-Problem auf MC 1.21.x)
-- Packet-Suppressor: blockiert SPAWN_ENTITY + ENTITY_METADATA für versteckte Real-Entities
-- Interact-Redirect: INTERACT_ENTITY Pakete von Fake→Real Entity ID umschreiben
-- PacketEntity: Fake PIG-Entity Spawn/Teleport/Destroy via PacketEvents
+- BOSS_EVENT-Suppression läuft auf Netty-IO-Thread, nicht Bukkit-Main-Thread → ThreadLocal-Bypass funktioniert nicht; Lösung ist First-Match-Heuristik (siehe `PacketInterceptor.handleBossEvent`)
+- 2D-Item-Inject (Phase 7.2b): SET_SLOT + WINDOW_ITEMS + ENTITY_METADATA Pakete erhalten `item_model = geyser_custom:<bedrockKey>` Component
