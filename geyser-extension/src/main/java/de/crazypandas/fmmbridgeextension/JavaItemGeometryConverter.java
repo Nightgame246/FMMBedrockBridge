@@ -31,8 +31,9 @@ public class JavaItemGeometryConverter {
      * @param bedrockKey identifier suffix, e.g. "em_bronze_sword"
      */
     public Map<String, Object> convertToGeo(JsonObject javaModel, String bedrockKey) {
-        // Texture dimensions come from the Java model's texture_size (EM gear: 64x64
-        // per frame). Bedrock per-face UVs live in this same pixel space, copied as-is.
+        // Texture dimensions come from the Java model's texture_size (EM gear:
+        // usually 64x64 per frame). Java item UVs use 0..16 model space, so
+        // convertCube scales them into Bedrock texture pixels.
         int texW = 64, texH = 64;
         if (javaModel.has("texture_size")) {
             JsonArray ts = javaModel.getAsJsonArray("texture_size");
@@ -49,7 +50,7 @@ public class JavaItemGeometryConverter {
             JsonArray elements = javaModel.getAsJsonArray("elements");
             for (int i = 0; i < elements.size(); i++) {
                 JsonObject el = elements.get(i).getAsJsonObject();
-                Map<String, Object> cube = convertCube(el);
+                Map<String, Object> cube = convertCube(el, texW, texH);
                 double[] boneRotation = elementRotation(el);
                 if (boneRotation == null) {
                     zCubes.add(cube);
@@ -115,15 +116,18 @@ public class JavaItemGeometryConverter {
 
     /**
      * Converts a Java element to a Bedrock cube. Java item space is centred at
-     * 8,8,8, so x/z shift by -8 while y is kept. Per-face UV [u1,v1,u2,v2]
-     * becomes {"uv":[u1,v1],"uv_size":[u2-u1,v2-v1]} — negative sizes are kept,
-     * Bedrock reads them as mirrored faces.
+     * 8,8,8, so x/z shift by -8 while y is kept. Java item-model UVs always use
+     * the 0..16 model space, even when the source texture is larger than 16x16;
+     * Bedrock expects pixel UVs, so they are scaled into the declared texture size.
+     * Negative sizes are kept because Bedrock reads them as mirrored faces.
      */
-    private Map<String, Object> convertCube(JsonObject el) {
+    private Map<String, Object> convertCube(JsonObject el, int textureWidth, int textureHeight) {
         JsonArray from = el.getAsJsonArray("from");
         JsonArray to = el.getAsJsonArray("to");
         double fx = from.get(0).getAsDouble(), fy = from.get(1).getAsDouble(), fz = from.get(2).getAsDouble();
         double tx = to.get(0).getAsDouble(), ty = to.get(1).getAsDouble(), tz = to.get(2).getAsDouble();
+        double uScale = textureWidth / 16.0;
+        double vScale = textureHeight / 16.0;
 
         Map<String, Object> cube = new LinkedHashMap<>();
         cube.put("origin", new double[]{fx - 8, fy, fz - 8});
@@ -140,8 +144,8 @@ public class JavaItemGeometryConverter {
                 double u1 = u.get(0).getAsDouble(), v1 = u.get(1).getAsDouble();
                 double u2 = u.get(2).getAsDouble(), v2 = u.get(3).getAsDouble();
                 Map<String, Object> faceEntry = new LinkedHashMap<>();
-                faceEntry.put("uv", new double[]{u1, v1});
-                faceEntry.put("uv_size", new double[]{u2 - u1, v2 - v1});
+                faceEntry.put("uv", new double[]{u1 * uScale, v1 * vScale});
+                faceEntry.put("uv_size", new double[]{(u2 - u1) * uScale, (v2 - v1) * vScale});
                 uv.put(face, faceEntry);
             }
             if (!uv.isEmpty()) cube.put("uv", uv);
@@ -255,17 +259,18 @@ public class JavaItemGeometryConverter {
         Map<String, Object> animations = new LinkedHashMap<>();
         String prefix = "animation.fmmbridge.gear." + bedrockKey + ".";
         animations.put(prefix + "thirdperson_main_hand",
-                transformAnimation(displayTransform(display, "thirdperson_righthand"), BasePose.THIRD_PERSON_MAIN_HAND));
+                transformAnimation(displayTransform(display, "thirdperson_righthand"), SlotPose.THIRD_PERSON_MAIN_HAND));
         animations.put(prefix + "thirdperson_off_hand",
                 transformAnimation(displayTransform(display, "thirdperson_lefthand", "thirdperson_righthand"),
-                        BasePose.THIRD_PERSON_OFF_HAND));
+                        SlotPose.THIRD_PERSON_OFF_HAND));
         animations.put(prefix + "firstperson_main_hand",
-                transformAnimation(displayTransform(display, "firstperson_righthand"), BasePose.FIRST_PERSON_MAIN_HAND));
+                transformAnimation(displayTransform(display, "firstperson_righthand"),
+                        firstPersonPose(javaModel, false)));
         animations.put(prefix + "firstperson_off_hand",
                 transformAnimation(displayTransform(display, "firstperson_lefthand", "firstperson_righthand"),
-                        BasePose.FIRST_PERSON_OFF_HAND));
+                        firstPersonPose(javaModel, true)));
         if (display.has("head") && display.get("head").isJsonObject()) {
-            animations.put(prefix + "head", transformAnimation(display.getAsJsonObject("head"), BasePose.HEAD));
+            animations.put(prefix + "head", transformAnimation(display.getAsJsonObject("head"), SlotPose.HEAD));
         }
         animations.put(prefix + "disable", disableAnimation());
 
@@ -294,15 +299,42 @@ public class JavaItemGeometryConverter {
         return new JsonObject();
     }
 
-    private Map<String, Object> transformAnimation(JsonObject displayTransform, BasePose basePose) {
+    private SlotPose firstPersonPose(JsonObject javaModel, boolean offHand) {
+        boolean useHandheldBasis = isWeaponGroup(javaModel, "axe");
+        if (useHandheldBasis) {
+            return offHand ? SlotPose.FIRST_PERSON_HANDHELD_OFF_HAND : SlotPose.FIRST_PERSON_HANDHELD_MAIN_HAND;
+        }
+        return offHand ? SlotPose.FIRST_PERSON_CUBE_OFF_HAND : SlotPose.FIRST_PERSON_CUBE_MAIN_HAND;
+    }
+
+    private boolean isWeaponGroup(JsonObject javaModel, String expectedName) {
+        if (!javaModel.has("groups") || !javaModel.get("groups").isJsonArray()) {
+            return false;
+        }
+        JsonArray groups = javaModel.getAsJsonArray("groups");
+        if (groups.isEmpty() || !groups.get(0).isJsonObject()) {
+            return false;
+        }
+        JsonObject firstGroup = groups.get(0).getAsJsonObject();
+        return firstGroup.has("name")
+                && expectedName.equalsIgnoreCase(firstGroup.get("name").getAsString());
+    }
+
+    private Map<String, Object> transformAnimation(JsonObject displayTransform, SlotPose slotPose) {
         Map<String, Object> animation = new LinkedHashMap<>();
         animation.put("loop", true);
 
         Map<String, Object> bones = new LinkedHashMap<>();
-        bones.put("geyser_custom_x", composeDelta(basePose.xBone(), displayTransform));
-        bones.put("geyser_custom_y", cloneBone(basePose.yBone()));
-        bones.put("geyser_custom_z", cloneBone(basePose.zBone()));
-        bones.put("geyser_custom", cloneBone(basePose.rootBone()));
+        if (slotPose.handheldBasis()) {
+            bones.put("geyser_custom_x", composeHandheldDelta(slotPose.xBone(), displayTransform));
+            bones.put("geyser_custom_y", cloneBone(slotPose.yBone()));
+            bones.put("geyser_custom_z", cloneBone(slotPose.zBone()));
+        } else {
+            bones.put("geyser_custom_x", xBoneTransform(displayTransform, slotPose));
+            bones.put("geyser_custom_y", axisRotation(displayTransform, 1, true));
+            bones.put("geyser_custom_z", axisRotation(displayTransform, 2, false));
+        }
+        bones.put("geyser_custom", cloneBone(slotPose.rootBone()));
         animation.put("bones", bones);
         return animation;
     }
@@ -310,17 +342,51 @@ public class JavaItemGeometryConverter {
     private Map<String, Object> disableAnimation() {
         Map<String, Object> animation = new LinkedHashMap<>();
         animation.put("loop", true);
+        animation.put("override_previous_animation", true);
 
         Map<String, Object> hiddenBone = new LinkedHashMap<>();
         hiddenBone.put("scale", 0);
 
         Map<String, Object> bones = new LinkedHashMap<>();
-        bones.put("geyser_custom_x", hiddenBone);
+        bones.put("geyser_custom", hiddenBone);
         animation.put("bones", bones);
         return animation;
     }
 
-    private Map<String, Object> composeDelta(BoneTransform base, JsonObject displayTransform) {
+    private Map<String, Object> xBoneTransform(JsonObject displayTransform, SlotPose slotPose) {
+        Map<String, Object> bone = new LinkedHashMap<>();
+
+        double[] rotation = readVector(displayTransform, "rotation");
+        if (rotation != null) {
+            bone.put("rotation", new double[]{-rotation[0], 0, 0});
+        } else if (slotPose.defaultXRotation() != null) {
+            bone.put("rotation", slotPose.defaultXRotation().clone());
+        }
+
+        double[] translation = readVector(displayTransform, "translation");
+        if (translation != null) {
+            bone.put("position", new double[]{
+                    -translation[0] * (slotPose.invertXPosition() ? -1 : 1),
+                    translation[1],
+                    translation[2]
+            });
+        }
+
+        double[] scale = readVector(displayTransform, "scale");
+        if (scale != null) {
+            bone.put("scale", multiplyByScalar(scale, slotPose.baseScale()));
+        } else if (slotPose.baseScale() != null) {
+            bone.put("scale", slotPose.baseScale());
+        }
+        return bone;
+    }
+
+    /**
+     * First-person Java gear is authored as a delta on top of the vanilla
+     * `item/handheld` pose used by diamond swords and axes. Keeping that basis
+     * means Bedrock's normal first-person item swing can stay intact.
+     */
+    private Map<String, Object> composeHandheldDelta(BoneTransform base, JsonObject displayTransform) {
         Map<String, Object> composed = cloneBone(base);
 
         double[] rotationDelta = readVector(displayTransform, "rotation");
@@ -338,6 +404,21 @@ public class JavaItemGeometryConverter {
             composed.put("scale", multiplyVectors(base.scale(), scaleDelta));
         }
         return composed;
+    }
+
+    private Map<String, Object> axisRotation(JsonObject displayTransform, int axis, boolean negate) {
+        Map<String, Object> bone = new LinkedHashMap<>();
+        double[] rotation = readVector(displayTransform, "rotation");
+        if (rotation == null) {
+            return bone;
+        }
+        double value = negate ? -rotation[axis] : rotation[axis];
+        bone.put("rotation", switch (axis) {
+            case 1 -> new double[]{0, value, 0};
+            case 2 -> new double[]{0, 0, value};
+            default -> throw new IllegalArgumentException("Unsupported axis: " + axis);
+        });
+        return bone;
     }
 
     private Map<String, Object> cloneBone(BoneTransform transform) {
@@ -369,6 +450,15 @@ public class JavaItemGeometryConverter {
         };
     }
 
+    private double[] multiplyByScalar(double[] vector, Double scalar) {
+        double factor = scalar != null ? scalar : 1.0;
+        return new double[]{
+                vector[0] * factor,
+                vector[1] * factor,
+                vector[2] * factor
+        };
+    }
+
     private double[] addVectors(double[] base, double[] delta) {
         double[] left = base != null ? base : new double[]{0, 0, 0};
         return new double[]{
@@ -390,45 +480,72 @@ public class JavaItemGeometryConverter {
     private record BoneTransform(double[] rotation, double[] position, double[] scale) {
     }
 
-    private enum BasePose {
+    private enum SlotPose {
         THIRD_PERSON_MAIN_HAND(
-                new BoneTransform(new double[]{0, 0, 0}, new double[]{0, 4, 2.5}, new double[]{0.85, 0.85, 0.85}),
-                new BoneTransform(new double[]{0, -90, 0}, null, null),
-                new BoneTransform(new double[]{0, 0, 55}, null, null),
+                false, false, null, null, null, null, null,
                 new BoneTransform(new double[]{90, 0, 0}, new double[]{0, 13, -3}, null)),
         THIRD_PERSON_OFF_HAND(
-                new BoneTransform(new double[]{0, 0, 0}, new double[]{0, 4, 2.5}, new double[]{0.85, 0.85, 0.85}),
-                new BoneTransform(new double[]{0, 90, 0}, null, null),
-                new BoneTransform(new double[]{0, 0, -55}, null, null),
+                true, false, null, null, null, null, null,
                 new BoneTransform(new double[]{90, 0, 0}, new double[]{0, 13, -3}, null)),
-        FIRST_PERSON_MAIN_HAND(
+        FIRST_PERSON_CUBE_MAIN_HAND(
+                false, false, new double[]{0.1, 0.1, 0.1}, null, null, null, null,
+                new BoneTransform(new double[]{90, 60, -40}, new double[]{4, 10, 4}, new double[]{1.5, 1.5, 1.5})),
+        FIRST_PERSON_CUBE_OFF_HAND(
+                true, false, new double[]{0.1, 0.1, 0.1}, null, null, null, null,
+                new BoneTransform(new double[]{90, 60, -40}, new double[]{4, 10, 4}, new double[]{1.5, 1.5, 1.5})),
+        FIRST_PERSON_HANDHELD_MAIN_HAND(
+                false, true, null, null,
                 new BoneTransform(null, new double[]{0, 1.6, -0.8}, new double[]{0.68, 0.68, 0.68}),
                 new BoneTransform(new double[]{0, -90, 0}, null, null),
                 new BoneTransform(new double[]{0, 0, 25}, null, null),
                 new BoneTransform(new double[]{53.79601, 51.7101, -83.00307},
                         new double[]{-2, 12, 5}, new double[]{1.5, 1.5, 1.5})),
-        FIRST_PERSON_OFF_HAND(
+        FIRST_PERSON_HANDHELD_OFF_HAND(
+                true, true, null, null,
                 new BoneTransform(null, new double[]{0, 1.6, -0.8}, new double[]{0.68, 0.68, 0.68}),
                 new BoneTransform(new double[]{0, 90, 0}, null, null),
                 new BoneTransform(new double[]{0, 0, -25}, null, null),
                 new BoneTransform(new double[]{90, 60, -40},
                         new double[]{4, 10, 4}, new double[]{1.5, 1.5, 1.5})),
         HEAD(
-                new BoneTransform(null, null, new double[]{0.625, 0.625, 0.625}),
-                new BoneTransform(null, null, null),
-                new BoneTransform(null, null, null),
+                false, false, null, 0.625, null, null, null,
                 new BoneTransform(null, new double[]{0, 19.9, 0}, null));
 
+        private final boolean invertXPosition;
+        private final boolean handheldBasis;
+        private final double[] defaultXRotation;
+        private final Double baseScale;
         private final BoneTransform xBone;
         private final BoneTransform yBone;
         private final BoneTransform zBone;
         private final BoneTransform rootBone;
 
-        BasePose(BoneTransform xBone, BoneTransform yBone, BoneTransform zBone, BoneTransform rootBone) {
+        SlotPose(boolean invertXPosition, boolean handheldBasis, double[] defaultXRotation, Double baseScale,
+                 BoneTransform xBone, BoneTransform yBone, BoneTransform zBone, BoneTransform rootBone) {
+            this.invertXPosition = invertXPosition;
+            this.handheldBasis = handheldBasis;
+            this.defaultXRotation = defaultXRotation;
+            this.baseScale = baseScale;
             this.xBone = xBone;
             this.yBone = yBone;
             this.zBone = zBone;
             this.rootBone = rootBone;
+        }
+
+        private boolean invertXPosition() {
+            return invertXPosition;
+        }
+
+        private boolean handheldBasis() {
+            return handheldBasis;
+        }
+
+        private double[] defaultXRotation() {
+            return defaultXRotation;
+        }
+
+        private Double baseScale() {
+            return baseScale;
         }
 
         private BoneTransform xBone() {

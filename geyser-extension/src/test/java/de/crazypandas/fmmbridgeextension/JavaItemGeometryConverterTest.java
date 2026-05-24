@@ -14,7 +14,7 @@ import static org.junit.jupiter.api.Assertions.*;
  *
  * Reference: Geyser java2bedrock output (Kafal pack) for EM gear —
  *   - Java item space is centred at 8,8,8: cube origin = [from.x-8, from.y, from.z-8]
- *   - per-face UV [u1,v1,u2,v2] -> {"uv":[u1,v1],"uv_size":[u2-u1,v2-v1]}
+ *   - Java per-face UVs live in 0..16 model space and are scaled to Bedrock pixels
  *   - non-rotated elements become cubes inside geyser_custom_z
  *   - each rotated element becomes a child bone of geyser_custom_z;
  *     bone pivot = [origin.x-8, origin.y, origin.z-8], X/Y rotation negated, Z kept
@@ -93,8 +93,23 @@ class JavaItemGeometryConverterTest {
 
         Map<String, Object> uv = (Map<String, Object>) cubes(bone(geo, "geyser_custom_z")).get(0).get("uv");
         Map<String, Object> north = (Map<String, Object>) uv.get("north");
-        assertArrayEquals(new double[]{4.75, 7.75}, (double[]) north.get("uv"), 1e-6);
-        assertArrayEquals(new double[]{0.5, 2.0}, (double[]) north.get("uv_size"), 1e-6);
+        assertArrayEquals(new double[]{19.0, 31.0}, (double[]) north.get("uv"), 1e-6);
+        assertArrayEquals(new double[]{2.0, 8.0}, (double[]) north.get("uv_size"), 1e-6);
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void keepsMirroredUvSizeWhenScaling() {
+        Map<String, Object> geo = converter.convertToGeo(model("""
+                {"texture_size":[64,64],"elements":[
+                  {"from":[7,2,7],"to":[9,10,9],
+                   "faces":{"up":{"uv":[10.25,0.5,9.75,0]}}}
+                ]}"""), "em_test");
+
+        Map<String, Object> uv = (Map<String, Object>) cubes(bone(geo, "geyser_custom_z")).get(0).get("uv");
+        Map<String, Object> up = (Map<String, Object>) uv.get("up");
+        assertArrayEquals(new double[]{41.0, 2.0}, (double[]) up.get("uv"), 1e-6);
+        assertArrayEquals(new double[]{-2.0, -2.0}, (double[]) up.get("uv_size"), 1e-6);
     }
 
     @Test
@@ -142,7 +157,7 @@ class JavaItemGeometryConverterTest {
 
     @Test
     @SuppressWarnings("unchecked")
-    void composesJavaDisplayTransformsOntoBedrockBasePose() {
+    void convertsGenericDisplayTransformsLikeJava2BedrockCubeItems() {
         Map<String, Object> root = converter.generateAnimations(model("""
                 {"display":{
                   "thirdperson_righthand":{"translation":[0,1.25,1.75]},
@@ -162,27 +177,53 @@ class JavaItemGeometryConverterTest {
                 "animation.fmmbridge.gear.em_test.head");
 
         Map<String, Object> thirdPersonBone = animationBone(thirdPerson, "geyser_custom_x");
-        assertArrayEquals(new double[]{0, 5.25, 4.25}, (double[]) thirdPersonBone.get("position"), 1e-6);
-        assertArrayEquals(new double[]{0.85, 0.85, 0.85}, (double[]) thirdPersonBone.get("scale"), 1e-6);
-        assertArrayEquals(new double[]{0, -90, 0},
-                (double[]) animationBone(thirdPerson, "geyser_custom_y").get("rotation"), 1e-6);
+        assertArrayEquals(new double[]{0, 1.25, 1.75}, (double[]) thirdPersonBone.get("position"), 1e-6);
+        assertNull(thirdPersonBone.get("scale"));
+        assertNull(animationBone(thirdPerson, "geyser_custom_y").get("rotation"));
         assertArrayEquals(new double[]{90, 0, 0},
                 (double[]) animationBone(thirdPerson, "geyser_custom").get("rotation"), 1e-6);
 
         Map<String, Object> firstPersonBone = animationBone(firstPerson, "geyser_custom_x");
-        assertArrayEquals(new double[]{0, 13, 0}, (double[]) firstPersonBone.get("rotation"), 1e-6);
-        assertArrayEquals(new double[]{3.5, 1.1, -1.3}, (double[]) firstPersonBone.get("position"), 1e-6);
-        assertArrayEquals(new double[]{0.612, 0.612, 0.612}, (double[]) firstPersonBone.get("scale"), 1e-6);
+        assertArrayEquals(new double[]{0, 0, 0}, (double[]) firstPersonBone.get("rotation"), 1e-6);
+        assertArrayEquals(new double[]{-3.5, -0.5, -0.5}, (double[]) firstPersonBone.get("position"), 1e-6);
+        assertArrayEquals(new double[]{0.9, 0.9, 0.9}, (double[]) firstPersonBone.get("scale"), 1e-6);
+        assertArrayEquals(new double[]{0, -13, 0},
+                (double[]) animationBone(firstPerson, "geyser_custom_y").get("rotation"), 1e-6);
 
         Map<String, Object> offHandBone = animationBone(offHand, "geyser_custom_x");
-        assertArrayEquals(new double[]{0, 13, 0}, (double[]) offHandBone.get("rotation"), 1e-6);
-        assertArrayEquals(new double[]{3.5, 1.1, -1.3}, (double[]) offHandBone.get("position"), 1e-6);
+        assertArrayEquals(new double[]{0, 0, 0}, (double[]) offHandBone.get("rotation"), 1e-6);
+        assertArrayEquals(new double[]{3.5, -0.5, -0.5}, (double[]) offHandBone.get("position"), 1e-6);
 
         Map<String, Object> headBone = animationBone(head, "geyser_custom_x");
         assertArrayEquals(new double[]{0, -3.75, 0}, (double[]) headBone.get("position"), 1e-6);
         assertArrayEquals(new double[]{0.96875, 0.96875, 0.96875}, (double[]) headBone.get("scale"), 1e-6);
         assertArrayEquals(new double[]{0, 19.9, 0},
                 (double[]) animationBone(head, "geyser_custom").get("position"), 1e-6);
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void axesUseHandheldFirstPersonBasis() {
+        Map<String, Object> root = converter.generateAnimations(model("""
+                {"display":{
+                  "firstperson_righthand":{"rotation":[0,13,0],"translation":[3.5,-0.5,-0.5],"scale":[0.9,0.9,0.9]}
+                },
+                "groups":[{"name":"Axe"}]}"""), "em_test_axe");
+
+        Map<String, Object> animations = (Map<String, Object>) root.get("animations");
+        Map<String, Object> firstPerson = (Map<String, Object>) animations.get(
+                "animation.fmmbridge.gear.em_test_axe.firstperson_main_hand");
+        Map<String, Object> firstPersonBone = animationBone(firstPerson, "geyser_custom_x");
+
+        assertArrayEquals(new double[]{0, 13, 0}, (double[]) firstPersonBone.get("rotation"), 1e-6);
+        assertArrayEquals(new double[]{3.5, 1.1, -1.3}, (double[]) firstPersonBone.get("position"), 1e-6);
+        assertArrayEquals(new double[]{0.612, 0.612, 0.612}, (double[]) firstPersonBone.get("scale"), 1e-6);
+        assertArrayEquals(new double[]{0, -90, 0},
+                (double[]) animationBone(firstPerson, "geyser_custom_y").get("rotation"), 1e-6);
+        assertArrayEquals(new double[]{0, 0, 25},
+                (double[]) animationBone(firstPerson, "geyser_custom_z").get("rotation"), 1e-6);
+        assertArrayEquals(new double[]{53.79601, 51.7101, -83.00307},
+                (double[]) animationBone(firstPerson, "geyser_custom").get("rotation"), 1e-6);
     }
 
     @Test
@@ -204,7 +245,7 @@ class JavaItemGeometryConverterTest {
 
     @Test
     @SuppressWarnings("unchecked")
-    void corruptedTridentStyleDisplayKeepsBaseWeaponPose() {
+    void corruptedTridentStyleDisplayUsesCubeItemPoseInsteadOfSpritePose() {
         Map<String, Object> root = converter.generateAnimations(model("""
                 {"display":{
                   "thirdperson_righthand":{"translation":[0,1.25,1.75]},
@@ -217,12 +258,10 @@ class JavaItemGeometryConverterTest {
         Map<String, Object> thirdPerson = (Map<String, Object>) animations.get(
                 "animation.fmmbridge.gear.em_corrupted_trident.thirdperson_main_hand");
 
-        assertArrayEquals(new double[]{0, 5.25, 4.25},
+        assertArrayEquals(new double[]{0, 1.25, 1.75},
                 (double[]) animationBone(thirdPerson, "geyser_custom_x").get("position"), 1e-6);
-        assertArrayEquals(new double[]{0, -90, 0},
-                (double[]) animationBone(thirdPerson, "geyser_custom_y").get("rotation"), 1e-6);
-        assertArrayEquals(new double[]{0, 0, 55},
-                (double[]) animationBone(thirdPerson, "geyser_custom_z").get("rotation"), 1e-6);
+        assertNull(animationBone(thirdPerson, "geyser_custom_y").get("rotation"));
+        assertNull(animationBone(thirdPerson, "geyser_custom_z").get("rotation"));
         assertArrayEquals(new double[]{90, 0, 0},
                 (double[]) animationBone(thirdPerson, "geyser_custom").get("rotation"), 1e-6);
     }
