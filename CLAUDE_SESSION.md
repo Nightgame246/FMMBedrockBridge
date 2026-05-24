@@ -769,3 +769,61 @@ Vor finalem Test: Geyser-Velocity `2.9.5-b1129` → `2.10.0-b1141` auf Proxy01 d
 ```
 /usr/share/idea/plugins/maven/lib/maven3/bin/mvn clean package
 ```
+
+---
+
+## Session: 2026-05-16 (Phase 7.2c 3D-Render-Durchbruch + Codex-Co-Pilot eingeführt)
+
+### Abgeschlossen
+
+- **7.2c In-Game-Test (Fortsetzung von 14. Mai):** Bedrock-Spieler sieht Gear-Items weiterhin **flach in der Hand** (test8.png). Backend-Inject + Pack-Generierung + Geyser-Registrierung (24/24) alle bestätigt — der Bug liegt im Pack-Format / der Bedrock-Attachable-Verarbeitung.
+- **Lange Debugging-Iteration über Webrecherche** (Bedrock-Wiki, Microsoft Learn `custom_items` Sample, Geyser-Source `CustomItemRegistryPopulator.java`): mehrere Theorien getestet und verworfen:
+  - `displayHandheld(true)` in `CustomItemBedrockOptions` hinzugefügt → setzt nur `hand_equipped=true`, schaltet **kein 3D ein**. (Geyser-Source verifiziert)
+  - `"item": { "<id>": "query.is_owner_identifier_any('minecraft:player')" }` Feld in description hinzugefügt (Microsoft-Sample) → kein Effekt.
+  - `materials.enchanted` von `entity_alphatest_glint_item` auf Standard `entity_alphatest_glint` korrigiert → kein Effekt allein.
+  - `format_version` von `1.10.0` auf `1.20.30` (Microsoft) angehoben → **machte es schlimmer** (siehe Codex-Befund unten).
+  - Minimal-Attachable ohne Animations/Scripts probiert → wieder flach.
+  - **Verdächtige Geyser-Logs** dokumentiert: `Missing mapping for bedrock item ... componentBased=true, blockDefinition=cyan_terracotta` — Codex hat das später als Geyser-Pseudo-Block für Runtime-ID 0 entlarvt (Red Herring).
+- **Codex als zweiter KI-Assistent eingeführt** (OpenAI CLI) für tiefes Geyser-Source-Code-Debugging. Workflow etabliert: Codex analysiert Geyser-Source + schreibt Patches, Claude orchestriert (build + deploy + Pack-Pull + Memory/Docs).
+- **Codex's Root-Cause-Befund** (Pose):
+  - Per-Item Animations statt globaler `fmmbridge_gear.json` — aus Java-`display`-Transforms je Modell generiert.
+  - **Composed Transforms:** Java-`display`-Werte werden AUF die bekannten Bedrock-Base-Transforms komponiert (translation addiert, rotation als Delta, scale multipliziert), nicht ersetzt. Java's display ist relative Anpassung, Bedrock braucht komplette Transform.
+- **Codex's Root-Cause-Befund** (Render):
+  - **`format_version: "1.10.0"` ist Pflicht im Attachable** — `1.20.30` (Microsoft-Sample) lässt `scripts.animate` silent durchfallen, Item hängt in roher Identity-Pose. Mit `1.10.0` greift die Animation.
+  - Verifiziert: test10.png (1.20.30, rohe Pose) → test11.png (1.10.0, korrekte Waffenpose).
+- **Commit `a5aa6b8`** "Phase 7.2c: 3D gear renders in hand — pose + format_version fix" (Composed Transforms + per-item animations + format_version 1.10.0).
+- **Commit `e4e2efb`** "Docs: refresh AGENTS.md for Phase 7.x state" — AGENTS.md komplett auf Phase 7.x aktualisiert (Phasenplan, Scope erweitert auf Geyser-Extension auf Anweisung, vollständige Klassen-Inventur Backend + Extension, PacketEvents-Constraint, bekannte Spec-Stolperfallen).
+- **First-Person Pose-Iteration mit Codex** (uncommitted, mehrere Build/Deploy-Zyklen):
+  1. `firstperson_attack_adjust` als Gegenanimation für übertriebene Bedrock-Bewegung
+  2. First-Person komplett auf normale item/handheld-Basis (wie diamond_sword)
+  3. **Per-Weapon-Family Split:** Axe → handheld-First-Person-Basis, Sword/Trident/Scythe → Cube-First-Person-Basis. Auswahl über Waffen-Gruppe aus Java-Modell.
+- **Verifiziert In-Game:**
+  - `corrupted_trident` → 3D Pose korrekt (test11.png)
+  - `living_axe` ("Mystisch Wandelaxt") → 3D mit handheld-Pfad korrekt
+  - Schwert + Trident + Sense Kalibrierung steht für nächste Session aus.
+
+### Erkenntnisse
+
+- **`displayHandheld(true)` ≠ 3D-Schalter:** schaltet nur `item_properties.hand_equipped=true` (Tool/Waffen-Pose), aktiviert kein 3D-Rendering. 3D entsteht durch das im Pack mitgelieferte Attachable — Bedrock verknüpft via Identifier-Match (`bedrock_identifier == attachable.identifier`) automatisch.
+- **`format_version` im Attachable MUSS `1.10.0` sein** (verifiziert 2026-05-16). `1.20.30` (Microsoft's offizielles `custom_items`-Sample!) führt zu silent `scripts.animate`-Skip. Geo-Files (`models/entity/*.geo.json`) sind davon unabhängig — die nutzen weiterhin `1.16.0`.
+- **Java `display` ≠ Bedrock-Attachable-Animation 1:1:** Java's display ist relative Anpassung zur Default-Hand-Pose, Bedrock-Attachables brauchen die komplette Transform. Direkte 1:1-Übernahme (erster Codex-Versuch) ergab Items in roher Identity-Pose. Komposition mit Bedrock-Base-Transforms ist nötig.
+- **`blockDefinition=cyan_terracotta` im Geyser-Log:** Pseudo-Block für Runtime-ID 0, kein Hinweis auf Item-Mis-Mapping (Red Herring).
+- **Eine globale Attachable-Pose passt nicht für alle Waffen-Typen:** Axe vs Sword vs Trident vs Scythe haben in Java unterschiedliche Default-Renderings. Per-Family-Split nötig.
+- **Microsoft's `custom_items`-Sample auf GitHub ist für Attachables irreführend** (`format_version: 1.20.30`). Praxis (verifiziert in 2026) braucht `1.10.0`.
+- **Bedrock-Content-Log zeigt keine Errors für unser Pack** — Pack wird geladen, aber bei `1.20.30` werden Animation-Conditions silent nicht ausgewertet. Heißt: "kein Error" ≠ "funktioniert wie erwartet".
+- **Co-Pilot-Workflow Codex + Claude funktioniert:** für tiefe Spec-/Source-Analyse ist Codex effektiver, für Orchestrierung + Deploy + Memory bleibt Claude im Lead. Festgehalten in [memory] `codex_collaboration.md` + AGENTS.md.
+
+### Offene Themen
+
+- **7.2c verbleibend:** Schwert (mit Cube-First-Person-Basis) sowie Trident + Sense einzeln verifizieren. Bei Bedarf Codex für Family-spezifische Kalibrierung. Uncommitted Codex-Changes (First-Person handheld + per-weapon-family split) committen.
+- **Phase 8 Polish (in 7.2c bewusst nicht angegangen):**
+  - Animierte Gear-Texturen: z.B. `livingaxe.png` ist 64×256 mit 4 Frames + `frametime: 9` — aktuell auf Frame 0 gecroppt → in Bedrock statisch (sieht "falsch" aus weil Frame 0 oft die ruhige Variante ohne Glow ist)
+  - Sub-Tick-Flackern beim Inventar-Umsortieren
+  - `ENTITY_EQUIPMENT`-Pfad für von anderen Spielern gehaltene Items
+  - Reverse-Mapping für `Missing mapping for bedrock item` Geyser-Log (Inventory-Desync)
+- Phase 7.2d (Rüstung/Bögen/Armbrüste), 7.3 (Bedrock Forms via Cumulus API), Phase 8 (komplettes Polish-Backlog).
+
+### Build
+```
+/usr/share/idea/plugins/maven/lib/maven3/bin/mvn clean package
+```
