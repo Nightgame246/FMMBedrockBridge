@@ -47,16 +47,6 @@ public final class GeyserMappingsWriter {
             options.addProperty("icon", item.bedrockTextureKey());
             definition.add("bedrock_options", options);
 
-            JsonArray predicates = new JsonArray();
-            JsonObject predicate = new JsonObject();
-            predicate.addProperty("type", "match");
-            predicate.addProperty("property", "custom_model_data");
-            predicate.addProperty("operator", "==");
-            predicate.addProperty("value", String.valueOf(item.customModelData()));
-            predicate.addProperty("index", 0);
-            predicates.add(predicate);
-            definition.add("predicate", predicates);
-
             byBase.computeIfAbsent(item.javaMaterial(), k -> new JsonArray()).add(definition);
         }
 
