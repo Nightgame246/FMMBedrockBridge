@@ -40,12 +40,11 @@ class GeyserMappingsWriterTest {
         assertEquals("em_bagofcoins",
                 first.getAsJsonObject("bedrock_options").get("icon").getAsString());
 
-        JsonArray predicates = first.getAsJsonArray("predicate");
-        assertEquals(1, predicates.size());
-        JsonObject p = predicates.get(0).getAsJsonObject();
-        assertEquals("match", p.get("type").getAsString());
-        assertEquals("custom_model_data", p.get("property").getAsString());
-        assertEquals("31173", p.get("value").getAsString());
+        // No predicate — Geyser custom-item-v2 routes via (base material + model field).
+        // Each CMD gets a distinct bedrock_identifier/model so per-CMD distinction comes
+        // from the unique identifier, not from a predicate.
+        org.junit.jupiter.api.Assertions.assertFalse(first.has("predicate"),
+                "Definition must NOT contain predicate (invalid in Geyser custom-item-v2 schema)");
     }
 
     @Test
