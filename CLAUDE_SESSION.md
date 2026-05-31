@@ -726,3 +726,282 @@ Vor finalem Test: Geyser-Velocity `2.9.5-b1129` → `2.10.0-b1141` auf Proxy01 d
 ```
 /usr/share/idea/plugins/maven/lib/maven3/bin/mvn clean package
 ```
+
+---
+
+## Session: 2026-05-14 (Phase 7.2c In-Game-Test + Scanner-Fix + Paket-Abdeckung)
+
+### Abgeschlossen
+
+- **7.2c In-Game getestet** (Bedrock-Spieler): Map+Inject + Pack-Pipeline funktionieren — Backend injectet `item_model`, Geyser registriert, Attachables/Geometrien/Texturen im Pack strukturell korrekt. **Aber:** Gear rendert **flach in der Hand**.
+  - Root-Cause: `JavaItemGeometryConverter.convertToGeo()` ist ein Flat-Sprite-Stub. Commit `032bee3` hatte echte `elements`→`geo`-Konvertierung, `59e9f17` ("Phase 7.2 WIP") ersetzte sie durch `texture_meshes`-Sprite. 3D-in-der-Hand war nie fertig.
+- **Scanner-Bug gefixt** (TDD, commit `c225770`): `EliteMobsItemScanner.resolveGear3D()` hatte Textur-Key `"0"` hartkodiert; Blockbench vergibt beliebige Keys (`"29"`, `"1"`, …) → `ultimatium_sword`, `corrupted_trident`, `magmaguys_toothpick` wurden übersprungen.
+  - `pickGearTextureRef()` extrahiert (erster Key ≠ `"particle"`), 5 JUnit-Tests, JUnit 5 + surefire neu in `pom.xml`.
+  - Logger-Init in `EliteMobsItemScanner` null-sicher gemacht (`getInstance().getLogger()` warf NPE im Test-Kontext).
+  - **End-to-End verifiziert:** Backend scannt 21 → **24**, Proxy registriert **24/24**, Live-Inject aller 3 freigeschalteten Items im Log bestätigt.
+- **Paket-Abdeckung gefixt** (systematic-debugging, Diagnostic-Build → Reproduktion → Fix): Custom-Items fielen beim Droppen / Slot-Wechsel auf Vanilla zurück.
+  - Diagnostic-Befund: Droppen → `ENTITY_METADATA` einer Item-Entity (nicht injiziert). Slot-/Hotbar-Wechsel → **gar kein** Server-Paket (client-seitig vorhergesagt; `SET_CURSOR_ITEM`/`SET_PLAYER_INVENTORY` feuerten 0×).
+  - **Teil A:** `ENTITY_METADATA`-Branch im `PacketInterceptor` — ItemStack aus Entity-Metadata extrahieren + injizieren.
+  - **Teil B:** neuer `BedrockInventoryRefresher` (Listener) — `updateInventory()` einen Tick nach `InventoryClick`/`InventoryDrag`/`ItemHeld` von Bedrock-Spielern → erzwingt `WINDOW_ITEMS`-Resend.
+  - Verifiziert: Droppen + Aufheben halten sauber; Slot-/Hotbar-Wechsel haben sub-Tick-Flackern, enden aber custom.
+- **Cleanup TestServer01:** doppelte/stale `FMMBedrockBridge-0.1.0-SNAPSHOT.jar` (plugins/ + .paper-remapped/) entfernt — Paper meldete "Ambiguous plugin name".
+- **Echte 3D-`elements`→`geo`-Konvertierung** (TDD, 5 JUnit-Tests, JUnit5+surefire neu in `geyser-extension/pom.xml`): `JavaItemGeometryConverter.convertToGeo()` ersetzt den Flat-Sprite-Stub durch echte Cube-Geometrie.
+  - Referenz: Kafal-java2bedrock-Pack auf Proxy01 (`packs/Kafal-Java2Bedrock-gui-offsets.zip1`) hat konvertierte EM-Equipment-Geometrien — daran verifiziert statt zu raten.
+  - Transform: `origin = [from.x-8, from.y, from.z-8]` (Y NICHT verschoben — das war `032bee3`s Bug), `size = to-from`, UV direkt kopiert, `texture_width/height` aus `texture_size`.
+  - Rotierte Elemente → eigener Child-Bone von `geyser_custom_z` (Bone-Rotation, nicht Cube), X/Y negiert / Z behalten.
+  - Extension-JAR auf Proxy01 deployt — **Bedrock-In-Game-Verifikation noch ausstehend** (Proxy-Neustart + visueller Test).
+
+### Erkenntnisse
+
+- **`032bee3`s Bug war der Y-Shift:** der erste Konvertierungs-Versuch subtrahierte 8 auch von Y und nutzte unparented Root-Bones ohne `geyser_custom`-Binding → "near-invisible geometry". Korrekt (Kafal-Referenz): nur X/Z um -8 verschieben, Cubes unter die `geyser_custom`-Hierarchie hängen.
+- **nitrosetups ist KEINE 3D-Referenz:** nitrosetups-"3D"-Items sind `texture_meshes`-Flat-Sprites (die Items sind in Java auch nur 2D-Sprites). Für echte Cube-Geometrie war der Kafal-java2bedrock-Pack die richtige Referenz.
+- **EM-Gear-Texturen sind teils animiert:** `bronzesword.png` ist 64×768 (12 Frames). Kafal splittet das in 12 Texturen + Render-Controller; wir croppen auf Frame 0 (statisch) — voller Animations-Support = Phase 8.
+- **Bedrock client-seitige Inventar-Moves senden kein Server-Paket:** Verschiebt ein Bedrock-Spieler ein Item zwischen Slots, sagt der Client den Move voraus und der Backend schickt nichts (Diagnostic bestätigt: 0× `SET_CURSOR_ITEM`/`SET_PLAYER_INVENTORY` über die ganze Session). Ein Paket-in-flight-Inject kann das nicht abfangen → braucht einen `updateInventory()`-Re-Send-Trigger über Bukkit-Events.
+- **Inject ist Paket-in-flight, nicht persistent:** Alles was den Bedrock-Client über einen nicht abgefangenen Pfad erreicht, behält das Original-`item_model`. Daher müssen alle Pfade (Inventar, Item-Entity, künftig evtl. `ENTITY_EQUIPMENT`) explizit abgedeckt werden.
+
+### Offene Themen
+
+- **7.2c Bedrock-Verifikation:** Proxy01 neu starten, `bronze_sword`/`bronze_axe` (keine Rotation) + `ultimatium_sword`/Scythe (mit Rotation) in der Hand testen — Form/Textur/Rotation korrekt?
+- **Phase 8 Polish:** animierte Gear-Texturen (statisch → Frame-Splitting); sub-Tick-Flackern beim Inventar-Umsortieren; ggf. `ENTITY_EQUIPMENT`-Pfad für von anderen gehaltene Items
+- Phase 7.2d (Rüstung/Bögen/Armbrüste), 7.3 (Bedrock Forms), Phase 8 (Polish-Backlog)
+
+### Build
+```
+/usr/share/idea/plugins/maven/lib/maven3/bin/mvn clean package
+```
+
+---
+
+## Session: 2026-05-16 (Phase 7.2c 3D-Render-Durchbruch + Codex-Co-Pilot eingeführt)
+
+### Abgeschlossen
+
+- **7.2c In-Game-Test (Fortsetzung von 14. Mai):** Bedrock-Spieler sieht Gear-Items weiterhin **flach in der Hand** (test8.png). Backend-Inject + Pack-Generierung + Geyser-Registrierung (24/24) alle bestätigt — der Bug liegt im Pack-Format / der Bedrock-Attachable-Verarbeitung.
+- **Lange Debugging-Iteration über Webrecherche** (Bedrock-Wiki, Microsoft Learn `custom_items` Sample, Geyser-Source `CustomItemRegistryPopulator.java`): mehrere Theorien getestet und verworfen:
+  - `displayHandheld(true)` in `CustomItemBedrockOptions` hinzugefügt → setzt nur `hand_equipped=true`, schaltet **kein 3D ein**. (Geyser-Source verifiziert)
+  - `"item": { "<id>": "query.is_owner_identifier_any('minecraft:player')" }` Feld in description hinzugefügt (Microsoft-Sample) → kein Effekt.
+  - `materials.enchanted` von `entity_alphatest_glint_item` auf Standard `entity_alphatest_glint` korrigiert → kein Effekt allein.
+  - `format_version` von `1.10.0` auf `1.20.30` (Microsoft) angehoben → **machte es schlimmer** (siehe Codex-Befund unten).
+  - Minimal-Attachable ohne Animations/Scripts probiert → wieder flach.
+  - **Verdächtige Geyser-Logs** dokumentiert: `Missing mapping for bedrock item ... componentBased=true, blockDefinition=cyan_terracotta` — Codex hat das später als Geyser-Pseudo-Block für Runtime-ID 0 entlarvt (Red Herring).
+- **Codex als zweiter KI-Assistent eingeführt** (OpenAI CLI) für tiefes Geyser-Source-Code-Debugging. Workflow etabliert: Codex analysiert Geyser-Source + schreibt Patches, Claude orchestriert (build + deploy + Pack-Pull + Memory/Docs).
+- **Codex's Root-Cause-Befund** (Pose):
+  - Per-Item Animations statt globaler `fmmbridge_gear.json` — aus Java-`display`-Transforms je Modell generiert.
+  - **Composed Transforms:** Java-`display`-Werte werden AUF die bekannten Bedrock-Base-Transforms komponiert (translation addiert, rotation als Delta, scale multipliziert), nicht ersetzt. Java's display ist relative Anpassung, Bedrock braucht komplette Transform.
+- **Codex's Root-Cause-Befund** (Render):
+  - **`format_version: "1.10.0"` ist Pflicht im Attachable** — `1.20.30` (Microsoft-Sample) lässt `scripts.animate` silent durchfallen, Item hängt in roher Identity-Pose. Mit `1.10.0` greift die Animation.
+  - Verifiziert: test10.png (1.20.30, rohe Pose) → test11.png (1.10.0, korrekte Waffenpose).
+- **Commit `a5aa6b8`** "Phase 7.2c: 3D gear renders in hand — pose + format_version fix" (Composed Transforms + per-item animations + format_version 1.10.0).
+- **Commit `e4e2efb`** "Docs: refresh AGENTS.md for Phase 7.x state" — AGENTS.md komplett auf Phase 7.x aktualisiert (Phasenplan, Scope erweitert auf Geyser-Extension auf Anweisung, vollständige Klassen-Inventur Backend + Extension, PacketEvents-Constraint, bekannte Spec-Stolperfallen).
+- **First-Person Pose-Iteration mit Codex** (uncommitted, mehrere Build/Deploy-Zyklen):
+  1. `firstperson_attack_adjust` als Gegenanimation für übertriebene Bedrock-Bewegung
+  2. First-Person komplett auf normale item/handheld-Basis (wie diamond_sword)
+  3. **Per-Weapon-Family Split:** Axe → handheld-First-Person-Basis, Sword/Trident/Scythe → Cube-First-Person-Basis. Auswahl über Waffen-Gruppe aus Java-Modell.
+- **Verifiziert In-Game:**
+  - `corrupted_trident` → 3D Pose korrekt (test11.png)
+  - `living_axe` ("Mystisch Wandelaxt") → 3D mit handheld-Pfad korrekt
+  - Schwert + Trident + Sense Kalibrierung steht für nächste Session aus.
+
+### Erkenntnisse
+
+- **`displayHandheld(true)` ≠ 3D-Schalter:** schaltet nur `item_properties.hand_equipped=true` (Tool/Waffen-Pose), aktiviert kein 3D-Rendering. 3D entsteht durch das im Pack mitgelieferte Attachable — Bedrock verknüpft via Identifier-Match (`bedrock_identifier == attachable.identifier`) automatisch.
+- **`format_version` im Attachable MUSS `1.10.0` sein** (verifiziert 2026-05-16). `1.20.30` (Microsoft's offizielles `custom_items`-Sample!) führt zu silent `scripts.animate`-Skip. Geo-Files (`models/entity/*.geo.json`) sind davon unabhängig — die nutzen weiterhin `1.16.0`.
+- **Java `display` ≠ Bedrock-Attachable-Animation 1:1:** Java's display ist relative Anpassung zur Default-Hand-Pose, Bedrock-Attachables brauchen die komplette Transform. Direkte 1:1-Übernahme (erster Codex-Versuch) ergab Items in roher Identity-Pose. Komposition mit Bedrock-Base-Transforms ist nötig.
+- **`blockDefinition=cyan_terracotta` im Geyser-Log:** Pseudo-Block für Runtime-ID 0, kein Hinweis auf Item-Mis-Mapping (Red Herring).
+- **Eine globale Attachable-Pose passt nicht für alle Waffen-Typen:** Axe vs Sword vs Trident vs Scythe haben in Java unterschiedliche Default-Renderings. Per-Family-Split nötig.
+- **Microsoft's `custom_items`-Sample auf GitHub ist für Attachables irreführend** (`format_version: 1.20.30`). Praxis (verifiziert in 2026) braucht `1.10.0`.
+- **Bedrock-Content-Log zeigt keine Errors für unser Pack** — Pack wird geladen, aber bei `1.20.30` werden Animation-Conditions silent nicht ausgewertet. Heißt: "kein Error" ≠ "funktioniert wie erwartet".
+- **Co-Pilot-Workflow Codex + Claude funktioniert:** für tiefe Spec-/Source-Analyse ist Codex effektiver, für Orchestrierung + Deploy + Memory bleibt Claude im Lead. Festgehalten in [memory] `codex_collaboration.md` + AGENTS.md.
+
+### Offene Themen
+
+- **7.2c verbleibend:** Schwert (mit Cube-First-Person-Basis) sowie Trident + Sense einzeln verifizieren. Bei Bedarf Codex für Family-spezifische Kalibrierung. Uncommitted Codex-Changes (First-Person handheld + per-weapon-family split) committen.
+- **Phase 8 Polish (in 7.2c bewusst nicht angegangen):**
+  - Animierte Gear-Texturen: z.B. `livingaxe.png` ist 64×256 mit 4 Frames + `frametime: 9` — aktuell auf Frame 0 gecroppt → in Bedrock statisch (sieht "falsch" aus weil Frame 0 oft die ruhige Variante ohne Glow ist)
+  - Sub-Tick-Flackern beim Inventar-Umsortieren
+  - `ENTITY_EQUIPMENT`-Pfad für von anderen Spielern gehaltene Items
+  - Reverse-Mapping für `Missing mapping for bedrock item` Geyser-Log (Inventory-Desync)
+- Phase 7.2d (Rüstung/Bögen/Armbrüste), 7.3 (Bedrock Forms via Cumulus API), Phase 8 (komplettes Polish-Backlog).
+
+### Build
+```
+/usr/share/idea/plugins/maven/lib/maven3/bin/mvn clean package
+```
+
+---
+
+## Session: 2026-05-24 (FMM 2.6.0 + RPM 1.8.0 — großer Pivot, Bridge-Refactor)
+
+### Hintergrund
+
+MagmaGuy hat in **FMM 2.6.0** nativen Bedrock/Geyser-Support eingebaut (`Bedrock players now see custom-modeled entities correctly on first display through Geyser`), und **ResourcePackManager 1.8.0** konvertiert jetzt JEDE Plugin-Resource-Pack automatisch zu Bedrock — inklusive 3D-Items, Armor, attachable geometry 1.21.0, flipbook texture icons, bedrock_display_offsets.yml für Pose-Tuning. Dadurch sind Phasen 1-6 + 7.2c/d unserer Bridge **redundant**.
+
+### Updates & Deploys
+
+- **References-Repos aktualisiert** (`git pull` auf master/main, FMM von `build-bone-fix` Branch zu master gewechselt, Stash für drift): EliteMobs (10.2.1+), GeyserModelEngine, FreeMinecraftModels (2.6.0). ResourcePackManager + BetterStructures als neue Refs hinzugefügt.
+- **TestServer01 Deploys:** FMM 2.5.0 → 2.6.0, EM 10.2.0 → 10.3.1, RPM 1.7.6 → 1.8.0 (über Public-Maven), BetterStructures 2.3.0 → 2.3.1 (Nightbreak). Alte JARs als `.bak` gesichert.
+- **Manueller Pack-Transfer:** RPM generiert `ResourcePackManager_Bedrock.zip` (64 MB, 1555 Bones aus 204 Models) + `rspm_geyser_mappings.json` (667 Einträge) auf TestServer01, aber Geyser läuft auf Proxy01 → manuell kopiert nach `Geyser-Velocity/packs/ResourcePackManager_Bedrock.mcpack` + `custom_mappings/rspm_geyser_mappings.json`. RPM warnt "Geyser installation not detected" — Multi-Host-Architektur erfordert den manuellen Schritt.
+
+### Test 1: FMM native solo (Bridge + Extension deaktiviert)
+
+Bridge-JAR + FMMBridgeExtension als `.bak` weggenommen, FMM-Config `sendCustomModelsToBedrockClients: true`. Geyser registrierte **2701 custom items** (vorher 497).
+
+**Funktioniert nativ:** Mob-Models (besser als unsere Bridge!), Animationen, 3D Schwerter/Rüstung, Combat-BossBar bei manchen Bossen, LevelUp-BossBar, statische Möbel.
+
+**Fehlt nativ:**
+- 2D UI-Icons (BagOfCoin etc.) — EM nutzt legacy `custom_model_data` overrides auf Emerald + CMD 31173, RPM scannt nur 1.21.4+ `items/`-Format
+- BossBar bei manchen Bossen (Ice Elemental: nein, Alpha Wolf: ja — EM-Inkonsistenz)
+- Combat-Nametag mit HP/Bar (FMM zeigt nativ nur statischen Namen)
+- EM-GUIs als Popup (nur Inventory, nicht "popup")
+- 3D-Waffenpose teilweise falsch (RPM `bedrock_display_offsets.yml` muss eingestellt werden)
+
+**RPM-Bugs (an MagmaGuy melden):** schwarze Schatten auf allen Custom Models, 80-Zeichen-Pfade in Pack.
+
+### Test 2: Bridge + FMM native koexistierend
+
+Bridge wieder aktiv, `gear-3d.enabled: false`, FMM-Config bleibt `true`. **Klare Konflikte:**
+- Doppel-Spawn aller Mobs + Static-Möbel (Bridge fake-PIG + FMM nativ)
+- Doppel-Nametag (Bridge 3-Zeilen + FMM-statisch)
+- BossBar-Suppression-Race-Conditions
+
+→ Coexistence ohne Refactor unmöglich.
+
+### Refactor: Bridge → EM-UX-Layer
+
+**Branch `refactor-em-ux`.** Vor Refactor: **Archive-Tag `archive/2026-05-24-pre-rpm18-pivot`** auf `phase-7.2c-gear-3d` HEAD gepushed (komplette Bridge-Historie gesichert).
+
+**Gelöscht** (27 → 16 Backend-Klassen, JAR 104 KB → 54 KB):
+- `geyser-extension/` komplett (5 Klassen + pom + test) — RPM macht jetzt Pack-Generation + Custom-Item-Registration
+- `converter/` Package (5 Klassen) — Java→Bedrock-Konvertierung war RPM-redundant
+- `bridge/AnimationStateTracker.java` — FMM nativ
+- `bridge/EMGearItem.java` — RPM macht 3D Gear
+- `bridge/IBridgeEntityData.java` — kein Polymorphismus nötig wenn nur DynamicEntity
+- `bridge/StaticEntityData.java` — Statics sind FMM nativ
+- `bridge/PacketEntity.java` — keine fake-PIGs mehr
+- `EliteMobsItemScannerTest.java` — testete `pickGearTextureRef` (3D-Gear)
+
+**Strippes** (Bridge-Pipeline raus, Controller-Logik bleibt):
+- `FMMBedrockBridge` (283 → 200 LoC): keine entityTracker-bridge-Init für Mob-Pipeline-Render, kein Phase 7.2c gear-3d-Block, kein `BedrockModelConverter` Command-Init, `writeEmGearItemsJson` raus
+- `BedrockEntityBridge` (300 → 200 LoC): kein bedrockId/GeyserUtils-Verweis, kein StaticEntity-Branch, kein `animationNamesCache`/`getAnimationNames`, `entityDataMap` ist jetzt `Map<ModeledEntity, FMMEntityData>`
+- `FMMEntityData` (482 → 170 LoC): kein packetEntity/bedrockEntityId/sortedAnimationNames, kein hideEntity/setCustomEntity in addViewer, kein syncPosition/syncAnimation/sendInitialAnimation. Nur noch BossBar+Nametag-Controller-Holder.
+- `PacketInterceptor` (461 → 250 LoC): kein Mob-Suppression (hiddenEntityIds/hideEntity/unhideEntity), kein fake-real Interact-Redirect, kein 3D-gear-Inject. Bleibt: 2D-Item-Inject + BossBar-Suppression + Java-TextDisplay-Suppress.
+- `EliteMobsItemScanner` (296 → 155 LoC): `scan3DGear()` + helpers + `pickGearTextureRef` raus
+- `FMMBridgeCommand` (156 → 110 LoC): `convert all`-Subcommand raus, nur `debug` bleibt
+
+**Config aufgeräumt:** alte `converter.*` und `elite-items.gear-3d` Sektionen raus. Neue Header-Kommentare beschreiben "EM↔Bedrock UX-Bridge" Architektur.
+
+### Test 3: Refactored Bridge + FMM native koexistierend
+
+`elite-items.gear-3d` als Config nicht mehr nötig (Code weg), FMM `sendCustom: true`. Bridge sauber gestartet, **keine Errors**.
+
+**Test-Ergebnisse:**
+- ✅ Mobs single-spawn (kein Doppel mehr)
+- ✅ Static-Möbel single-spawn
+- ✅ 2D-Items (BagOfCoin etc.) sichtbar in EM-Shop
+- ✅ Wolf Alpha BossBar: "Wilder Alphawolf" styled
+- ✅ Wolf Alpha Combat-Nametag: HP/Bar/Name 3 Zeilen
+- ⚠️ **Doppel-Nametag** (Bridge 3-Zeilen + FMM native Name) → **Fix:** `NametagTextBuilder.compose()` out-of-combat liefert jetzt `Component.empty()`, in-combat nur HP+Bar (kein Name) — FMM zeigt Name nativ
+- ❌ **Ice Elemental BossBar: "Evoker | 2"** (statt styled "Tier 13 Eis-Elementar")
+- ❌ **Combat-Nametag verschwindet nach Stoppen, kommt bei re-attack nicht wieder** (EM-Combat-Event-Issue — nur 1× enterCombat, keine zweite)
+
+### Diagnose & Fix Ice Elemental BossBar
+
+`EliteMobsHook.getStyledName()` Pfad geprüft:
+- EM 10.3.1: für EVOKER-basierte CustomBosses (Ice Elemental: `entityType: EVOKER`, `disguise: POLAR_BEAR`) gibt SOWOHL `livingEntity.getCustomName()` ALS AUCH `eliteEntity.getName()` "Evoker | 2" zurück — kein API-Pfad liefert den YAML-`name: $bossLevel &9Ice Elemental`
+- ABER: `modeledEntity.getDisplayName()` (FMM-API) liefert den korrekten styled Namen — Java rendert ja den Mob-Nametag aus genau dieser Quelle
+- **Fix:** `FMMEntityData.createBossBarControllerIfElite()` nutzt jetzt `modeledEntity.getDisplayName()` als primary, `EliteMobsHook.getStyledName()` als Fallback (gleiche Source-Priorität wie Nametag)
+- **Deployed, aber visueller Test ausstehend** — Session beendet vor finalem Restart
+
+### Branch-Stand
+
+`refactor-em-ux` (lokal, **noch nicht gepushed**). Uncommitted: alle Refactor-Files + neuer Plan-File `docs/superpowers/plans/2026-05-24-refactor-em-ux.md`.
+
+### Memory + Doc Updates
+
+- Neues Memory `magmaguy_native_bedrock_2026-05-24.md` — komplette Auswertung was nativ funktioniert + Lücken
+- `project_state.md` umgeschrieben — "EM-UX-Bridge"
+- `next_implementation.md` umgeschrieben — Refactor + Coexistence-Test + Phase 7.3
+- `MEMORY.md` index aktualisiert (RPM + BetterStructures als refs, obsolete Memories markiert)
+- `README.md` + `AGENTS.md` komplett überarbeitet für neue Architektur
+
+### Offen für nächste Session
+
+1. **Visueller Verify Ice Elemental BossBar-Fix** (TestServer-Restart + Bedrock-Test) — `modeledEntity.getDisplayName()` als BossBar-Source sollte styled "Eis-Elementar" zeigen
+2. **Combat-Nametag-Issue:** Untersuchen warum `EliteMobExitCombatEvent` nicht feuert (oder `EliteMobEnterCombatEvent` nicht bei re-attack). Eventuell eigenes Damage-Tracking als Heuristik statt EM-Events
+3. **Refactor-Branch committen + pushen** (zwei logische Commits: Refactor + BossBar-Source-Fix)
+4. **Phase 7.3 starten:** EM-Adventurer's-Guild-Menu + Shop-GUIs als native Bedrock-Forms (Cumulus API)
+5. **Schwarze-Schatten + 80-Zeichen-Pfade** an MagmaGuy melden (RPM-Bugs)
+
+### Build
+```
+/usr/share/idea/plugins/maven/lib/maven3/bin/mvn clean package
+```
+
+---
+
+## Session: 2026-05-28 (RPM 2.0.0 Network-Mode + Codex Combat-UX Polish)
+
+### Ausgangslage
+
+Branch `refactor-em-ux` HEAD `3fa02a7` deployed seit 24.05. Server lief 4 Tage durch ohne Restart — der Ice-Elemental-BossBar-Fix war im File aber nie geladen. Außerdem: MagmaGuy released RPM 2.0.0 mit Multi-Module Network-Mode (Velocity/Bungee sub-plugins, Floodgate-derived network key, BedrockShortName hex prefixes gegen 80-Char-Path-Bug, `/rspm status` command).
+
+### Codex Patch #1 (uncommitted, 1724-Build)
+
+`BedrockCombatTrigger` bekommt `EntityDamageEvent`-Handler als zweiten Refresh-Path neben EM-EnterCombat — fängt den "EM feuert kein zweites EnterCombat nach Combat-Pause"-Issue ab. Nametag-Overlay zeigt out-of-combat `Component.empty()` (FMM rendert Name nativ → kein Doppel-Nametag mehr). Neue Config-Keys `damage-refresh-enabled` + `damage-timeout-ticks` (160 = 8s).
+
+### Deploys & Cleanup
+
+- **Bridge 1724-JAR** auf TestServer01 deployed
+- **RPM 2.0.0 Bukkit-JAR** war bereits auf TestServer01 + Proxy01 (von Fabi)
+- **Proxy-Pfad-Cleanup** (Punkt 3 aus Setup-Plan): manuelle RPM 1.8.0 Outputs gelöscht — `Geyser-Velocity/packs/ResourcePackManager_Bedrock.mcpack` + `custom_mappings/rspm_geyser_mappings.json`
+- **Proxy-Restart #1 (20:58):** Velocity lehnt Bukkit-JAR ab ("appears to be a Paper/Bukkit plugin"). Multi-Host-Quirk: das Bukkit-JAR enthält embedded `proxy-extension/ResourcePackManager-Velocity.jar` + `-BungeeCord.jar`, kann sich aber nur auf einem Co-located Backend selbst kopieren
+- **Manuell extrahiert:** `unzip -j ResourcePackManager.jar proxy-extension/ResourcePackManager-Velocity.jar` → Proxy/plugins/. Bukkit-JAR als `.bak-wrong-bukkit` gesichert
+- **Proxy-Restart #2 (21:01):** RPM 2.0.0 lädt: "Network-key auto-derived from Floodgate key.pem ✓", `NetworkSync starting (poll interval 5000 ms, network-http-offset 1)`. Pollt 8 Backends auf `MC-Port + 1`, alle initial nicht antwortend (Backends noch alt)
+- **FMMBridgeExtension Cleanup:** alte Geyser-Extension `Geyser-Velocity/extensions/FMMBridgeExtension-0.1.0-SNAPSHOT.jar` + `fmmbridgeextension/` Datenordner (38 MB inkl. 193 input-Modelle + generated pack) gelöscht — war Reste vom alten Pipeline-Refactor
+- **GeyserUtils NPE Root-Cause:** `loadSkin()` (`GeyserUtils.java:384-403`) überschreibt `geometryFile` für jede `.json` im Skin-Ordner. Wenn `listFiles()` z.B. `model-config.json` zuletzt zurückgibt → `.get("minecraft:geometry")` ist null → NPE. **Fix:** 382 überflüssige JSONs in `Geyser-Velocity/extensions/geyserutils/skins/*/` gelöscht (nur `geometry.json` + `texture.png` bleiben). Upstream-Bug noch nicht gefixt (zimzaza4/GeyserUtils HEAD ist `d045474` vom 11.01.2026)
+
+### Codex Patch #2 (1936-Build) — Combat-UX Polish
+
+Nach Reference-Screenshot `references/screenshots/testneu6.png` (zeigt zwei BossBars übereinander):
+
+- `EliteMobDamagedByPlayerEvent` statt rohem `EntityDamageEvent` — derselbe Event den EM für Java-HP-Displays nutzt
+- "Evoker | 2" wird auch dann als **Suppression-Alias** gespeichert wenn unsere Bar sofort den korrekten FMM-Namen hat → EM-Doppel-Bar verschwindet
+- `hide-on-exit-event: false` neu — HP/Bar bleibt nach ExitCombat sichtbar bis Display-Timeout (matched Java-Feel)
+- `damage-timeout-ticks: 0` neu — nutzt EMs `MobCombatSettings.combatDisplayTimeoutSeconds` (default 30s)
+
+### Login-Fail wegen gelöschter FMMBridgeExtension
+
+Fabi versucht zu joinen → Login hängt bei "Lade Ressourcenpakete". Geyser hatte beim 21:01-Boot den FMMBridgeExtension-Pack-Pfad gecached, das File war aber dann gelöscht → `NoSuchFileException: ... fmmbridgeextension/generated-pack.zip` in `SessionLoadResourcePacksEventImpl.infoPacketEntries`. **Lesson:** Pack-Pfade müssen ENTWEDER vor Proxy-Restart gelöscht werden, ODER der Cleanup geht erst nach dem nächsten Restart sauber durch.
+
+### Final State (Restart-Cycle 3)
+
+- **Proxy-Restart #3 (21:40):** Bridge-Extension weg → kein NoSuchFileException. GeyserUtils-Skins clean → kein NPE-Spam. `Merged Bedrock pack published` mit sha1=a1e013a4… ✓
+- **Backend-Restart (21:41):** `Network mode detected. Proxy plugin jars extracted to: proxy-extension/`. Backend HTTP-Server auf Port 25574 (`/rspm.zip`, `/bedrock.zip`, `/mappings.json`). `Bedrock conversion complete: 17717 mappings (1704 unique models)`. Backend pusht 2 files an "Bedrock relay for proxy fallback". Bridge 1936-Build geladen: `Phase 7.1c: combat trigger registered`, 13 EM 2D-Items injection map geladen ✓
+
+### Branch-Stand
+
+`refactor-em-ux` HEAD bleibt `3fa02a7` (gepushed seit 24.05.). 8 Files lokal uncommitted (Codex Patch #1 + #2 zusammengeführt im 1936-Build).
+
+### Visueller Test ausstehend
+
+Fabi stoppt heute hier. Nächste Session = Bedrock-Client-Test:
+
+1. **Ice Elemental BossBar:** "Eis-Elementar" styled statt "Evoker | 2"
+2. **Wolf Alpha BossBar bleibt unverändert** "Wilder Alphawolf"
+3. **Kein Doppel-BossBar mehr** (durch Suppression-Alias-Fix)
+4. **Combat-Nametag HP/Bar überlebt Combat-Pause** + kommt bei re-attack via EM-DamagedByPlayer-Event wieder
+5. **RPM Network-Mode Pack-Delivery** — Bedrock-Client sollte beim Login Pack vom Velocity-Proxy bekommen, nicht mehr von magmaguy.com Self-Host-URL Richtung Bedrock (Backend hostet weiter aber für Java)
+
+### Offen für nächste Session
+
+1. **Visueller Bedrock-Verify** der vier obigen Punkte
+2. **Codex Patches committen** wenn Visual passt — zwei logische Commits ("Phase 7.1c: EliteMobDamagedByPlayerEvent + display-timeout" und "BossBar: capture EM alias for late-suppression")
+3. **Push** `refactor-em-ux` (oder direkt merge nach `main`)
+4. **Phase 7.3 brainstorming** — EM Adventurer's Guild + Shop-GUIs als Cumulus-Forms
+5. **MagmaGuy melden:** schwarze Schatten auf RPM-Custom-Models (in 2.0.0 noch nicht gefixt)
+6. **GeyserUtils Bug-Report bei zimzaza4:** `loadSkin` überschreibt geometry-File-Pick
+
+### Build
+```
+/usr/share/idea/plugins/maven/lib/maven3/bin/mvn clean package
+```
