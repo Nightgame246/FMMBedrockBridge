@@ -89,7 +89,7 @@ public class FMMBridgeCommand implements CommandExecutor, TabCompleter {
     }
 
     private String shortHash(String hash) {
-        if (hash == null) return "(none)";
+        if (hash == null || hash.isEmpty()) return "(none)";
         return hash.length() > 12 ? hash.substring(0, 12) + "…" : hash;
     }
 
@@ -157,6 +157,7 @@ public class FMMBridgeCommand implements CommandExecutor, TabCompleter {
 
     @Override
     public List<String> onTabComplete(CommandSender sender, Command command, String label, String[] args) {
+        if (!sender.hasPermission("fmmbedrockbridge.admin")) return List.of();
         if (args.length == 1) return List.of("debug", "maintenance");
         if (args.length == 2 && args[0].equalsIgnoreCase("maintenance"))
             return List.of("status", "redeploy-instructions", "mark-deployed");
