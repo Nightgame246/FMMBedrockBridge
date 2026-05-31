@@ -11,10 +11,13 @@ import java.security.NoSuchAlgorithmException;
 import java.util.Comparator;
 import java.util.HexFormat;
 import java.util.List;
+import java.util.logging.Logger;
 
 public final class PackHashCalculator {
 
     private PackHashCalculator() {}
+
+    private static final Logger LOG = Logger.getLogger(PackHashCalculator.class.getName());
 
     public static String compute(List<EMCustomItem> items) {
         MessageDigest md;
@@ -43,6 +46,7 @@ public final class PackHashCalculator {
         try {
             return Files.readAllBytes(Path.of(path));
         } catch (IOException e) {
+            LOG.warning("PackHashCalculator: cannot read PNG '" + path + "': " + e.getMessage());
             return new byte[0];
         }
     }

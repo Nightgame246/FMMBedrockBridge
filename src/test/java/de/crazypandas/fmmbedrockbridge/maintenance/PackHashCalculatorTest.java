@@ -14,7 +14,7 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
 class PackHashCalculatorTest {
 
     @Test
-    void emptyListProducesStableHash(@TempDir Path tmp) {
+    void emptyListProducesStableHash() {
         String h1 = PackHashCalculator.compute(List.of());
         String h2 = PackHashCalculator.compute(List.of());
         assertEquals(h1, h2);
