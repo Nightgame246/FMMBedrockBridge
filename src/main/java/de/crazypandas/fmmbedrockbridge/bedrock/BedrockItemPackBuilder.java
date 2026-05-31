@@ -23,17 +23,20 @@ public final class BedrockItemPackBuilder {
 
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
 
-    // 16x16 fully transparent PNG used as pack_icon.png placeholder.
+    // 16x16 fully transparent RGBA PNG used as pack_icon.png placeholder.
+    // 75 bytes — signature + IHDR + IDAT + IEND, all chunk CRCs validated.
     private static final byte[] TRANSPARENT_PNG_16 = java.util.HexFormat.of().parseHex(
-            "89504e470d0a1a0a0000000d49484452000000100000001008060000001ff3ff61"
-          + "0000000d49444154789c63f8ffff3f0303000700026100087fcafe0000000049454e44ae426082"
+            "89504e470d0a1a0a0000000d49484452000000100000001008060000001ff3ff"
+          + "61000000124944415478da63601805a360148c0208000004100001af45882c00"
+          + "00000049454e44ae426082"
     );
 
     private BedrockItemPackBuilder() {}
 
     public static void build(List<EMCustomItem> items, String packHashHex, Path outputMcpack)
             throws IOException {
-        Files.createDirectories(outputMcpack.getParent());
+        Path parent = outputMcpack.getParent();
+        if (parent != null) Files.createDirectories(parent);
 
         try (ZipOutputStream zip = new ZipOutputStream(Files.newOutputStream(outputMcpack))) {
             writeEntry(zip, "manifest.json", buildManifest(packHashHex).getBytes(StandardCharsets.UTF_8));
@@ -95,11 +98,12 @@ public final class BedrockItemPackBuilder {
 
         JsonObject data = new JsonObject();
         for (EMCustomItem item : items) {
-            if (!writtenKeys.contains(item.bedrockTextureKey())) continue;
-            if (data.has(item.bedrockTextureKey())) continue;
+            String key = item.bedrockTextureKey();
+            if (data.has(key)) continue;  // dedupes by key in this loop
+            if (!writtenKeys.contains(key)) continue;  // only emit if PNG was written
             JsonObject entry = new JsonObject();
-            entry.addProperty("textures", "textures/items/" + item.bedrockTextureKey());
-            data.add(item.bedrockTextureKey(), entry);
+            entry.addProperty("textures", "textures/items/" + key);
+            data.add(key, entry);
         }
         root.add("texture_data", data);
         return GSON.toJson(root);
