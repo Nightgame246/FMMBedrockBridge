@@ -123,7 +123,7 @@ public class FMMBedrockBridge extends JavaPlugin {
         // Phase 7.2b/maintenance — Build pack + mappings, run drift detection
         if (!emItems.isEmpty()) {
             buildPackAndMappings(emItems);
-            evaluateMaintenance(emItems);
+            evaluateMaintenance();
         }
 
         if (packetEventsAvailable && !emItemModelMap.isEmpty()) {
@@ -248,7 +248,7 @@ public class FMMBedrockBridge extends JavaPlugin {
         }
     }
 
-    private void evaluateMaintenance(java.util.List<EMCustomItem> emItems) {
+    private void evaluateMaintenance() {
         currentEmVersion = pluginVersionOrUnknown("EliteMobs");
         maintenanceTracker = new MaintenanceTracker(getDataFolder().toPath());
         MaintenanceTracker.Result r = maintenanceTracker.evaluate(currentPackHash, currentEmVersion);
