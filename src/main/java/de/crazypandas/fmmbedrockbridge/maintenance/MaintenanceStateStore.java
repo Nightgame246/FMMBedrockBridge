@@ -9,11 +9,13 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
+import java.util.logging.Logger;
 
 public final class MaintenanceStateStore {
 
     private static final String FILE_NAME = "maintenance-state.json";
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
+    private static final Logger LOG = Logger.getLogger(MaintenanceStateStore.class.getName());
 
     private MaintenanceStateStore() {}
 
@@ -30,6 +32,7 @@ public final class MaintenanceStateStore {
                     Instant.parse(root.get("lastChecked").getAsString())
             );
         } catch (Exception e) {
+            LOG.warning("maintenance-state.json is corrupt, resetting: " + e.getMessage());
             return null;
         }
     }
