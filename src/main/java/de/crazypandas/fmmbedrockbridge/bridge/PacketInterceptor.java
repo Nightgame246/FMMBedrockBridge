@@ -96,11 +96,14 @@ public class PacketInterceptor {
         if (bedrockKey == null) return false;
 
         item.setComponent(ComponentTypes.ITEM_MODEL,
-                new ItemModel(new ResourceLocation("geyser_custom", bedrockKey)));
+                new ItemModel(new ResourceLocation(
+                        de.crazypandas.fmmbedrockbridge.bedrock.GeyserMappingsWriter.BEDROCK_NAMESPACE,
+                        bedrockKey)));
         int n = injectCount.incrementAndGet();
         if (n <= 10 || n % 100 == 0) {
-            log.info("[BRIDGE] Injected item_model=geyser_custom:" + bedrockKey
-                    + " for " + typeName + " cmd=" + cmd + " (n=" + n + ")");
+            log.info("[BRIDGE] Injected item_model="
+                    + de.crazypandas.fmmbedrockbridge.bedrock.GeyserMappingsWriter.BEDROCK_NAMESPACE
+                    + ":" + bedrockKey + " for " + typeName + " cmd=" + cmd + " (n=" + n + ")");
         }
         return true;
     }

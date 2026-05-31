@@ -1,9 +1,16 @@
 package de.crazypandas.fmmbedrockbridge;
 
+import de.crazypandas.fmmbedrockbridge.bedrock.BedrockItemPackBuilder;
+import de.crazypandas.fmmbedrockbridge.bedrock.GeyserMappingsWriter;
 import de.crazypandas.fmmbedrockbridge.bridge.BedrockEntityBridge;
 import de.crazypandas.fmmbedrockbridge.bridge.EMCustomItem;
 import de.crazypandas.fmmbedrockbridge.bridge.EliteMobsItemScanner;
 import de.crazypandas.fmmbedrockbridge.commands.FMMBridgeCommand;
+import de.crazypandas.fmmbedrockbridge.maintenance.MaintenanceState;
+import de.crazypandas.fmmbedrockbridge.maintenance.MaintenanceStateStore;
+import de.crazypandas.fmmbedrockbridge.maintenance.MaintenanceTracker;
+import de.crazypandas.fmmbedrockbridge.maintenance.OpDriftNotifier;
+import de.crazypandas.fmmbedrockbridge.maintenance.PackHashCalculator;
 import de.crazypandas.fmmbedrockbridge.tracker.FMMEntityTracker;
 import org.bukkit.plugin.java.JavaPlugin;
 
@@ -11,6 +18,7 @@ import java.io.File;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.logging.Logger;
 
 /**
@@ -38,6 +46,13 @@ public class FMMBedrockBridge extends JavaPlugin {
 
     private FMMEntityTracker entityTracker;
     private BedrockEntityBridge bridge;
+
+    private final AtomicBoolean driftActive = new AtomicBoolean(false);
+    private String currentPackHash = "";
+    private String currentEmVersion = "";
+    private MaintenanceTracker maintenanceTracker;
+    private java.nio.file.Path mcpackPath;
+    private java.nio.file.Path mappingsJsonPath;
 
     @Override
     public void onEnable() {
@@ -90,11 +105,12 @@ public class FMMBedrockBridge extends JavaPlugin {
 
         // Phase 7.2b — EliteMobs 2D Custom Items (Map+Inject)
         java.util.Map<String, java.util.Map<Integer, String>> emItemModelMap = new java.util.HashMap<>();
+        java.util.List<EMCustomItem> emItems = java.util.Collections.emptyList();
         if (getConfig().getBoolean("elite-items.enabled", false)) {
             String emPackPath = getConfig().getString("elite-items.resource-pack-path", "plugins/EliteMobs/resource_pack");
             Path emPackRoot = getServer().getWorldContainer().toPath().resolve(emPackPath);
             EliteMobsItemScanner itemScanner = new EliteMobsItemScanner(emPackRoot);
-            List<EMCustomItem> emItems = itemScanner.scan();
+            emItems = itemScanner.scan();
             if (!emItems.isEmpty()) {
                 writeEmItemsJson(emItems);
                 for (EMCustomItem item : emItems) {
@@ -102,6 +118,12 @@ public class FMMBedrockBridge extends JavaPlugin {
                             .put(item.customModelData(), item.bedrockTextureKey());
                 }
             }
+        }
+
+        // Phase 7.2b/maintenance — Build pack + mappings, run drift detection
+        if (!emItems.isEmpty()) {
+            buildPackAndMappings(emItems);
+            evaluateMaintenance(emItems);
         }
 
         if (packetEventsAvailable && !emItemModelMap.isEmpty()) {
@@ -210,4 +232,91 @@ public class FMMBedrockBridge extends JavaPlugin {
         FMMBedrockBridge plugin = instance;
         return plugin != null ? plugin.getConfig().getLong("phase71c.damage-timeout-ticks", 0L) : 0L;
     }
+
+    private void buildPackAndMappings(java.util.List<EMCustomItem> emItems) {
+        java.nio.file.Path packDir = new File(getDataFolder(), "bedrock-pack").toPath();
+        mcpackPath = packDir.resolve("em_bridge_pack.mcpack");
+        mappingsJsonPath = packDir.resolve("em_bridge_mappings.json");
+        currentPackHash = PackHashCalculator.compute(emItems);
+        try {
+            BedrockItemPackBuilder.build(emItems, currentPackHash, mcpackPath);
+            GeyserMappingsWriter.write(emItems, mappingsJsonPath);
+            log.info("[BRIDGE] Wrote em_bridge_pack.mcpack ("
+                    + emItems.size() + " items) and em_bridge_mappings.json");
+        } catch (Exception e) {
+            log.warning("[BRIDGE] Failed to build pack/mappings: " + e.getMessage());
+        }
+    }
+
+    private void evaluateMaintenance(java.util.List<EMCustomItem> emItems) {
+        currentEmVersion = pluginVersionOrUnknown("EliteMobs");
+        maintenanceTracker = new MaintenanceTracker(getDataFolder().toPath());
+        MaintenanceTracker.Result r = maintenanceTracker.evaluate(currentPackHash, currentEmVersion);
+        driftActive.set(r.driftActive());
+
+        if (r.firstRun()) {
+            log.info("[BRIDGE] Wartung: Erst-Boot — Hash als Baseline gespeichert (" + shortHash(r.currentHash()) + ")");
+        } else if (r.driftActive()) {
+            log.warning("[BRIDGE] ⚠══════════════════════════════════════════");
+            log.warning("[BRIDGE] ⚠ EM-RESOURCE-PACK HAT SICH GEÄNDERT — Proxy-Mappings sind STALE");
+            log.warning("[BRIDGE] ⚠ Deployed: " + shortHash(r.deployedHash()) + "  EM " + r.deployedEmVersion());
+            log.warning("[BRIDGE] ⚠ Current:  " + shortHash(r.currentHash()) + "  EM " + currentEmVersion);
+            log.warning("[BRIDGE] ⚠ Bedrock-Spieler sehen keine Custom-Icons bis Re-Deploy.");
+            log.warning("[BRIDGE] ⚠ /fmmbridge maintenance redeploy-instructions  für Schritt-für-Schritt.");
+            log.warning("[BRIDGE] ⚠══════════════════════════════════════════");
+        } else {
+            log.info("[BRIDGE] Wartung: Pack-Hash matched deployed state (kein Drift, " + shortHash(r.currentHash()) + ")");
+        }
+
+        getServer().getPluginManager().registerEvents(new OpDriftNotifier(driftActive::get), this);
+    }
+
+    private String pluginVersionOrUnknown(String pluginName) {
+        var p = getServer().getPluginManager().getPlugin(pluginName);
+        return p != null ? p.getDescription().getVersion() : "unknown";
+    }
+
+    private static String shortHash(String h) {
+        if (h == null || h.isEmpty()) return "(none)";
+        return h.length() > 12 ? h.substring(0, 12) + "…" : h;
+    }
+
+    public MaintenanceStatusSnapshot getMaintenanceStatus() {
+        MaintenanceState s = MaintenanceStateStore.load(getDataFolder().toPath());
+        return new MaintenanceStatusSnapshot(
+                driftActive.get(),
+                currentPackHash,
+                s != null ? s.deployedHash() : "(none)",
+                s != null ? s.deployedEmVersion() : "(none)",
+                s != null ? s.deployedAt().toString() : "(none)");
+    }
+
+    public MaintenanceArtifactPaths getMaintenanceArtifactPaths() {
+        return new MaintenanceArtifactPaths(
+                mcpackPath != null ? mcpackPath.toAbsolutePath().toString() : "(not generated)",
+                mappingsJsonPath != null ? mappingsJsonPath.toAbsolutePath().toString() : "(not generated)",
+                "/home/amp/.ampdata/instances/Proxy01/Minecraft/plugins/Geyser-Velocity/packs",
+                "/home/amp/.ampdata/instances/Proxy01/Minecraft/plugins/Geyser-Velocity/custom_mappings"
+        );
+    }
+
+    public void markMaintenanceDeployed() {
+        if (maintenanceTracker != null) {
+            maintenanceTracker.markDeployed(currentPackHash, currentEmVersion);
+            driftActive.set(false);
+        }
+    }
+
+    public record MaintenanceStatusSnapshot(
+            boolean driftActive,
+            String currentHash,
+            String deployedHash,
+            String deployedEmVersion,
+            String deployedAt) {}
+
+    public record MaintenanceArtifactPaths(
+            String mcpackPath,
+            String mappingsJsonPath,
+            String proxyPackTargetDir,
+            String proxyMappingsTargetDir) {}
 }
