@@ -4,7 +4,6 @@ import com.magmaguy.freeminecraftmodels.customentity.ModeledEntity;
 import de.crazypandas.fmmbedrockbridge.FMMBedrockBridge;
 import de.crazypandas.fmmbedrockbridge.elite.EliteMobsHook;
 import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 import org.bukkit.Location;
 import org.bukkit.entity.Display;
 import org.bukkit.entity.Entity;
@@ -16,13 +15,14 @@ import java.util.Collections;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Logger;
+import java.util.function.Supplier;
 
 /**
  * Holds the BossBar + Nametag controllers for a single FMM modeled entity.
  *
  * <p>Mob/static rendering is FMM 2.6.0 native — this class no longer spawns fake entities
  * or hides the real entity from Bedrock viewers. It only manages the UX layer
- * (BossBar suppression + replacement, combat-triggered 3-line nametag) that FMM doesn't
+ * (BossBar suppression + replacement, combat-triggered HP nametag overlay) that FMM doesn't
  * provide natively.
  */
 public class FMMEntityData {
@@ -57,30 +57,40 @@ public class FMMEntityData {
             return null;
         }
 
-        // Primary: FMM displayName — set by EM via CustomModelFMM.setName, this is the YAML
-        // styled name (e.g. "§3[13]§e Eis-Elementar") and what Java renders as Mob-Nametag.
-        // Fallback: EliteMobsHook (eliteEntity.getName() → customName) for non-FMM-named entities.
-        //
-        // EM 10.3.1 EVOKER-based CustomBosses (e.g. Ice Elemental) return "Evoker | 2" from BOTH
-        // eliteEntity.getName() AND customName, but FMM displayName has the correct styled name.
-        String styledName = null;
-        try {
-            String fmmName = modeledEntity.getDisplayName();
-            if (fmmName != null && !fmmName.isEmpty()) styledName = fmmName;
-        } catch (Throwable ignored) {}
-        if (styledName == null) styledName = EliteMobsHook.getStyledName(living);
+        Supplier<String> titleSource = () -> resolveBossBarTitle(living);
+        String styledName = titleSource.get();
         if (styledName == null) return null;
 
         BedrockBossBarController controller;
         try {
-            controller = new BedrockBossBarController(living, styledName);
+            controller = new BedrockBossBarController(living, styledName, titleSource);
         } catch (Exception e) {
             log.warning("[BRIDGE] Failed to create BossBar: " + e.getMessage());
             return null;
         }
+        // Even when FMM's styled displayName is available immediately, EM may still emit
+        // its vanilla-style bossbar title ("Evoker | 2"). Keep that fallback title as a
+        // suppression alias so PacketInterceptor can block the stale EM bar.
+        controller.addTitleAlias(EliteMobsHook.getStyledName(living));
         bridge.getActiveControllers().put(living.getUniqueId(), controller);
         FMMBedrockBridge.debugLog("[BRIDGE] Created BossBar controller (title='" + styledName + "')");
         return controller;
+    }
+
+    private String resolveBossBarTitle(LivingEntity living) {
+        // Primary: FMM displayName — set by EM via CustomModelFMM.setName, this is the YAML
+        // styled name (e.g. "§3[13]§e Eis-Elementar") and what Java renders as Mob-Nametag.
+        // It may arrive a few ticks after the ModeledEntity is first detected, so the
+        // BossBar controller keeps polling this supplier and updates the Bukkit BossBar.
+        try {
+            String fmmName = modeledEntity.getDisplayName();
+            if (fmmName != null && !fmmName.isEmpty()) return fmmName;
+        } catch (Throwable ignored) {}
+
+        // Fallback: EliteMobsHook for non-FMM-named entities. EM 10.3.1 EVOKER-based
+        // CustomBosses can still return "Evoker | 2" here, so this value is treated as a
+        // temporary title until FMM's displayName becomes available.
+        return EliteMobsHook.getStyledName(living);
     }
 
     private BedrockNametagController createNametagControllerIfNamed() {
