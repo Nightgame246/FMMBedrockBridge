@@ -936,3 +936,72 @@ Bridge wieder aktiv, `gear-3d.enabled: false`, FMM-Config bleibt `true`. **Klare
 ```
 /usr/share/idea/plugins/maven/lib/maven3/bin/mvn clean package
 ```
+
+---
+
+## Session: 2026-05-28 (RPM 2.0.0 Network-Mode + Codex Combat-UX Polish)
+
+### Ausgangslage
+
+Branch `refactor-em-ux` HEAD `3fa02a7` deployed seit 24.05. Server lief 4 Tage durch ohne Restart — der Ice-Elemental-BossBar-Fix war im File aber nie geladen. Außerdem: MagmaGuy released RPM 2.0.0 mit Multi-Module Network-Mode (Velocity/Bungee sub-plugins, Floodgate-derived network key, BedrockShortName hex prefixes gegen 80-Char-Path-Bug, `/rspm status` command).
+
+### Codex Patch #1 (uncommitted, 1724-Build)
+
+`BedrockCombatTrigger` bekommt `EntityDamageEvent`-Handler als zweiten Refresh-Path neben EM-EnterCombat — fängt den "EM feuert kein zweites EnterCombat nach Combat-Pause"-Issue ab. Nametag-Overlay zeigt out-of-combat `Component.empty()` (FMM rendert Name nativ → kein Doppel-Nametag mehr). Neue Config-Keys `damage-refresh-enabled` + `damage-timeout-ticks` (160 = 8s).
+
+### Deploys & Cleanup
+
+- **Bridge 1724-JAR** auf TestServer01 deployed
+- **RPM 2.0.0 Bukkit-JAR** war bereits auf TestServer01 + Proxy01 (von Fabi)
+- **Proxy-Pfad-Cleanup** (Punkt 3 aus Setup-Plan): manuelle RPM 1.8.0 Outputs gelöscht — `Geyser-Velocity/packs/ResourcePackManager_Bedrock.mcpack` + `custom_mappings/rspm_geyser_mappings.json`
+- **Proxy-Restart #1 (20:58):** Velocity lehnt Bukkit-JAR ab ("appears to be a Paper/Bukkit plugin"). Multi-Host-Quirk: das Bukkit-JAR enthält embedded `proxy-extension/ResourcePackManager-Velocity.jar` + `-BungeeCord.jar`, kann sich aber nur auf einem Co-located Backend selbst kopieren
+- **Manuell extrahiert:** `unzip -j ResourcePackManager.jar proxy-extension/ResourcePackManager-Velocity.jar` → Proxy/plugins/. Bukkit-JAR als `.bak-wrong-bukkit` gesichert
+- **Proxy-Restart #2 (21:01):** RPM 2.0.0 lädt: "Network-key auto-derived from Floodgate key.pem ✓", `NetworkSync starting (poll interval 5000 ms, network-http-offset 1)`. Pollt 8 Backends auf `MC-Port + 1`, alle initial nicht antwortend (Backends noch alt)
+- **FMMBridgeExtension Cleanup:** alte Geyser-Extension `Geyser-Velocity/extensions/FMMBridgeExtension-0.1.0-SNAPSHOT.jar` + `fmmbridgeextension/` Datenordner (38 MB inkl. 193 input-Modelle + generated pack) gelöscht — war Reste vom alten Pipeline-Refactor
+- **GeyserUtils NPE Root-Cause:** `loadSkin()` (`GeyserUtils.java:384-403`) überschreibt `geometryFile` für jede `.json` im Skin-Ordner. Wenn `listFiles()` z.B. `model-config.json` zuletzt zurückgibt → `.get("minecraft:geometry")` ist null → NPE. **Fix:** 382 überflüssige JSONs in `Geyser-Velocity/extensions/geyserutils/skins/*/` gelöscht (nur `geometry.json` + `texture.png` bleiben). Upstream-Bug noch nicht gefixt (zimzaza4/GeyserUtils HEAD ist `d045474` vom 11.01.2026)
+
+### Codex Patch #2 (1936-Build) — Combat-UX Polish
+
+Nach Reference-Screenshot `references/screenshots/testneu6.png` (zeigt zwei BossBars übereinander):
+
+- `EliteMobDamagedByPlayerEvent` statt rohem `EntityDamageEvent` — derselbe Event den EM für Java-HP-Displays nutzt
+- "Evoker | 2" wird auch dann als **Suppression-Alias** gespeichert wenn unsere Bar sofort den korrekten FMM-Namen hat → EM-Doppel-Bar verschwindet
+- `hide-on-exit-event: false` neu — HP/Bar bleibt nach ExitCombat sichtbar bis Display-Timeout (matched Java-Feel)
+- `damage-timeout-ticks: 0` neu — nutzt EMs `MobCombatSettings.combatDisplayTimeoutSeconds` (default 30s)
+
+### Login-Fail wegen gelöschter FMMBridgeExtension
+
+Fabi versucht zu joinen → Login hängt bei "Lade Ressourcenpakete". Geyser hatte beim 21:01-Boot den FMMBridgeExtension-Pack-Pfad gecached, das File war aber dann gelöscht → `NoSuchFileException: ... fmmbridgeextension/generated-pack.zip` in `SessionLoadResourcePacksEventImpl.infoPacketEntries`. **Lesson:** Pack-Pfade müssen ENTWEDER vor Proxy-Restart gelöscht werden, ODER der Cleanup geht erst nach dem nächsten Restart sauber durch.
+
+### Final State (Restart-Cycle 3)
+
+- **Proxy-Restart #3 (21:40):** Bridge-Extension weg → kein NoSuchFileException. GeyserUtils-Skins clean → kein NPE-Spam. `Merged Bedrock pack published` mit sha1=a1e013a4… ✓
+- **Backend-Restart (21:41):** `Network mode detected. Proxy plugin jars extracted to: proxy-extension/`. Backend HTTP-Server auf Port 25574 (`/rspm.zip`, `/bedrock.zip`, `/mappings.json`). `Bedrock conversion complete: 17717 mappings (1704 unique models)`. Backend pusht 2 files an "Bedrock relay for proxy fallback". Bridge 1936-Build geladen: `Phase 7.1c: combat trigger registered`, 13 EM 2D-Items injection map geladen ✓
+
+### Branch-Stand
+
+`refactor-em-ux` HEAD bleibt `3fa02a7` (gepushed seit 24.05.). 8 Files lokal uncommitted (Codex Patch #1 + #2 zusammengeführt im 1936-Build).
+
+### Visueller Test ausstehend
+
+Fabi stoppt heute hier. Nächste Session = Bedrock-Client-Test:
+
+1. **Ice Elemental BossBar:** "Eis-Elementar" styled statt "Evoker | 2"
+2. **Wolf Alpha BossBar bleibt unverändert** "Wilder Alphawolf"
+3. **Kein Doppel-BossBar mehr** (durch Suppression-Alias-Fix)
+4. **Combat-Nametag HP/Bar überlebt Combat-Pause** + kommt bei re-attack via EM-DamagedByPlayer-Event wieder
+5. **RPM Network-Mode Pack-Delivery** — Bedrock-Client sollte beim Login Pack vom Velocity-Proxy bekommen, nicht mehr von magmaguy.com Self-Host-URL Richtung Bedrock (Backend hostet weiter aber für Java)
+
+### Offen für nächste Session
+
+1. **Visueller Bedrock-Verify** der vier obigen Punkte
+2. **Codex Patches committen** wenn Visual passt — zwei logische Commits ("Phase 7.1c: EliteMobDamagedByPlayerEvent + display-timeout" und "BossBar: capture EM alias for late-suppression")
+3. **Push** `refactor-em-ux` (oder direkt merge nach `main`)
+4. **Phase 7.3 brainstorming** — EM Adventurer's Guild + Shop-GUIs als Cumulus-Forms
+5. **MagmaGuy melden:** schwarze Schatten auf RPM-Custom-Models (in 2.0.0 noch nicht gefixt)
+6. **GeyserUtils Bug-Report bei zimzaza4:** `loadSkin` überschreibt geometry-File-Pick
+
+### Build
+```
+/usr/share/idea/plugins/maven/lib/maven3/bin/mvn clean package
+```
