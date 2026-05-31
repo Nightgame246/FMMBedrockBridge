@@ -119,6 +119,30 @@ elite-items:
 
 Roughly 16 classes / 54 KB JAR. The pre-refactor bridge was 27 classes + a Geyser Extension; both archived under the git tag mentioned above.
 
+## Phase 7.2b — EM-Items Mini-Pack + Mappings (Re-Deploy bei EM-Updates)
+
+Die Bridge generiert beim Boot zwei Artefakte unter `plugins/FMMBedrockBridge/bedrock-pack/`:
+- `em_bridge_pack.mcpack` — eigenständiges Mini-Bedrock-Pack mit Custom-Items (`bridge_em:<key>`)
+- `em_bridge_mappings.json` — Geyser custom-item-v2 Mappings (EM-CMD → Bedrock-Identifier)
+
+**Initial-Deploy + bei jedem EM-Update neu deployen:**
+
+```bash
+# Pack zum Proxy
+scp /home/amp/.ampdata/instances/TestServer01/Minecraft/plugins/FMMBedrockBridge/bedrock-pack/em_bridge_pack.mcpack \
+    amp@mc.crazypandas.de:/home/amp/.ampdata/instances/Proxy01/Minecraft/plugins/Geyser-Velocity/packs/
+
+# Mappings zum Proxy
+scp /home/amp/.ampdata/instances/TestServer01/Minecraft/plugins/FMMBedrockBridge/bedrock-pack/em_bridge_mappings.json \
+    amp@mc.crazypandas.de:/home/amp/.ampdata/instances/Proxy01/Minecraft/plugins/Geyser-Velocity/custom_mappings/
+
+# Proxy neustarten (Geyser registriert Custom-Items beim Boot)
+# Anschließend auf Backend:
+/fmmbridge maintenance mark-deployed
+```
+
+**Drift-Detection:** Wenn das EM-Pack sich ändert (Update, neue Items), zeigt die Bridge beim nächsten Boot eine WARN-Sequenz und schickt Ops beim Join eine Chat-Nachricht. `/fmmbridge maintenance status` zeigt den aktuellen Drift-Status, `/fmmbridge maintenance redeploy-instructions` printet die exakten SCP-Befehle.
+
 ## License
 
 GPL-3.0 — compatible with FreeMinecraftModels.
