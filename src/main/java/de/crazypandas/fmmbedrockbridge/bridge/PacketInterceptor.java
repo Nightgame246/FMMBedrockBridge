@@ -245,7 +245,13 @@ public class PacketInterceptor {
             if (packetTitle == null) return;
 
             for (BedrockBossBarController ctrl : bridge.getActiveControllers().values()) {
-                if (ctrl.hasViewer(playerObj) && titlesMatch(ctrl.getTitle(), packetTitle)) {
+                if (!ctrl.hasViewer(playerObj)) continue;
+
+                boolean currentTitleMatch = titlesMatch(ctrl.getTitle(), packetTitle);
+                boolean knownTitleMatch = currentTitleMatch || ctrl.getTitleAliases().stream()
+                        .anyMatch(alias -> titlesMatch(alias, packetTitle));
+
+                if (currentTitleMatch) {
                     if (!ctrl.hasOwnUuid()) {
                         ctrl.registerOwnUuid(uuid);
                         FMMBedrockBridge.debugLog("[BRIDGE] Claimed own BossBar UUID " + uuid
@@ -256,6 +262,15 @@ public class PacketInterceptor {
                         FMMBedrockBridge.debugLog("[BRIDGE] Suppressed EM BossBar UUID " + uuid
                                 + " (title='" + packetTitle + "') for " + playerObj.getName());
                     }
+                    return;
+                }
+
+                if (knownTitleMatch) {
+                    bridge.getBossBarRegistry().add(uuid);
+                    event.setCancelled(true);
+                    FMMBedrockBridge.debugLog("[BRIDGE] Suppressed stale-title EM BossBar UUID " + uuid
+                            + " (title='" + packetTitle + "', current='" + ctrl.getTitle()
+                            + "') for " + playerObj.getName());
                     return;
                 }
             }
