@@ -57,3 +57,12 @@ elite-items:
   enabled: true
   # Path to EliteMobs resource pack folder (relative to server root).
   resource-pack-path: "plugins/EliteMobs/resource_pack"
+
+# Phase 7.2b/maintenance — Drift-Detection für EM-Resource-Pack
+maintenance:
+  # Wenn der EM-Resource-Pack sich seit dem letzten deployed-Stand geändert hat,
+  # gibt die Bridge beim Boot eine markante 7-zeilige WARN-Sequenz im Console-Log aus
+  # und schickt jedem Op beim Join eine deutsche Chat-Nachricht mit Click-Action
+  # zu /fmmbridge maintenance status. Verwende /fmmbridge maintenance mark-deployed
+  # nach jedem Re-Deploy auf den Proxy.
+  op-chat-notify: true
