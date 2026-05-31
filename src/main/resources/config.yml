@@ -1,49 +1,68 @@
-# FMMBedrockBridge Configuration
+# FMMBedrockBridge — EM↔Bedrock UX-Bridge
+#
+# Requires:
+#   - FreeMinecraftModels 2.6.0+ with sendCustomModelsToBedrockClients: true
+#     (FMM handles mob/static rendering natively for Bedrock)
+#   - ResourcePackManager 1.8.0+ (Java→Bedrock pack conversion)
+#   - PacketEvents (packet manipulation)
+#   - Floodgate (Bedrock player detection)
+#
+# This plugin only adds the EM UX layer that MagmaGuy doesn't provide natively:
+#   - Phase 7.1a/c: Combat-triggered styled BossBar (replaces EM's "Evoker | 2")
+#   - Phase 7.1b/c: Combat-triggered nametag overlay (HP / HP-Bar; FMM renders name)
+#   - Phase 7.2b: 2D EM UI icons (BagOfCoin, AnvilHammer, ...) via item_model
+#     packet injection — fills RPM 1.8.0's gap for legacy custom_model_data
+#     overrides on Emerald.
 
-# Enable/Disable the bridge
+# Master switch
 enabled: true
 
-# Debug mode - logs entity spawn/despawn events
+# Debug mode — logs verbose diagnostic info (BossBar UUID claims, Nametag updates,
+# item_model injections). See /fmmbridge debug for live state.
 debug: false
 
-# Entity view distance for Bedrock players (in blocks)
-# Models outside this range won't be sent to Bedrock clients
+# Distance in blocks within which Bedrock players are added as viewers of BossBar/Nametag
+# controllers. Same range FMM uses for its own model visibility.
 entity-view-distance: 50
-
-# Converter settings
-converter:
-  # Namespace for Bedrock custom entity IDs (e.g. "fmmbridge:wolf_model")
-  namespace: "fmmbridge"
-  # Output folder for converted skin files (geometry.json + texture.png)
-  # These need to be copied into your GeyserUtils skins folder:
-  # /extensions/GeyserUtils/skins/<modelId>/
-  output-path: "bedrock-skins"
-  # Scale factor for Bedrock models. FMM internally scales Java models by ~1.6x
-  # (ARMOR_STAND_HEAD_SIZE_MULTIPLIER=0.4 × MODEL_SCALE=4.0). Bedrock models
-  # use raw .bbmodel coordinates, so this factor compensates the difference.
-  # Adjust if models appear too small or too large on Bedrock.
-  model-scale: 1.6
 
 # Phase 7.1a — BossBar replacement for EliteMobs bosses
 phase71a:
-  # When true, suppress EliteMobs' own BossBar packets to Bedrock players
-  # (Bedrock sees only our replacement BossBar with the styled name).
-  # Set to false as a diagnostic if you want to see both bars side-by-side.
+  # When true, suppress EliteMobs' own BossBar packets to Bedrock players (Bedrock sees
+  # only our replacement BossBar with the styled name). Set to false to see both bars
+  # side-by-side as a diagnostic.
   suppress-em-bossbar: true
 
 # Phase 7.1c — Combat-triggered visuals (HP/Bar/BossBar)
 phase71c:
-  # When true, BossBar appears only during combat (EnterCombat → ExitCombat).
-  # Nametag extends to 3 lines (HP / Health-Bar / Name) during combat.
-  # When false, BossBar is always-visible (Phase 7.1a behavior) and nametag stays
-  # at 1 line. Use false as a safety fallback if the combat-trigger logic breaks.
+  # When true, BossBar appears only during combat (EnterCombat → ExitCombat). Nametag
+  # overlay shows HP / Health-Bar during combat; FMM renders the mob name natively.
+  # When false, BossBar is always-visible (Phase 7.1a behavior).
   combat-enabled: true
+  # EliteMobs sometimes does not fire a second EnterCombat event after combat paused.
+  # When true, EliteMobDamagedByPlayerEvent also refreshes Bedrock combat UI. This is
+  # the same event EliteMobs uses for Java's HP/name displays.
+  damage-refresh-enabled: true
+  # When false, HP/Bar stays visible until the display timeout even if EM fires ExitCombat,
+  # matching Java's "lingers after last hit" feel more closely.
+  hide-on-exit-event: false
+  # 0 = use EliteMobs' MobCombatSettings.yml combatDisplayTimeoutSeconds (default 30s).
+  # Set a positive tick value to override only the Bedrock overlay timeout.
+  damage-timeout-ticks: 0
 
-# Phase 7.2 — EliteMobs Custom Items für Bedrock
+# Phase 7.2b — EliteMobs 2D UI Custom Items
 elite-items:
-  # Wenn true, scannt das EM Resource Pack und registriert Custom Items für Bedrock.
-  enabled: false
-  # Pfad zum EliteMobs Resource Pack Ordner (relativ zum Server-Root).
-  # Dieser Ordner enthält Sub-Pack-Unterordner wie em_rsp_defaults/, em_ag_rsp/ etc.
-  # Ermittelter Pfad aus 7.2a Research: plugins/EliteMobs/resource_pack
+  # When true, scans EM resource pack for legacy custom_model_data overrides (Emerald +
+  # CMD 31173 = BagOfCoin etc.) and injects item_model on inventory packets for Bedrock
+  # players so Geyser/RPM routes them to the correct Bedrock identifier.
+  enabled: true
+  # Path to EliteMobs resource pack folder (relative to server root).
   resource-pack-path: "plugins/EliteMobs/resource_pack"
+
+# Phase 7.2b/maintenance — Drift-Detection für EM-Resource-Pack
+maintenance:
+  # Wenn der EM-Resource-Pack sich seit dem letzten deployed-Stand geändert hat,
+  # gibt die Bridge beim Boot eine markante 7-zeilige WARN-Sequenz im Console-Log aus
+  # und schickt jedem Op beim Join eine deutsche Chat-Nachricht mit Click-Action
+  # zu /fmmbridge maintenance status. Verwende /fmmbridge maintenance mark-deployed
+  # nach jedem Re-Deploy auf den Proxy.
+  op-chat-notify: true

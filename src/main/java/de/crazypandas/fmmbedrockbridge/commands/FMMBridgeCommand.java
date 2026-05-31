@@ -1,15 +1,11 @@
 package de.crazypandas.fmmbedrockbridge.commands;
 
-import com.magmaguy.freeminecraftmodels.customentity.DynamicEntity;
 import com.magmaguy.freeminecraftmodels.customentity.ModeledEntity;
-import com.magmaguy.freeminecraftmodels.dataconverter.FileModelConverter;
 import de.crazypandas.fmmbedrockbridge.FMMBedrockBridge;
 import de.crazypandas.fmmbedrockbridge.bridge.BedrockBossBarController;
-import de.crazypandas.fmmbedrockbridge.bridge.BedrockNametagController;
 import de.crazypandas.fmmbedrockbridge.bridge.BedrockEntityBridge;
-import de.crazypandas.fmmbedrockbridge.bridge.IBridgeEntityData;
-import de.crazypandas.fmmbedrockbridge.converter.BedrockModelConverter;
-import org.bukkit.Bukkit;
+import de.crazypandas.fmmbedrockbridge.bridge.BedrockNametagController;
+import de.crazypandas.fmmbedrockbridge.bridge.FMMEntityData;
 import org.bukkit.Location;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
@@ -18,17 +14,15 @@ import org.bukkit.command.TabCompleter;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.Plugin;
 
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 public class FMMBridgeCommand implements CommandExecutor, TabCompleter {
 
-    private final BedrockModelConverter converter;
     private final Plugin plugin;
 
-    public FMMBridgeCommand(BedrockModelConverter converter, Plugin plugin) {
-        this.converter = converter;
+    public FMMBridgeCommand(Plugin plugin) {
         this.plugin = plugin;
     }
 
@@ -40,44 +34,63 @@ public class FMMBridgeCommand implements CommandExecutor, TabCompleter {
         }
 
         if (args.length == 0) {
-            sender.sendMessage("§6FMMBedrockBridge §7— /fmmbridge <convert|debug>");
+            sender.sendMessage("§6FMMBedrockBridge §7— /fmmbridge <debug|maintenance>");
             return true;
         }
-
-        if (args[0].equalsIgnoreCase("convert")) {
-            if (args.length < 2 || args[1].equalsIgnoreCase("all")) {
-                sender.sendMessage("§6[FMMBridge] §7Converting all models...");
-                Map<String, FileModelConverter> models = new HashMap<>(FileModelConverter.getConvertedFileModels());
-                Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
-                    converter.convertAll(models);
-                    Bukkit.getScheduler().runTask(plugin,
-                            () -> sender.sendMessage("§6[FMMBridge] §aDone! Check server logs for details."));
-                });
-            } else {
-                String modelId = args[1];
-                sender.sendMessage("§6[FMMBridge] §7Converting model: " + modelId);
-                Map<String, FileModelConverter> models = new HashMap<>(FileModelConverter.getConvertedFileModels());
-                Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
-                    try {
-                        converter.convert(modelId, models);
-                        Bukkit.getScheduler().runTask(plugin, () ->
-                                sender.sendMessage("§6[FMMBridge] §aDone! Output: plugins/FMMBedrockBridge/bedrock-skins/" + modelId + "/"));
-                    } catch (Exception e) {
-                        Bukkit.getScheduler().runTask(plugin,
-                                () -> sender.sendMessage("§c[FMMBridge] Error: " + e.getMessage()));
-                    }
-                });
-            }
-            return true;
+        switch (args[0].toLowerCase()) {
+            case "debug" -> runDebug(sender);
+            case "maintenance" -> runMaintenance(sender, args);
+            default -> sender.sendMessage("§6FMMBedrockBridge §7— /fmmbridge <debug|maintenance>");
         }
-
-        if (args[0].equalsIgnoreCase("debug")) {
-            runDebug(sender);
-            return true;
-        }
-
-        sender.sendMessage("§6FMMBedrockBridge §7— /fmmbridge <convert|debug>");
         return true;
+    }
+
+    private void runMaintenance(CommandSender sender, String[] args) {
+        FMMBedrockBridge plugin = FMMBedrockBridge.getInstance();
+        if (args.length < 2) {
+            sender.sendMessage("§6Wartung §7— Subcommands: §estatus§7, §eredeploy-instructions§7, §emark-deployed");
+            return;
+        }
+        switch (args[1].toLowerCase()) {
+            case "status" -> showMaintenanceStatus(sender, plugin);
+            case "redeploy-instructions" -> showRedeployInstructions(sender, plugin);
+            case "mark-deployed" -> markDeployed(sender, plugin);
+            default -> sender.sendMessage("§cUnbekannter Subcommand: " + args[1]);
+        }
+    }
+
+    private void showMaintenanceStatus(CommandSender sender, FMMBedrockBridge plugin) {
+        var status = plugin.getMaintenanceStatus();
+        sender.sendMessage("§6── Wartungs-Status ──");
+        sender.sendMessage("§7Drift aktiv: " + (status.driftActive() ? "§cJA — Re-Deploy nötig" : "§aNein — alles im Lot"));
+        sender.sendMessage("§7Aktueller Pack-Hash: §f" + shortHash(status.currentHash()));
+        sender.sendMessage("§7Deployed-Hash:        §f" + shortHash(status.deployedHash()));
+        sender.sendMessage("§7Deployed EM-Version:  §f" + status.deployedEmVersion());
+        sender.sendMessage("§7Deployed am:          §f" + status.deployedAt());
+        if (status.driftActive()) {
+            sender.sendMessage("§7Nächster Schritt: §e/fmmbridge maintenance redeploy-instructions");
+        }
+    }
+
+    private void showRedeployInstructions(CommandSender sender, FMMBedrockBridge plugin) {
+        var paths = plugin.getMaintenanceArtifactPaths();
+        sender.sendMessage("§6── Re-Deploy-Anleitung ──");
+        sender.sendMessage("§71. SCP Mini-Pack auf Proxy01:");
+        sender.sendMessage("§f   scp " + paths.mcpackPath() + " amp@<proxy>:" + paths.proxyPackTargetDir() + "/");
+        sender.sendMessage("§72. SCP Geyser-Mappings auf Proxy01:");
+        sender.sendMessage("§f   scp " + paths.mappingsJsonPath() + " amp@<proxy>:" + paths.proxyMappingsTargetDir() + "/");
+        sender.sendMessage("§73. Proxy01 neu starten (Geyser scannt mappings beim Boot)");
+        sender.sendMessage("§74. Auf Backend: §e/fmmbridge maintenance mark-deployed");
+    }
+
+    private void markDeployed(CommandSender sender, FMMBedrockBridge plugin) {
+        plugin.markMaintenanceDeployed();
+        sender.sendMessage("§a✓ Aktueller Pack-Hash als deployed markiert. Drift-Flag gelöscht.");
+    }
+
+    private String shortHash(String hash) {
+        if (hash == null || hash.isEmpty()) return "(none)";
+        return hash.length() > 12 ? hash.substring(0, 12) + "…" : hash;
     }
 
     private void runDebug(CommandSender sender) {
@@ -87,28 +100,25 @@ public class FMMBridgeCommand implements CommandExecutor, TabCompleter {
             return;
         }
 
-        Map<ModeledEntity, IBridgeEntityData> entities = bridge.getEntityDataMap();
+        Map<ModeledEntity, FMMEntityData> entities = bridge.getEntityDataMap();
         sender.sendMessage("§6[FMMBridge Debug] §7Tracked entities: §e" + entities.size());
 
-        for (Map.Entry<ModeledEntity, IBridgeEntityData> entry : entities.entrySet()) {
+        for (Map.Entry<ModeledEntity, FMMEntityData> entry : entities.entrySet()) {
             ModeledEntity me = entry.getKey();
-            IBridgeEntityData data = entry.getValue();
+            FMMEntityData data = entry.getValue();
 
-            String type = (me instanceof DynamicEntity) ? "§aDYNAMIC" : "§bSTATIC";
             String alive = data.isAlive() ? "§aalive" : "§cdead";
             String destroyed = data.isDestroyed() ? " §c[DESTROYED]" : "";
             int viewers = data.getViewers().size();
-            int fakeId = data.getPacketEntity().getEntityId();
 
             Location loc = data.getLocation();
             String locStr = loc == null ? "null" :
                     loc.getWorld().getName() + " " +
                     String.format("%.0f,%.0f,%.0f", loc.getX(), loc.getY(), loc.getZ());
 
-            sender.sendMessage("  " + type + " §7" + me.getEntityID()
+            sender.sendMessage("  §a" + me.getEntityID()
                     + " §8|§7 " + alive + destroyed
                     + " §8|§7 viewers=§e" + viewers
-                    + " §8|§7 fakeId=§7" + fakeId
                     + " §8|§7 " + locStr);
         }
 
@@ -121,8 +131,7 @@ public class FMMBridgeCommand implements CommandExecutor, TabCompleter {
                     + " " + String.format("%.0f,%.0f,%.0f", pl.getX(), pl.getY(), pl.getZ()));
         }
 
-        // Phase 7.1a — BossBar subsystem state
-        Map<java.util.UUID, BedrockBossBarController> controllers = bridge.getActiveControllers();
+        Map<UUID, BedrockBossBarController> controllers = bridge.getActiveControllers();
         boolean debug = FMMBedrockBridge.isDebugEnabled();
         sender.sendMessage("§6[FMMBridge Debug] §7BossBar controllers: §e" + controllers.size()
                 + " §8|§7 EM-suppressed UUIDs: §e" + bridge.getBossBarRegistry().size()
@@ -134,8 +143,7 @@ public class FMMBridgeCommand implements CommandExecutor, TabCompleter {
                     + " §8|§7 entityUuid=§7" + ctrl.getRealEntityUuid().toString().substring(0, 8) + "…");
         }
 
-        // Phase 7.1b — Nametag subsystem state
-        Map<java.util.UUID, BedrockNametagController> nametags = bridge.getActiveNametags();
+        Map<UUID, BedrockNametagController> nametags = bridge.getActiveNametags();
         sender.sendMessage("§6[FMMBridge Debug] §7Nametag controllers: §e" + nametags.size());
         for (BedrockNametagController nt : nametags.values()) {
             String text = net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer
@@ -149,8 +157,10 @@ public class FMMBridgeCommand implements CommandExecutor, TabCompleter {
 
     @Override
     public List<String> onTabComplete(CommandSender sender, Command command, String label, String[] args) {
-        if (args.length == 1) return List.of("convert", "debug");
-        if (args.length == 2 && args[0].equalsIgnoreCase("convert")) return List.of("all");
+        if (!sender.hasPermission("fmmbedrockbridge.admin")) return List.of();
+        if (args.length == 1) return List.of("debug", "maintenance");
+        if (args.length == 2 && args[0].equalsIgnoreCase("maintenance"))
+            return List.of("status", "redeploy-instructions", "mark-deployed");
         return List.of();
     }
 }

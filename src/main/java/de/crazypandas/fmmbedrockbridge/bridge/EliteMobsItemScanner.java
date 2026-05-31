@@ -11,6 +11,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.logging.Logger;
 
 /**
@@ -25,8 +26,15 @@ import java.util.logging.Logger;
  */
 public class EliteMobsItemScanner {
 
-    private static final Logger log = FMMBedrockBridge.getInstance().getLogger();
+    private static final Logger log = resolveLogger();
     private static final Gson GSON = new Gson();
+
+    // Falls back to a standalone logger when the plugin singleton isn't available
+    // (e.g. in unit tests), so this class can be loaded without a running server.
+    private static Logger resolveLogger() {
+        FMMBedrockBridge instance = FMMBedrockBridge.getInstance();
+        return instance != null ? instance.getLogger() : Logger.getLogger("FMMBedrockBridge");
+    }
 
     private final Path packRoot;
 

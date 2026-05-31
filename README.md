@@ -1,180 +1,147 @@
 # FMMBedrockBridge
 
-A Spigot/Paper plugin that bridges [FreeMinecraftModels (FMM)](https://github.com/MagmaGuy/FreeMinecraftModels) custom 3D models to Bedrock clients connected via [Geyser](https://geysermc.org/).
+A Spigot/Paper plugin that adds the **EliteMobs UX layer** (combat-styled BossBar, HP/Bar combat-nametag, 2D legacy UI items) for Bedrock clients connected via [Geyser](https://geysermc.org/) — features that [FreeMinecraftModels (FMM) 2.6.0](https://github.com/MagmaGuy/FreeMinecraftModels) and [ResourcePackManager 2.0.0](https://github.com/MagmaGuy/ResourcePackManager) don't cover natively.
 
-## Problem
+## Background
 
-FreeMinecraftModels displays custom 3D models on Java clients using Display Entities (1.19.4+). Bedrock clients connected through Geyser cannot see these models — they only see the base vanilla mob (e.g. a wolf instead of a custom boss model).
+As of **FMM 2.6.0** (May 2026), MagmaGuy added native Geyser/Floodgate support — Bedrock players see FMM custom mob models, animations, and static props directly. **ResourcePackManager 2.0.0** converts any plugin's resource pack to Bedrock format, emits Geyser custom-item mappings (3D weapons/armor, flipbook textures, attachable display offsets), and runs in **Network-Mode**: a Velocity/Bungee sub-plugin polls each backend over HTTP, merges per-network packs, and delivers them to Geyser sessions — no manual scp between backend and proxy any more.
 
-The existing [GeyserModelEngine](https://github.com/zimzaza4/GeyserModelEngine) plugin only hooks into ModelEngine (Ticxo), not FMM.
+Previous versions of this plugin (Phases 1-6, 7.2c/d) built a parallel mob/item pipeline using fake PIG entities + GeyserUtils + a custom Geyser Extension. That work is **archived under git tag `archive/2026-05-24-pre-rpm18-pivot`** — refer to it if you need the old Bridge approach for FMM <2.6.0 servers.
 
-## Solution
+The current plugin is a focused **EM↔Bedrock UX-Bridge**.
 
-FMMBedrockBridge creates fake packet-only entities for Bedrock players, replacing the vanilla mob with the custom 3D model via [GeyserUtils](https://github.com/zimzaza4/GeyserUtils). A companion Geyser Extension registers the custom entity IDs and serves the generated Bedrock resource pack.
+## What this plugin does
 
-```
-FMM spawns DynamicEntity (wraps LivingEntity)
-  → FMMBedrockBridge detects spawn via polling
-  → For each Bedrock player (via Floodgate API):
-    1. Hide real entity (suppress spawn/metadata packets via PacketEvents)
-    2. Register custom entity in GeyserUtils cache
-    3. Send fake PIG spawn packet (Geyser replaces with custom model)
-    4. Redirect interact packets from fake → real entity
-  → Bedrock client sees custom model, can interact with real entity
-```
+| Feature | Why it exists |
+|---------|---------------|
+| **Phase 7.1a/c — Styled Combat BossBar** | EM-managed Bukkit BossBar with the YAML-styled name (e.g. "Tier 13 Eis-Elementar") instead of the Vanilla "Evoker | 2" Geyser would otherwise show on Bedrock. First-match heuristic suppresses EM's BOSS_EVENT for Bedrock players. |
+| **Phase 7.1b/c — Combat Nametag** | Bukkit TextDisplay above bridged mobs showing HP-number / health-bar (combat-only, 2 lines above FMM's native name). Java players see only FMM's native nametag (packet-suppress for our TextDisplay). |
+| **Phase 7.2b — 2D Legacy UI Items** | EM still uses `custom_model_data` overrides on Emerald (e.g. CMD 31173 → BagOfCoin). RPM 1.8.0 only scans the 1.21.4+ `items/` namespace, so these icons would render as Vanilla on Bedrock. Bridge scans EM's pack and injects `item_model=geyser_custom:<key>` on the relevant inventory packets. |
+
+That's it. No mob rendering, no animation conversion, no 3D item conversion — those are FMM + RPM's job now.
 
 ## Requirements
 
 **Backend Server (Paper/Spigot 1.21.x):**
-- [FreeMinecraftModels](https://github.com/MagmaGuy/FreeMinecraftModels) (required)
-- [Floodgate](https://github.com/GeyserMC/Floodgate) (required for Bedrock detection)
-- [GeyserUtils Spigot Plugin](https://github.com/zimzaza4/GeyserUtils) (required for Bedrock entity spawning)
-- [PacketEvents](https://github.com/retrooper/packetevents) (required for packet interception)
+- [FreeMinecraftModels](https://github.com/MagmaGuy/FreeMinecraftModels) **2.6.0+** with `sendCustomModelsToBedrockClients: true` in its `config.yml`
+- [ResourcePackManager](https://github.com/MagmaGuy/ResourcePackManager) **2.0.0+** (generates the Bedrock pack, serves it to the proxy via embedded HTTP server)
+- [EliteMobs](https://github.com/MagmaGuy/EliteMobs) (optional — required for BossBar replacement and 2D-item scan)
+- [Floodgate](https://github.com/GeyserMC/Floodgate) (required for Bedrock player detection — its `key.pem` also derives the RPM Network-Mode key)
+- [PacketEvents](https://github.com/retrooper/packetevents) **2.12.1+** (required for packet manipulation)
 
 **Proxy (Velocity/BungeeCord):**
 - [Geyser](https://geysermc.org/)
-- [GeyserUtils Geyser Extension](https://github.com/zimzaza4/GeyserUtils)
-- FMMBridgeExtension (this repo, `geyser-extension/`)
+- [Floodgate](https://github.com/GeyserMC/Floodgate)
+- `ResourcePackManager-Velocity.jar` (or `-BungeeCord.jar`) — RPM 2.0.0 polls each backend, merges packs network-wide, and ships them to Bedrock sessions. On a co-located proxy the backend auto-extracts the right jar into the proxy's `plugins/`; on a separate proxy host you extract it manually (see Deploy below).
 
-## Current Status
-
-| Phase | Description | Status |
-|-------|-------------|--------|
-| 1 | FMM entity spawn/despawn detection (polling) | Done |
-| 2 | Bedrock entity bridging via GeyserUtils | Done |
-| 3 | Java to Bedrock resource pack conversion + Geyser Extension | Done |
-| 4 | Hitbox, material, interact redirect, visible_bounds, multi-texture atlas | Done |
-| 4.5 | Model scale, texture atlas quality, nametags, performance fixes | Done |
-| 4.6 | Bedrock format fixes: UV integer values, texture POW2, bone count warning | Done |
-| 5 | Animation conversion + runtime sync (idle, walk, attack, death) | Done |
-| 5.1 | StackOverflow fix: move property registration to startup | Done |
-| 5.5 | Code modularization (PacketInterceptor, ViewerManager, ResourcePackBuilder, EntityRegistrar, DownstreamMonitor) | Done |
-| 5.6 | Animation format fixes: short names in controllers, new UUID per pack build | Done |
-| 6 | Static Entities (Props/Furniture — no underlying mob) | Done |
-| 6.1 | Console spam fix + `/fmmbridge debug` command | Done |
-| 6.2 | Blockbench v5 NPC model support (bone names + pivots from groups array) | Done |
-| 6.3 | FMM 4x coordinate scale fix — all geometry/animation coordinates divided by MODEL_SCALE=4.0 | Done |
-| 6.4 | Head/Body orientation fix — UV face swap + entity yaw correction (replaces broken root-bone approach) | Done |
-| 7.1a | BossBar with EliteMobs styled name on Bedrock (per-boss Bukkit BossBar + first-match suppress heuristic) | Done |
-| 7.1b | Bedrock Nametag — always-visible name above mob via Bukkit TextDisplay + Java packet-suppress; uses FMM displayName (the styled-name source EM populates) | Done |
-| 7.1c | Combat-only HP / health-bar / BossBar (combat-event trigger, crossplay fairness, multi-bossbar-rejoin fix) — depends on 7.1b | Done |
-| 7.2b | EliteMobs 2D Custom Items für Bedrock — Geyser `GeyserDefineCustomItemsEvent` registriert 13 UI-Icons (bag of coins, anvil hammer, locks, crowns, …); Texturen automatisch aus EM Resource Pack extrahiert und ins Bedrock-Pack eingebettet | Done |
-| 7.2c | EliteMobs 3D Custom Items (Blockbench-Waffen/Rüstung) als Bedrock Attachables | Geplant (conditional — 3D Gear vorhanden) |
-| 7.3 | Java popup menus → Bedrock Forms (Cumulus API) | Planned |
-| 8 | Polish: hitbox scale, hurt flash, particles, config, performance, animation X/Z mirror for movement, production-readiness | Planned |
-
-## Deployment
-
-### 1. Build
+## Build
 
 Requires Java 21 and Maven.
 
 ```bash
-# Builds both Spigot plugin and Geyser Extension
 mvn clean package
 # Output: target/FMMBedrockBridge-<version>.jar
-# Output: geyser-extension/target/FMMBridgeExtension-0.1.0-SNAPSHOT.jar
 ```
 
-### 2. Install
+There is no longer a separate Geyser Extension submodule — RPM does that work.
 
-- Copy `FMMBedrockBridge-*.jar` to backend server `plugins/`
-- Copy `FMMBridgeExtension-*.jar` to proxy `plugins/Geyser-Velocity/extensions/`
-
-### 3. Convert models
-
-In-game or via console on the backend server:
-
-```
-/fmmbridge convert all
-```
-
-This reads all loaded FMM models and writes to:
-```
-plugins/FMMBedrockBridge/
-  bedrock-skins/<modelId>/   <- geometry.json + texture.png (per model)
-  bedrock-pack/              <- full Bedrock resource pack (unpacked)
-  bedrock-pack.zip           <- ready to serve
-```
-
-### 4. Copy to proxy
-
-Copy the per-model folders to the Geyser Extension input directory:
+## Deploy
 
 ```bash
-cp -r plugins/FMMBedrockBridge/bedrock-skins/* \
-  plugins/Geyser-Velocity/extensions/fmmbridgeextension/input/
+# Drop the JAR into the backend server's plugins/ folder
+cp target/FMMBedrockBridge-*.jar /path/to/server/plugins/FMMBedrockBridge.jar
 ```
 
-### 5. Restart proxy
+**RPM 2.0.0 Network-Mode setup (one-time):**
 
-The Geyser Extension will:
-- Register each `fmmbridge:<modelId>` custom entity via GeyserUtils
-- Generate and serve the Bedrock resource pack to connecting clients
+```bash
+# Backend: just drop the Bukkit jar — RPM extracts the proxy jars on first boot
+cp ResourcePackManager.jar /path/to/backend/plugins/
 
-## How it works
+# Proxy on the same host: RPM auto-copies ResourcePackManager-Velocity.jar
+# into the proxy's plugins/. Nothing to do.
 
-### Spigot Plugin
+# Proxy on a separate host (multi-host setup): manually extract the velocity sub-jar
+# from the backend bukkit jar and place it on the proxy. Don't drop the bukkit jar
+# on velocity — it will be rejected with "appears to be a Paper, Bukkit ... plugin".
+unzip -j ResourcePackManager.jar proxy-extension/ResourcePackManager-Velocity.jar
+mv ResourcePackManager-Velocity.jar /path/to/proxy/plugins/
+
+# Network key is auto-derived from plugins/floodgate/key.pem (no manual paste).
+# Verify with /rspm status on both sides after restart.
+```
+
+## Config
+
+`plugins/FMMBedrockBridge/config.yml`:
+
+```yaml
+enabled: true
+debug: false                 # /fmmbridge debug shows live state
+entity-view-distance: 50
+
+phase71a:
+  suppress-em-bossbar: true  # false = both bars side-by-side (diagnostic)
+
+phase71c:
+  combat-enabled: true        # false = BossBar always-visible
+  damage-refresh-enabled: true # EliteMobDamagedByPlayerEvent also refreshes the overlay
+  hide-on-exit-event: false   # let the display-timeout decide when to hide (Java-feel)
+  damage-timeout-ticks: 0     # 0 = use EliteMobs combatDisplayTimeoutSeconds (~30s)
+
+elite-items:
+  enabled: true              # 2D UI icons (BagOfCoin, AnvilHammer, ...)
+  resource-pack-path: "plugins/EliteMobs/resource_pack"
+```
+
+## Architecture
+
+### Spigot plugin (`src/main/java/de/crazypandas/fmmbedrockbridge/`)
 
 | Class | Role |
 |-------|------|
-| `FMMEntityTracker` | Polls `ModeledEntityManager.getAllEntities()` every second, diffs for spawns/despawns |
-| `BedrockEntityBridge` | Manages fake PacketEntities for Bedrock players, delegates to PacketInterceptor and ViewerManager |
-| `PacketInterceptor` | Suppresses spawn/metadata packets for hidden real entities, redirects interact packets from fake to real |
-| `ViewerManager` | Tracks Bedrock players (via Floodgate), handles join/quit events, range checks |
-| `IBridgeEntityData` | Common interface for DynamicEntity and StaticEntity bridge data |
-| `FMMEntityData` | Per-DynamicEntity state: wraps ModeledEntity + PacketEntity + viewer set, handles addViewer/removeViewer lifecycle, sends nametag metadata |
-| `StaticEntityData` | Per-StaticEntity state: spawns fake entity at fixed location, no animation or combat redirect |
-| `PacketEntity` | Fake packet-only PIG entity (ID 300-400M) via PacketEvents, handles spawn/teleport/destroy/name-metadata packets |
-| `BedrockModelConverter` | Reads `.bbmodel` source files, generates `geometry.json` + texture atlas via `BedrockGeometryGenerator` |
-| `BedrockGeometryGenerator` | Converts .bbmodel to Bedrock .geo.json with multi-texture atlas UV mapping and dynamic visible_bounds |
-| `BedrockAnimationConverter` | Converts .bbmodel animations to Bedrock .animation.json format |
-| `BedrockAnimationControllerGenerator` | Generates Bedrock animation controller state machines with bitmask-based property queries |
-| `AnimationStateTracker` | Polls FMM animation state via reflection (idle/walk/attack/death/custom) |
-| `BedrockResourcePackGenerator` | Generates entity definitions, render controllers, `manifest.json`; zips the full pack |
+| `FMMBedrockBridge` | Plugin lifecycle, dependency checks, controller wire-up |
+| `tracker/FMMEntityTracker` | Polls `ModeledEntityManager.getAllEntities()` every second; calls `bridge.onEntitySpawn/Despawn` |
+| `bridge/BedrockEntityBridge` | Holds the controller maps (BossBar + Nametag), `entityDataMap`, per-tick sync |
+| `bridge/FMMEntityData` | Per-mob holder for the BossBar + Nametag controllers (no rendering — FMM does that) |
+| `bridge/ViewerManager` | Bedrock player tracking via Floodgate, range checks |
+| `bridge/PacketInterceptor` | PacketEvents listener: BossBar suppress, Java-TextDisplay suppress, 2D item_model inject |
+| `bridge/BedrockBossBarController` | Bukkit BossBar lifecycle per boss × Bedrock viewer |
+| `bridge/BedrockNametagController` | TextDisplay lifecycle, combat-state, position/text sync |
+| `bridge/BedrockCombatTrigger` | Bukkit listener: forwards `EliteMobEnterCombatEvent` / `ExitCombatEvent` to controllers |
+| `bridge/BossBarRegistry` | Captured EM BossBar UUIDs for ongoing suppression |
+| `bridge/NametagTextBuilder` | Pure utility composing the Nametag Component (empty out-of-combat, HP+Bar in-combat) |
+| `bridge/EliteMobsItemScanner` | Reads EM resource pack, finds legacy `custom_model_data` overrides on Emerald & co. |
+| `bridge/EMCustomItem` | Record: javaMaterial, customModelData, texture path, bedrockKey |
+| `bridge/BedrockInventoryRefresher` | Bukkit listener: schedules `Player.updateInventory()` 1 tick after Bedrock player slot changes (forces WINDOW_ITEMS resend that the interceptor can re-inject) |
+| `elite/EliteMobsHook` | Soft-dep wrapper around EliteMobs API (only file with `com.magmaguy.elitemobs.*` imports) |
+| `commands/FMMBridgeCommand` | `/fmmbridge debug` — shows active controllers, ready Bedrock players, suppressed UUIDs |
 
-| `EMCustomItem` | Record: javaMaterial, customModelData, sourceTexturePath, bedrockTextureKey — serialisiert nach em-items.json |
-| `EliteMobsItemScanner` | Scannt EM Resource Pack (alle Sub-Packs), filtert 2D-Items (kein `elements`-Block), schreibt em-items.json + kopiert PNGs nach bedrock-pack/ |
+Roughly 16 classes / 54 KB JAR. The pre-refactor bridge was 27 classes + a Geyser Extension; both archived under the git tag mentioned above.
 
-### Geyser Extension (`geyser-extension/`)
+## Phase 7.2b — EM-Items Mini-Pack + Mappings (Re-Deploy bei EM-Updates)
 
-| Class | Role |
-|-------|------|
-| `FMMBridgeExtension` | Lifecycle event handling (PreInitialize, DefineResourcePacks, PostInitialize) |
-| `EntityRegistrar` | GeyserUtils reflection for entity + animation property registration |
-| `ResourcePackBuilder` | Generates entity defs, render controllers, manifest.json, zips pack |
-| `DownstreamMonitor` | Re-registers GeyserUtils packet listener on server switches |
-| `ResourcePackBuilder.EmItemEntry` | Inner record: javaMaterial, customModelData, sourceTexturePath, bedrockTextureKey — deserialisiert aus em-items.json |
+Die Bridge generiert beim Boot zwei Artefakte unter `plugins/FMMBedrockBridge/bedrock-pack/`:
+- `em_bridge_pack.mcpack` — eigenständiges Mini-Bedrock-Pack mit Custom-Items (`bridge_em:<key>`)
+- `em_bridge_mappings.json` — Geyser custom-item-v2 Mappings (EM-CMD → Bedrock-Identifier)
 
-### Known Issues
+**Initial-Deploy + bei jedem EM-Update neu deployen:**
 
-- **Animationen mit Bewegung in X/Z laufen rückwärts (Phase 8):** Die UV-Face-Swap aus Phase 6.4 dreht das Modell visuell 180°, aber Animation-Keyframes bleiben im ursprünglichen Koordinatensystem. Boss-Animationen, die den Wolf nach vorne schnappen lassen, verschieben ihn jetzt visuell rückwärts. Fix: Position- und Rotation-X/Z-Werte in `BedrockAnimationConverter` negieren.
-- **Hitbox zu klein:** Bedrock-Hitbox nutzt unveränderte Java-Entity-Dimensionen; das visuelle Model wird mit `scale: 1.6` gerendert → Hitbox wirkt kleiner (Phase 8).
-- **Kein Hurt-Flash:** Damage-Metadata der Real-Entity wird vollständig supprimiert; Bedrock zeigt keinen roten Blitz bei Treffer (Phase 8).
-- **Nametag-Y-Offset bei kleinen Mobs (Phase 8):** Phase 7.1b nutzt `realEntity.getHeight() + 0.3` für die Nametag-Y-Position. Bei Mobs deren Custom-Model größer als die Vanilla-Hitbox ist (z.B. Wolf), erscheint der Nametag mitten im Modell statt darüber. Fix: model-aware Y-Offset (FMM-Skeleton-Bounds lesen oder per-Modell-Override).
-
-## Dependencies
-
-```xml
-<!-- FreeMinecraftModels -->
-<repository>
-    <id>magmaguy-repo</id>
-    <url>https://repo.magmaguy.com/releases</url>
-</repository>
-
-<!-- Floodgate + Geyser API -->
-<repository>
-    <id>opencollab</id>
-    <url>https://repo.opencollab.dev/main/</url>
-</repository>
-```
-
-GeyserUtils must be built and installed locally from source:
 ```bash
-git clone https://github.com/zimzaza4/GeyserUtils
-cd GeyserUtils
-mvn install -pl common,spigot -am
+# Pack zum Proxy
+scp /home/amp/.ampdata/instances/TestServer01/Minecraft/plugins/FMMBedrockBridge/bedrock-pack/em_bridge_pack.mcpack \
+    amp@mc.crazypandas.de:/home/amp/.ampdata/instances/Proxy01/Minecraft/plugins/Geyser-Velocity/packs/
+
+# Mappings zum Proxy
+scp /home/amp/.ampdata/instances/TestServer01/Minecraft/plugins/FMMBedrockBridge/bedrock-pack/em_bridge_mappings.json \
+    amp@mc.crazypandas.de:/home/amp/.ampdata/instances/Proxy01/Minecraft/plugins/Geyser-Velocity/custom_mappings/
+
+# Proxy neustarten (Geyser registriert Custom-Items beim Boot)
+# Anschließend auf Backend:
+/fmmbridge maintenance mark-deployed
 ```
+
+**Drift-Detection:** Wenn das EM-Pack sich ändert (Update, neue Items), zeigt die Bridge beim nächsten Boot eine WARN-Sequenz und schickt Ops beim Join eine Chat-Nachricht. `/fmmbridge maintenance status` zeigt den aktuellen Drift-Status, `/fmmbridge maintenance redeploy-instructions` printet die exakten SCP-Befehle.
 
 ## License
 

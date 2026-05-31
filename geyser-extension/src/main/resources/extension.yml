@@ -1,7 +1,0 @@
-name: FMMBridgeExtension
-id: fmmbridgeextension
-main: de.crazypandas.fmmbridgeextension.FMMBridgeExtension
-api: 2.7.0
-version: 0.1.0
-authors:
-  - Fabi
