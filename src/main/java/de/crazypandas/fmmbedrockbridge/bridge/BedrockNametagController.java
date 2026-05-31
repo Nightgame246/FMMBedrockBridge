@@ -20,8 +20,8 @@ import java.util.UUID;
  *
  * <p>Phase 7.1c — text content depends on {@link #isInCombat}:
  * <ul>
- *   <li>out-of-combat: 1 line (name only)</li>
- *   <li>in-combat: 3 lines (HP-number / health-bar / name)</li>
+ *   <li>out-of-combat: empty (FMM renders the name natively)</li>
+ *   <li>in-combat: 2 lines (HP-number / health-bar)</li>
  * </ul>
  * Combat state is toggled by {@code BedrockCombatTrigger} via {@link #setCombatState}.
  *
@@ -72,7 +72,7 @@ public final class BedrockNametagController {
         return lastText;
     }
 
-    /** Phase 7.1c — true if currently in combat (3-line layout). */
+    /** Phase 7.1c — true if currently in combat (HP overlay visible). */
     public boolean isInCombat() {
         return isInCombat;
     }

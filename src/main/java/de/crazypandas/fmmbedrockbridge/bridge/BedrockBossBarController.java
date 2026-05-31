@@ -11,11 +11,13 @@ import de.crazypandas.fmmbedrockbridge.FMMBedrockBridge;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Supplier;
 
 /**
  * Holds a single Bukkit BossBar for one EliteMobs boss, shared across all
- * Bedrock viewers. Title is set once at construction and never updated —
- * EliteMobs phase-name changes are out of scope for Phase 7.1a.
+ * Bedrock viewers. Title is sourced from FMM's displayName and refreshed during
+ * ticks because EliteMobs can set the FMM name a few ticks after the modeled
+ * entity is first detected.
  *
  * <p>Lifecycle:
  * <ul>
@@ -37,7 +39,9 @@ public final class BedrockBossBarController {
 
     private final UUID realEntityUuid;
     private final LivingEntity realEntity;
-    private final String title;
+    private final Supplier<String> titleSource;
+    private volatile String title;
+    private final Set<String> titleAliases = ConcurrentHashMap.newKeySet();
     private final BossBar bossBar;
     private final Set<Player> viewers = ConcurrentHashMap.newKeySet();
 
@@ -60,11 +64,14 @@ public final class BedrockBossBarController {
      */
     private boolean isInCombat = false;
 
-    public BedrockBossBarController(LivingEntity realEntity, String title) {
+    public BedrockBossBarController(LivingEntity realEntity, String initialTitle,
+                                    Supplier<String> titleSource) {
         this.realEntityUuid = realEntity.getUniqueId();
         this.realEntity = realEntity;
-        this.title = title;
-        this.bossBar = Bukkit.createBossBar(title, BarColor.GREEN, BarStyle.SEGMENTED_10);
+        this.title = initialTitle;
+        this.titleSource = titleSource;
+        this.titleAliases.add(initialTitle);
+        this.bossBar = Bukkit.createBossBar(initialTitle, BarColor.GREEN, BarStyle.SEGMENTED_10);
         this.bossBar.setProgress(1.0);
         // Phase 7.1c — when combat-enabled, BossBar starts invisible and is only revealed
         // via enterCombat(). When combat-enabled=false (Phase 7.1a fallback), keep the
@@ -83,6 +90,16 @@ public final class BedrockBossBarController {
 
     public String getTitle() {
         return title;
+    }
+
+    public Set<String> getTitleAliases() {
+        return Set.copyOf(titleAliases);
+    }
+
+    public void addTitleAlias(String alias) {
+        if (alias != null && !alias.isEmpty()) {
+            titleAliases.add(alias);
+        }
     }
 
     public boolean hasViewer(Player player) {
@@ -111,6 +128,7 @@ public final class BedrockBossBarController {
             // combat the viewer is tracked here but the bossBar stays invisible to them;
             // they're added via enterCombat() when the next combat starts.
             if (isInCombat) {
+                refreshTitle();
                 bossBar.addPlayer(player);
                 bossBar.setVisible(true);
             }
@@ -126,6 +144,8 @@ public final class BedrockBossBarController {
     /** Recomputes progress + color from realEntity HP. Skipped if entity is dead/invalid. */
     public void tickUpdate() {
         if (realEntity == null || realEntity.isDead() || !realEntity.isValid()) return;
+
+        refreshTitle();
 
         double max = realEntity.getMaxHealth();
         if (max <= 0) return;
@@ -147,6 +167,26 @@ public final class BedrockBossBarController {
         }
     }
 
+    private void refreshTitle() {
+        if (titleSource == null) return;
+
+        String latest;
+        try {
+            latest = titleSource.get();
+        } catch (Throwable t) {
+            return;
+        }
+        if (latest == null || latest.isEmpty()) return;
+
+        titleAliases.add(latest);
+        if (!latest.equals(title)) {
+            title = latest;
+            bossBar.setTitle(latest);
+            FMMBedrockBridge.debugLog("[BRIDGE] Updated BossBar title for " + realEntityUuid
+                    + " to '" + latest + "'");
+        }
+    }
+
     /**
      * Phase 7.1c — called from {@code BedrockCombatTrigger.onEnterCombat}. Reveals the
      * BossBar and adds all currently-tracked viewers. Idempotent — safe to call when
@@ -155,6 +195,7 @@ public final class BedrockBossBarController {
     public void enterCombat() {
         if (isInCombat) return;
         isInCombat = true;
+        refreshTitle();
         bossBar.setVisible(true);
         for (Player viewer : viewers) {
             if (viewer != null && viewer.isOnline()) {

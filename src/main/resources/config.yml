@@ -9,7 +9,7 @@
 #
 # This plugin only adds the EM UX layer that MagmaGuy doesn't provide natively:
 #   - Phase 7.1a/c: Combat-triggered styled BossBar (replaces EM's "Evoker | 2")
-#   - Phase 7.1b/c: Combat-triggered 3-line nametag (HP / HP-Bar / Name)
+#   - Phase 7.1b/c: Combat-triggered nametag overlay (HP / HP-Bar; FMM renders name)
 #   - Phase 7.2b: 2D EM UI icons (BagOfCoin, AnvilHammer, ...) via item_model
 #     packet injection — fills RPM 1.8.0's gap for legacy custom_model_data
 #     overrides on Emerald.
@@ -35,9 +35,19 @@ phase71a:
 # Phase 7.1c — Combat-triggered visuals (HP/Bar/BossBar)
 phase71c:
   # When true, BossBar appears only during combat (EnterCombat → ExitCombat). Nametag
-  # extends to 3 lines (HP / Health-Bar / Name) during combat. When false, BossBar is
-  # always-visible (Phase 7.1a behavior) and nametag stays at 1 line.
+  # overlay shows HP / Health-Bar during combat; FMM renders the mob name natively.
+  # When false, BossBar is always-visible (Phase 7.1a behavior).
   combat-enabled: true
+  # EliteMobs sometimes does not fire a second EnterCombat event after combat paused.
+  # When true, EliteMobDamagedByPlayerEvent also refreshes Bedrock combat UI. This is
+  # the same event EliteMobs uses for Java's HP/name displays.
+  damage-refresh-enabled: true
+  # When false, HP/Bar stays visible until the display timeout even if EM fires ExitCombat,
+  # matching Java's "lingers after last hit" feel more closely.
+  hide-on-exit-event: false
+  # 0 = use EliteMobs' MobCombatSettings.yml combatDisplayTimeoutSeconds (default 30s).
+  # Set a positive tick value to override only the Bedrock overlay timeout.
+  damage-timeout-ticks: 0
 
 # Phase 7.2b — EliteMobs 2D UI Custom Items
 elite-items:

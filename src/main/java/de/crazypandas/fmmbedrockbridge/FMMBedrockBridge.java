@@ -24,7 +24,7 @@ import java.util.logging.Logger;
  *
  * What this plugin does (and what MagmaGuy doesn't cover):
  *  - Phase 7.1a/c: Combat-triggered styled BossBar with HP sync, suppresses EM's vanilla "Evoker | 2"
- *  - Phase 7.1b/c: Combat-triggered 3-line nametag (HP / HP-Bar / Name)
+ *  - Phase 7.1b/c: Combat-triggered Bedrock nametag overlay (HP / HP-Bar; FMM renders name)
  *  - Phase 7.2b: 2D EM UI icons (BagOfCoin, AnvilHammer, …) via item_model packet injection — fills
  *    RPM's gap for legacy custom_model_data overrides on Emerald
  */
@@ -194,5 +194,20 @@ public class FMMBedrockBridge extends JavaPlugin {
     public static boolean isPhase71cCombatEnabled() {
         FMMBedrockBridge plugin = instance;
         return plugin != null && plugin.getConfig().getBoolean("phase71c.combat-enabled", true);
+    }
+
+    public static boolean isPhase71cDamageRefreshEnabled() {
+        FMMBedrockBridge plugin = instance;
+        return plugin != null && plugin.getConfig().getBoolean("phase71c.damage-refresh-enabled", true);
+    }
+
+    public static boolean isPhase71cHideOnExitEnabled() {
+        FMMBedrockBridge plugin = instance;
+        return plugin != null && plugin.getConfig().getBoolean("phase71c.hide-on-exit-event", false);
+    }
+
+    public static long getPhase71cDamageTimeoutTicks() {
+        FMMBedrockBridge plugin = instance;
+        return plugin != null ? plugin.getConfig().getLong("phase71c.damage-timeout-ticks", 0L) : 0L;
     }
 }
