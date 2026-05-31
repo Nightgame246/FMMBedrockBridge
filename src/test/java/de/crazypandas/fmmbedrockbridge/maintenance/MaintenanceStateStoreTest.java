@@ -3,6 +3,7 @@ package de.crazypandas.fmmbedrockbridge.maintenance;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
 
@@ -28,15 +29,13 @@ class MaintenanceStateStoreTest {
         assertTrue(tmp.resolve("maintenance-state.json").toFile().exists());
 
         MaintenanceState loaded = MaintenanceStateStore.load(tmp);
-        assertEquals("abc123def456", loaded.deployedHash());
-        assertEquals(now, loaded.deployedAt());
-        assertEquals("10.4.0", loaded.deployedEmVersion());
+        assertEquals(s, loaded, "Round-trip must preserve all 4 record fields");
     }
 
     @Test
     void corruptedFileLoadsAsNull(@TempDir Path tmp) throws Exception {
         Path file = tmp.resolve("maintenance-state.json");
-        java.nio.file.Files.writeString(file, "{ this is not valid json }");
+        Files.writeString(file, "{ this is not valid json }");
         assertNull(MaintenanceStateStore.load(tmp));
     }
 }
