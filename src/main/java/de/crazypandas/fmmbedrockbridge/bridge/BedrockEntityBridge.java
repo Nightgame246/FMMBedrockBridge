@@ -21,7 +21,7 @@ import java.util.logging.Logger;
  * Manages the BossBar + Nametag controllers for FMM modeled entities (DynamicEntity only).
  *
  * Mob/static rendering is FMM 2.6.0 native — this bridge only adds the EM UX layer:
- * Phase 7.1a/c styled BossBar + Phase 7.1b/c combat-triggered 3-line nametag.
+ * Phase 7.1a/c styled BossBar + Phase 7.1b/c combat-triggered HP nametag overlay.
  */
 public class BedrockEntityBridge {
 
