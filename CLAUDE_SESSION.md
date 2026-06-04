@@ -1024,3 +1024,31 @@ Fabi stoppt heute hier. Nächste Session = Bedrock-Client-Test:
 ### Offen für nächste Session
 - **Phase 7.3 brainstorming** — EM Adventurer's Guild + Shop-GUIs als Cumulus Bedrock-Forms
 - Bug-Reports auf GitHub posten (macht Fabi)
+
+---
+
+## Session: 2026-06-04 (Phase 7.3 — Bedrock Menu Dialog-Reroute)
+
+### Erkenntnis statt Aufwand
+Brainstorming + Spike ergaben: das `/em`-Statusmenü (`PlayerStatusScreen`) hat in EM bereits einen **nativen MC-Dialog-Pfad** (`PlayerStatusScreenDialog`, Java ≥1.21.6), aber EM zwingt Bedrock-Spieler zum Chest-Pfad. **Geyser rendert MC-Dialoge inzwischen als native Bedrock-Forms** (PR #5603). Spike (Bedrock-Chest cancel → EM-Dialog rufen) bestätigte: Bedrock zeigt eine native Form, Sub-Pages cascaden nativ. → Phase 7.3 = **Reroute** statt eigene Cumulus-Forms.
+
+### Implementiert (Subagent-Driven, alle Tasks reviewed)
+- `bridge/McVersions` — reine Versionsschwelle (MC ≥ 1.21.6), 3 Unit-Tests
+- `bridge/MenuRerouteRegistry` — Titel-Normalisierung (Farbcodes strippen) + Titel→Invoker-Lookup, 4 Unit-Tests; registry-erweiterbar für weitere EM-Menüs
+- `elite/EliteMobsHook` — Reflection-Wrapper `statusIndexMenuTitle()` + `openNativeStatusDialog(Player)` (isoliert die EM-Internals; markApiBroken NICHT bei Reflection-Miss, damit Phase-7.1-Features nicht mitabschalten)
+- `bridge/BedrockMenuRerouteListener` — `InventoryOpenEvent` @HIGH: Bedrock + Titel-Match → cancel + next-tick EM-Dialog
+- `FMMBedrockBridge#onEnable` — Registrierung gated auf `floodgate && em && MC≥1.21.6 && config phase73.bedrock-dialog-reroute`; Spike entfernt
+- Config: `phase73.bedrock-dialog-reroute: true`
+- `docs/upstream-bugs/em-route-bedrock-to-dialog.md` — Feature-Request an MagmaGuy (Bedrock nativ zum Dialog routen → Bridge-Reroute später entbehrlich)
+
+### Verifiziert (2026-06-04, TestServer01 paper-1.21.10)
+Boot `Phase 7.3: Bedrock menu dialog-reroute registered`. Bedrock-Client `/em` → native Form + Sub-Buttons funktionieren. 24 Unit-Tests grün. Branch `feat/em-cumulus-forms`.
+
+### Spec + Plan
+- `docs/superpowers/specs/2026-06-04-em-bedrock-dialog-reroute-design.md`
+- `docs/superpowers/plans/2026-06-04-em-bedrock-dialog-reroute.md`
+
+### Offen
+- Branch `feat/em-cumulus-forms` → finishing (merge nach main + push)
+- Upstream-Drafts (`docs/upstream-bugs/`) auf GitHub posten (macht Fabi)
+- Weitere EM-Menüs (Shops/Quests) via Registry-Eintrag — nur falls Dialog-Äquivalent vorhanden

@@ -17,6 +17,7 @@ The current plugin is a focused **EM↔Bedrock UX-Bridge**.
 | **Phase 7.1a/c — Styled Combat BossBar** | EM-managed Bukkit BossBar with the YAML-styled name (e.g. "Tier 13 Eis-Elementar") instead of the Vanilla "Evoker | 2" Geyser would otherwise show on Bedrock. First-match heuristic suppresses EM's BOSS_EVENT for Bedrock players. |
 | **Phase 7.1b/c — Combat Nametag** | Bukkit TextDisplay above bridged mobs showing HP-number / health-bar (combat-only, 2 lines above FMM's native name). Java players see only FMM's native nametag (packet-suppress for our TextDisplay). |
 | **Phase 7.2b — 2D Legacy UI Items** | EM still uses `custom_model_data` overrides on Emerald (e.g. CMD 31173 → BagOfCoin). RPM 1.8.0 only scans the 1.21.4+ `items/` namespace, so these icons would render as Vanilla on Bedrock. Bridge scans EM's pack and injects `item_model=geyser_custom:<key>` on the relevant inventory packets. |
+| **Phase 7.3 — Bedrock Menu Dialog-Reroute** | EM forces Bedrock players to the `/em` chest menu (a bare container grid on Bedrock) even though it already builds the same menu as a native MC dialog for Java 1.21.6+. Geyser now renders MC dialogs as native Bedrock forms, so the bridge cancels the Bedrock chest and triggers EM's `showPlayerStatusDialog` — Bedrock gets a real form, sub-pages cascade natively. Reroute-only (no form-building); registry-extensible to other EM menus. Requires MC ≥ 1.21.6. |
 
 That's it. No mob rendering, no animation conversion, no 3D item conversion — those are FMM + RPM's job now.
 
@@ -114,7 +115,10 @@ elite-items:
 | `bridge/EliteMobsItemScanner` | Reads EM resource pack, finds legacy `custom_model_data` overrides on Emerald & co. |
 | `bridge/EMCustomItem` | Record: javaMaterial, customModelData, texture path, bedrockKey |
 | `bridge/BedrockInventoryRefresher` | Bukkit listener: schedules `Player.updateInventory()` 1 tick after Bedrock player slot changes (forces WINDOW_ITEMS resend that the interceptor can re-inject) |
-| `elite/EliteMobsHook` | Soft-dep wrapper around EliteMobs API (only file with `com.magmaguy.elitemobs.*` imports) |
+| `bridge/BedrockMenuRerouteListener` | Phase 7.3: cancels the Bedrock `/em` chest open and fires EM's native dialog next tick (Geyser → Bedrock form) |
+| `bridge/MenuRerouteRegistry` | Phase 7.3: title-normalize (strip color codes) + title→dialog-invoker lookup; extensible to more EM menus |
+| `bridge/McVersions` | Pure dotted-version threshold check (gates the reroute on MC ≥ 1.21.6) |
+| `elite/EliteMobsHook` | Soft-dep wrapper around EliteMobs API (only file with `com.magmaguy.elitemobs.*` imports); incl. Phase 7.3 reflection wrappers for EM's native status dialog |
 | `commands/FMMBridgeCommand` | `/fmmbridge debug` — shows active controllers, ready Bedrock players, suppressed UUIDs |
 
 Roughly 16 classes / 54 KB JAR. The pre-refactor bridge was 27 classes + a Geyser Extension; both archived under the git tag mentioned above.
