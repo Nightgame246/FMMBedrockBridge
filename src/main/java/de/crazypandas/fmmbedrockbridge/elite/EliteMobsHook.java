@@ -5,6 +5,7 @@ import com.magmaguy.elitemobs.mobconstructor.EliteEntity;
 import de.crazypandas.fmmbedrockbridge.FMMBedrockBridge;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.LivingEntity;
+import org.bukkit.entity.Player;
 
 import java.util.logging.Logger;
 
@@ -87,6 +88,64 @@ public final class EliteMobsHook {
         // Fallback: LivingEntity customName (non-EM-tracked entities)
         String customName = entity.getCustomName();
         return (customName == null || customName.isEmpty()) ? null : customName;
+    }
+
+    // --- Phase 7.3: native player-status dialog reroute (EM internals via reflection) ---
+
+    private static volatile boolean dialogReflectionInit = false;
+    private static java.lang.reflect.Method getIndexChestMenuNameMethod;
+    private static java.lang.reflect.Method showPlayerStatusDialogMethod;
+
+    private static synchronized void initDialogReflection() {
+        if (dialogReflectionInit) return;
+        dialogReflectionInit = true;
+        try {
+            Class<?> cfg = Class.forName(
+                    "com.magmaguy.elitemobs.config.menus.premade.PlayerStatusMenuConfig");
+            getIndexChestMenuNameMethod = cfg.getMethod("getIndexChestMenuName");
+            Class<?> dlg = Class.forName(
+                    "com.magmaguy.elitemobs.playerdata.statusscreen.PlayerStatusScreenDialog");
+            showPlayerStatusDialogMethod = dlg.getMethod("showPlayerStatusDialog", Player.class);
+        } catch (Throwable t) {
+            getIndexChestMenuNameMethod = null;
+            showPlayerStatusDialogMethod = null;
+            log.warning("[BRIDGE] Phase 7.3 dialog reflection unavailable — reroute inert. Cause: " + t);
+        }
+    }
+
+    /**
+     * The configured title of EM's {@code /em} status index chest menu
+     * (e.g. {@code §2EliteMobs Index}), or null if EM is unavailable / API changed.
+     */
+    public static String statusIndexMenuTitle() {
+        if (!isAvailable()) return null;
+        initDialogReflection();
+        if (getIndexChestMenuNameMethod == null) return null;
+        try {
+            Object v = getIndexChestMenuNameMethod.invoke(null);
+            return v instanceof String s ? s : null;
+        } catch (Throwable t) {
+            markApiBroken(t);
+            return null;
+        }
+    }
+
+    /**
+     * Trigger EM's native player-status MC dialog for the player (Geyser renders it
+     * as a Bedrock form). Returns true on success, false if EM is unavailable / the
+     * call failed.
+     */
+    public static boolean openNativeStatusDialog(Player player) {
+        if (!isAvailable() || player == null) return false;
+        initDialogReflection();
+        if (showPlayerStatusDialogMethod == null) return false;
+        try {
+            showPlayerStatusDialogMethod.invoke(null, player);
+            return true;
+        } catch (Throwable t) {
+            markApiBroken(t);
+            return false;
+        }
     }
 
     private static void markApiBroken(Throwable t) {
