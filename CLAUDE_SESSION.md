@@ -1005,3 +1005,22 @@ Fabi stoppt heute hier. Nächste Session = Bedrock-Client-Test:
 ```
 /usr/share/idea/plugins/maven/lib/maven3/bin/mvn clean package
 ```
+
+---
+
+## Session: 2026-06-04
+
+### Abgeschlossen — Aufräumen vor Phase 7.3
+- **pom.xml Versions-Bump** auf den live deployten Stack: FMM `2.5.0 → 2.7.0`, EliteMobs `10.1.1 → 10.4.0`, Floodgate `2.2.3 → 2.2.5-SNAPSHOT`. Build verifiziert (alle Deps lösen auf), 17/17 Unit-Tests grün.
+- **Upstream-Bug-Report-Entwürfe** in `docs/upstream-bugs/` (GitHub-fertig, noch nicht gepostet):
+  - `rpm-baseitemresolver-legacy-override-gap.md` → RPM ignoriert legacy `models/item/<base>.json` overrides → EM-UI-Items (würde Phase 7.2b obsolet machen wenn gefixt)
+  - `rpm-black-shadows-custom-models.md` → schwarze Schatten auf Bedrock-konvertierten Models (TODO: Fabi ergänzt Screenshots + Modellname)
+  - `geyserutils-loadskin-json-pick-npe.md` → `loadSkins` last-json-wins NPE + Fix-Vorschlag
+
+### Branch-Stand
+- `chore/dep-bump-and-bug-reports` (Commit `032cd0b`) → nach `main` gemerged + gepusht
+- `feat/em-cumulus-forms` von aktualisiertem `main` für Phase 7.3 angelegt
+
+### Offen für nächste Session
+- **Phase 7.3 brainstorming** — EM Adventurer's Guild + Shop-GUIs als Cumulus Bedrock-Forms
+- Bug-Reports auf GitHub posten (macht Fabi)
