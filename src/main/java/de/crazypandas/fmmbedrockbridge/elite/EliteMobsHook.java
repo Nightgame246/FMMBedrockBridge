@@ -125,7 +125,10 @@ public final class EliteMobsHook {
             Object v = getIndexChestMenuNameMethod.invoke(null);
             return v instanceof String s ? s : null;
         } catch (Throwable t) {
-            markApiBroken(t);
+            // Phase 7.3 targets EM internals — isolate the failure here instead of
+            // markApiBroken() so a dialog-internal change does NOT disable the BossBar/
+            // item hooks (Phase 7.1/7.2), which use EM's stable public API.
+            log.warning("[BRIDGE] Phase 7.3 statusIndexMenuTitle failed (reroute inert this call): " + t);
             return null;
         }
     }
@@ -143,7 +146,9 @@ public final class EliteMobsHook {
             showPlayerStatusDialogMethod.invoke(null, player);
             return true;
         } catch (Throwable t) {
-            markApiBroken(t);
+            // Isolate Phase 7.3 failure (see statusIndexMenuTitle) — do not markApiBroken().
+            log.warning("[BRIDGE] Phase 7.3 openNativeStatusDialog failed for "
+                    + player.getName() + " (Bedrock player may see no menu): " + t);
             return false;
         }
     }
