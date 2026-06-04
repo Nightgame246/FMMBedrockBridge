@@ -66,3 +66,11 @@ maintenance:
   # zu /fmmbridge maintenance status. Verwende /fmmbridge maintenance mark-deployed
   # nach jedem Re-Deploy auf den Proxy.
   op-chat-notify: true
+
+# Phase 7.3 — Bedrock menu dialog-reroute
+phase73:
+  # Reroute the Bedrock /em status menu to EliteMobs' native MC dialog so Geyser
+  # renders it as a native Bedrock form (sub-pages cascade natively). Requires
+  # MC >= 1.21.6. Java players are unaffected. Use the top-level `debug: true`
+  # to log the title of every inventory a Bedrock player opens.
+  bedrock-dialog-reroute: true

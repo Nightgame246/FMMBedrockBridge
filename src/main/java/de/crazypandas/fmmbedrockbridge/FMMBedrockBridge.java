@@ -138,6 +138,23 @@ public class FMMBedrockBridge extends JavaPlugin {
             log.info("Phase 7.2b: BedrockInventoryRefresher registered");
         }
 
+        // Phase 7.3 — reroute Bedrock /em status menu to EM's native MC dialog so
+        // Geyser renders it as a native Bedrock form. Requires MC >= 1.21.6.
+        // getBukkitVersion() ("1.21.10-R0.1-SNAPSHOT") is always present; McVersions
+        // strips the "-R0.1-SNAPSHOT" suffix before comparing.
+        boolean mc1216 = de.crazypandas.fmmbedrockbridge.bridge.McVersions
+                .isAtLeast(getServer().getBukkitVersion(), 1, 21, 6);
+        boolean rerouteCfg = getConfig().getBoolean("phase73.bedrock-dialog-reroute", true);
+        if (floodgateAvailable && elitemobsAvailable && mc1216 && rerouteCfg) {
+            getServer().getPluginManager().registerEvents(
+                    new de.crazypandas.fmmbedrockbridge.bridge.BedrockMenuRerouteListener(this), this);
+            log.info("Phase 7.3: Bedrock menu dialog-reroute registered");
+        } else {
+            log.info("Phase 7.3: reroute NOT registered (floodgate=" + floodgateAvailable
+                    + ", em=" + elitemobsAvailable + ", mc>=1.21.6=" + mc1216
+                    + ", config=" + rerouteCfg + ")");
+        }
+
         FMMBridgeCommand cmd = new FMMBridgeCommand(this);
         getCommand("fmmbridge").setExecutor(cmd);
         getCommand("fmmbridge").setTabCompleter(cmd);
