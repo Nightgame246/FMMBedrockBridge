@@ -153,6 +153,125 @@ public final class EliteMobsHook {
         }
     }
 
+    // --- Phase 7.3b: native NPC quest dialog reroute (EM internals via reflection) ---
+
+    private static volatile boolean questReflectionInit = false;
+    private static java.lang.reflect.Field questDirectoriesField; // static Map<Inventory, QuestDirectory>
+    private static java.lang.reflect.Field questInventoriesField; // static Map<Inventory, QuestInventory>
+    private static java.lang.reflect.Field directoryQuestMapField; // QuestDirectory.questMap : Map<Integer,Quest>
+    private static java.lang.reflect.Field directoryNpcField;      // QuestDirectory.npcEntity
+    private static java.lang.reflect.Field inventoryQuestField;    // QuestInventory.quest
+    private static java.lang.reflect.Field inventoryNpcField;      // QuestInventory.npcEntity
+    private static java.lang.reflect.Method generateDialogMenuMethod;
+
+    private static synchronized void initQuestReflection() {
+        if (questReflectionInit) return;
+        questReflectionInit = true;
+        try {
+            Class<?> menu = Class.forName("com.magmaguy.elitemobs.quests.menus.QuestInventoryMenu");
+            questDirectoriesField = menu.getDeclaredField("questDirectories");
+            questDirectoriesField.setAccessible(true);
+            questInventoriesField = menu.getDeclaredField("questInventories");
+            questInventoriesField.setAccessible(true);
+
+            Class<?> dir = Class.forName(
+                    "com.magmaguy.elitemobs.quests.menus.QuestInventoryMenu$QuestDirectory");
+            directoryQuestMapField = dir.getDeclaredField("questMap");
+            directoryQuestMapField.setAccessible(true);
+            directoryNpcField = dir.getDeclaredField("npcEntity");
+            directoryNpcField.setAccessible(true);
+
+            Class<?> inv = Class.forName(
+                    "com.magmaguy.elitemobs.quests.menus.QuestInventoryMenu$QuestInventory");
+            inventoryQuestField = inv.getDeclaredField("quest");
+            inventoryQuestField.setAccessible(true);
+            inventoryNpcField = inv.getDeclaredField("npcEntity");
+            inventoryNpcField.setAccessible(true);
+
+            Class<?> questMenu = Class.forName("com.magmaguy.elitemobs.quests.menus.QuestMenu");
+            Class<?> npcClass = Class.forName("com.magmaguy.elitemobs.npcs.NPCEntity");
+            generateDialogMenuMethod = questMenu.getMethod(
+                    "generateDialogMenu", java.util.List.class, Player.class, npcClass);
+        } catch (Throwable t) {
+            // Null out ALL handles so a partial init failure cannot leave some non-null and
+            // slip past the questDirectoriesField/questInventoriesField guard in tryRecoverQuestMenu.
+            questDirectoriesField = null;
+            questInventoriesField = null;
+            directoryQuestMapField = null;
+            directoryNpcField = null;
+            inventoryQuestField = null;
+            inventoryNpcField = null;
+            generateDialogMenuMethod = null;
+            log.warning("[BRIDGE] Phase 7.3b quest reflection unavailable — quest reroute inert. Cause: " + t);
+        }
+    }
+
+    /**
+     * If {@code inventory} is an EM NPC quest chest (single quest or multi-quest directory),
+     * recover the quests + originating NPC and <b>remove</b> the inventory from EM's internal
+     * tracking map, returning the context. Otherwise returns empty.
+     *
+     * <p>The map entry is removed because the caller cancels the chest's open — EM only cleans
+     * these maps on {@code InventoryCloseEvent}, which never fires for a cancelled open, so
+     * without removal the entry would leak.
+     */
+    public static java.util.Optional<QuestMenuContext> tryRecoverQuestMenu(
+            org.bukkit.inventory.Inventory inventory) {
+        if (!isAvailable() || inventory == null) return java.util.Optional.empty();
+        initQuestReflection();
+        if (questDirectoriesField == null || questInventoriesField == null) {
+            return java.util.Optional.empty();
+        }
+        try {
+            // Multi-quest directory
+            java.util.Map<?, ?> directories = (java.util.Map<?, ?>) questDirectoriesField.get(null);
+            Object directory = directories == null ? null : directories.get(inventory);
+            if (directory != null) {
+                java.util.Map<?, ?> questMap = (java.util.Map<?, ?>) directoryQuestMapField.get(directory);
+                java.util.List<Object> quests = new java.util.ArrayList<>(
+                        questMap == null ? java.util.List.of() : questMap.values());
+                Object npc = directoryNpcField.get(directory);
+                directories.remove(inventory);
+                return java.util.Optional.of(new QuestMenuContext(quests, npc));
+            }
+            // Single-quest entry
+            java.util.Map<?, ?> inventories = (java.util.Map<?, ?>) questInventoriesField.get(null);
+            Object questInv = inventories == null ? null : inventories.get(inventory);
+            if (questInv != null) {
+                Object quest = inventoryQuestField.get(questInv);
+                java.util.List<Object> quests = new java.util.ArrayList<>();
+                if (quest != null) quests.add(quest);
+                Object npc = inventoryNpcField.get(questInv);
+                inventories.remove(inventory);
+                return java.util.Optional.of(new QuestMenuContext(quests, npc));
+            }
+            return java.util.Optional.empty();
+        } catch (Throwable t) {
+            log.warning("[BRIDGE] Phase 7.3b tryRecoverQuestMenu failed (quest reroute inert this call): " + t);
+            return java.util.Optional.empty();
+        }
+    }
+
+    /**
+     * Trigger EM's native NPC quest MC dialog for the player (Geyser renders it as a Bedrock
+     * form). {@code quests} and {@code npcEntity} must be the objects from
+     * {@link #tryRecoverQuestMenu}. Returns true on success, false if EM is unavailable / the
+     * call failed.
+     */
+    public static boolean openNativeQuestDialog(Player player, java.util.List<?> quests, Object npcEntity) {
+        if (!isAvailable() || player == null) return false;
+        initQuestReflection();
+        if (generateDialogMenuMethod == null) return false;
+        try {
+            generateDialogMenuMethod.invoke(null, quests, player, npcEntity);
+            return true;
+        } catch (Throwable t) {
+            log.warning("[BRIDGE] Phase 7.3b openNativeQuestDialog failed for "
+                    + player.getName() + " (Bedrock player may see no menu): " + t);
+            return false;
+        }
+    }
+
     private static void markApiBroken(Throwable t) {
         if (apiBroken) return;
         apiBroken = true;
