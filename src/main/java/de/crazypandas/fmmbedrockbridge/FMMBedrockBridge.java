@@ -138,21 +138,24 @@ public class FMMBedrockBridge extends JavaPlugin {
             log.info("Phase 7.2b: BedrockInventoryRefresher registered");
         }
 
-        // Phase 7.3 — reroute Bedrock /em status menu to EM's native MC dialog so
-        // Geyser renders it as a native Bedrock form. Requires MC >= 1.21.6.
+        // Phase 7.3 / 7.3b — reroute Bedrock EM chest menus to EM's native MC dialogs so
+        // Geyser renders them as native Bedrock forms. Requires MC >= 1.21.6.
         // getBukkitVersion() ("1.21.10-R0.1-SNAPSHOT") is always present; McVersions
         // strips the "-R0.1-SNAPSHOT" suffix before comparing.
         boolean mc1216 = de.crazypandas.fmmbedrockbridge.bridge.McVersions
                 .isAtLeast(getServer().getBukkitVersion(), 1, 21, 6);
-        boolean rerouteCfg = getConfig().getBoolean("phase73.bedrock-dialog-reroute", true);
-        if (floodgateAvailable && elitemobsAvailable && mc1216 && rerouteCfg) {
+        boolean statusReroute = getConfig().getBoolean("phase73.bedrock-dialog-reroute", true);
+        boolean questReroute = getConfig().getBoolean("phase73.bedrock-quest-reroute", true);
+        boolean anyReroute = statusReroute || questReroute;
+        if (floodgateAvailable && elitemobsAvailable && mc1216 && anyReroute) {
             getServer().getPluginManager().registerEvents(
                     new de.crazypandas.fmmbedrockbridge.bridge.BedrockMenuRerouteListener(this), this);
-            log.info("Phase 7.3: Bedrock menu dialog-reroute registered");
+            log.info("Phase 7.3: Bedrock menu dialog-reroute registered (status=" + statusReroute
+                    + ", quest=" + questReroute + ")");
         } else {
             log.info("Phase 7.3: reroute NOT registered (floodgate=" + floodgateAvailable
                     + ", em=" + elitemobsAvailable + ", mc>=1.21.6=" + mc1216
-                    + ", config=" + rerouteCfg + ")");
+                    + ", status=" + statusReroute + ", quest=" + questReroute + ")");
         }
 
         FMMBridgeCommand cmd = new FMMBridgeCommand(this);
