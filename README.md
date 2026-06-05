@@ -18,6 +18,7 @@ The current plugin is a focused **EM↔Bedrock UX-Bridge**.
 | **Phase 7.1b/c — Combat Nametag** | Bukkit TextDisplay above bridged mobs showing HP-number / health-bar (combat-only, 2 lines above FMM's native name). Java players see only FMM's native nametag (packet-suppress for our TextDisplay). |
 | **Phase 7.2b — 2D Legacy UI Items** | EM still uses `custom_model_data` overrides on Emerald (e.g. CMD 31173 → BagOfCoin). RPM 1.8.0 only scans the 1.21.4+ `items/` namespace, so these icons would render as Vanilla on Bedrock. Bridge scans EM's pack and injects `item_model=geyser_custom:<key>` on the relevant inventory packets. |
 | **Phase 7.3 — Bedrock Menu Dialog-Reroute** | EM forces Bedrock players to the `/em` chest menu (a bare container grid on Bedrock) even though it already builds the same menu as a native MC dialog for Java 1.21.6+. Geyser now renders MC dialogs as native Bedrock forms, so the bridge cancels the Bedrock chest and triggers EM's `showPlayerStatusDialog` — Bedrock gets a real form, sub-pages cascade natively. Reroute-only (no form-building); registry-extensible to other EM menus. Requires MC ≥ 1.21.6. |
+| **Phase 7.3b — Bedrock NPC Quest-Menu Dialog-Reroute** | Extends Phase 7.3 to EliteMobs' NPC quest menu — the only other Bedrock-forced-to-chest EM menu with a native dialog path (`QuestMenu.generateDialogMenu`). Detection is holder-based (looks the opened chest up in EM's internal `QuestInventoryMenu` maps via reflection) because quest chest titles are dynamic (single-quest title = quest name, multi-quest = literal `"Quests"`). On a hit the chest is cancelled and EM's quest dialog fires next tick → Geyser renders a native Bedrock form. Status-vs-quest precedence + per-flag gating live in `RerouteDecision`; recovered quest context is carried opaquely in `QuestMenuContext`. Config: `phase73.bedrock-quest-reroute: true`. Requires MC ≥ 1.21.6. |
 
 That's it. No mob rendering, no animation conversion, no 3D item conversion — those are FMM + RPM's job now.
 
@@ -115,13 +116,15 @@ elite-items:
 | `bridge/EliteMobsItemScanner` | Reads EM resource pack, finds legacy `custom_model_data` overrides on Emerald & co. |
 | `bridge/EMCustomItem` | Record: javaMaterial, customModelData, texture path, bedrockKey |
 | `bridge/BedrockInventoryRefresher` | Bukkit listener: schedules `Player.updateInventory()` 1 tick after Bedrock player slot changes (forces WINDOW_ITEMS resend that the interceptor can re-inject) |
-| `bridge/BedrockMenuRerouteListener` | Phase 7.3: cancels the Bedrock `/em` chest open and fires EM's native dialog next tick (Geyser → Bedrock form) |
+| `bridge/BedrockMenuRerouteListener` | Phase 7.3/7.3b: cancels the Bedrock `/em` chest or NPC quest-chest open and fires EM's native dialog next tick (Geyser → Bedrock form); dispatches status vs quest via `RerouteDecision` |
 | `bridge/MenuRerouteRegistry` | Phase 7.3: title-normalize (strip color codes) + title→dialog-invoker lookup; extensible to more EM menus |
 | `bridge/McVersions` | Pure dotted-version threshold check (gates the reroute on MC ≥ 1.21.6) |
-| `elite/EliteMobsHook` | Soft-dep wrapper around EliteMobs API (only file with `com.magmaguy.elitemobs.*` imports); incl. Phase 7.3 reflection wrappers for EM's native status dialog |
+| `bridge/RerouteDecision` | Phase 7.3b: pure resolver — status-vs-quest precedence + per-flag gating; no side effects |
+| `elite/QuestMenuContext` | Phase 7.3b: opaque carrier record for the recovered quest menu context |
+| `elite/EliteMobsHook` | Soft-dep wrapper around EliteMobs API (only file with `com.magmaguy.elitemobs.*` imports); incl. Phase 7.3 reflection wrappers for EM's native status dialog, and Phase 7.3b `tryRecoverQuestMenu` + `openNativeQuestDialog` reflection into EM's `QuestInventoryMenu` static maps |
 | `commands/FMMBridgeCommand` | `/fmmbridge debug` — shows active controllers, ready Bedrock players, suppressed UUIDs |
 
-Roughly 16 classes / 54 KB JAR. The pre-refactor bridge was 27 classes + a Geyser Extension; both archived under the git tag mentioned above.
+Roughly 21 classes / 93 KB JAR. The pre-refactor bridge was 27 classes + a Geyser Extension; both archived under the git tag mentioned above.
 
 ## Phase 7.2b — EM-Items Mini-Pack + Mappings (Re-Deploy bei EM-Updates)
 
@@ -146,6 +149,12 @@ scp /home/amp/.ampdata/instances/TestServer01/Minecraft/plugins/FMMBedrockBridge
 ```
 
 **Drift-Detection:** Wenn das EM-Pack sich ändert (Update, neue Items), zeigt die Bridge beim nächsten Boot eine WARN-Sequenz und schickt Ops beim Join eine Chat-Nachricht. `/fmmbridge maintenance status` zeigt den aktuellen Drift-Status, `/fmmbridge maintenance redeploy-instructions` printet die exakten SCP-Befehle.
+
+## Phase 7.3b — Bedrock NPC quest-menu dialog-reroute
+
+Extends Phase 7.3 to EliteMobs' NPC quest menu — the only other Bedrock-forced-to-chest EM menu with a native dialog path (`QuestMenu.generateDialogMenu`). Detection is holder-based: the bridge looks the opened chest up in EM's internal `QuestInventoryMenu` maps (reflection in `EliteMobsHook`) because quest chest titles are dynamic (single-quest title = quest name, multi-quest = literal `"Quests"`). On a hit the chest is cancelled and EM's quest dialog fires next tick → Geyser renders a native Bedrock form. Status-vs-quest precedence + per-flag gating live in `RerouteDecision`; recovered quest context is carried opaquely in `QuestMenuContext`.
+
+Config: `phase73.bedrock-quest-reroute: true` (toggles independently of `bedrock-dialog-reroute`). Requires MC >= 1.21.6. Java players unaffected.
 
 ## License
 
