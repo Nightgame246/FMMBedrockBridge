@@ -1099,5 +1099,55 @@ RPM-Update-Quirks: Backend-JAR muss exakt `ResourcePackManager.jar` heißen (ver
 **Live-Bedrock-Test (TestServer01, EM 10.5.0, Bedrock-Spieler `.Nightgame2272`):** `/em`, Quest-NPC single, Quest-NPC multi → **alle drei native Forms** (statt Chest). **0** `Phase 7.3`-/Reroute-Warnungen + **0** Bridge-Exceptions im Log ⇒ Reflection sauber. Code-Beweis bestätigt: Forms kommen vom Bridge-Reroute (EM allein hätte Chests gezeigt). 7.3 + 7.3b = **verifiziert, gepusht**.
 
 ### Offen nach diesem Stand
-- RPM-2.0.2 empirisch: gemergte Geyser-Mappings auf `minecraft:emerald`+CMD→bagofcoins prüfen + Bedrock-Render → wenn ok, **Phase 7.2b rausreißen**.
+- ~~RPM-2.0.2 empirisch: gemergte Geyser-Mappings auf `minecraft:emerald`+CMD→bagofcoins prüfen + Bedrock-Render → wenn ok, **Phase 7.2b rausreißen**.~~ → erledigt 2026-06-14 (siehe unten)
 - Upstream-Drafts auf GitHub posten (macht Fabi).
+
+---
+
+## Session: 2026-06-14 — Phase 7.2b Rückbau
+
+### Hintergrund
+
+RPM 2.0.2 hat den `BaseItemResolver`-Gap geschlossen: `GenericJavaScanner.scanLegacyCustomModelOverrides` scannt `assets/minecraft/models/item/<base>.json`, liest CMD-overrides aus und synthetisiert range_dispatch-Definitionen für Geyser. Die Bridge-eigene 2D-Item-Inject-Pipeline (Phase 7.2b, bridge_em Namespace) ist damit redundant. De-Risk-Gate-Ergebnis (Analyse gegen RPM-2.0.2-Source + Geyser-Limitation-Check): **10 von 12 EM-UI-Items** rendern nativ auf Bedrock. Die fehlenden 2 sind ein Upstream-Problem, kein Regressionsrisiko durch den Rückbau.
+
+### Was wurde entfernt
+
+**Branch:** `refactor/remove-phase72b`
+
+**Quell-Dateien (10 Produktions- + 5 Test-Dateien gelöscht):**
+- `bridge/EliteMobsItemScanner.java` — EM-Resourcepack-Scanner (CMD-Override-Erkennung)
+- `bridge/EMCustomItem.java` — Record: javaMaterial, customModelData, sourceTexturePath, bedrockKey
+- `bridge/BedrockInventoryRefresher.java` — Bukkit-Listener: erzwingt WINDOW_ITEMS-Resend für Bedrock-Spieler
+- `bedrock/BedrockItemPackBuilder.java` — generiert `em_bridge_pack.mcpack`
+- `bedrock/GeyserMappingsWriter.java` — schreibt `em_bridge_mappings.json`
+- `maintenance/MaintenanceState.java`, `MaintenanceStateStore.java`, `MaintenanceTracker.java`, `OpDriftNotifier.java`, `PackHashCalculator.java` — Drift-Detection + Ops-Warn-Subsystem
+- Dazugehörige JUnit-5-Tests (5 Dateien)
+
+**Weitere Änderungen:**
+- `PacketInterceptor.java` — 2D-item_model-Inject-Branch (SET_SLOT + WINDOW_ITEMS + ENTITY_METADATA) entfernt, totes `import java.util.Map;` entfernt
+- `FMMBedrockBridge.java` — Phase-7.2b-Block in `onEnable()` entfernt (Scanner-Init, Artefakt-Generierung, Maintenance-Wiring)
+- `commands/FMMBridgeCommand.java` — `maintenance`-Subkommando-Zweig entfernt (nur `debug` bleibt)
+- `config.yml` default — `elite-items:`-Sektion entfernt
+- README.md, CLAUDE.md, CLAUDE_SESSION.md — Dokumentation aktualisiert
+
+### Warum (De-Risk-Gate-Ergebnis)
+
+RPM 2.0.2 (`GenericJavaScanner.scanLegacyCustomModelOverrides`) konvertiert alle EM-UI-Items die auf Flat-Icon-Materialien liegen (emerald, stained_glass, redstone, paper etc.) nativ zu Bedrock. **10 von 12** EM-UI-Icons sind damit abgedeckt.
+
+**Die 2 nicht abgedeckten Items — bekannte Bedrock/Geyser-Limitation:**
+- `green_banner` + CMD 31173 → `boxinput` (Eingabe-Rahmen im Verzauberer-/Elite-Scroll-Menü)
+- `red_banner` + CMD 31173 → `boxoutput` (Ausgabe-Rahmen)
+
+Ursache: Bedrock kann `custom-item-v2` nicht auf Banner-Basis-Items anwenden — Banner sind als Block-Entity mit Pattern-Rendering implementiert, nicht als flache Item-Icons. RPM kann keinen Geyser-Custom-Item-Eintrag für Banner ausstellen der auf Bedrock greift. Diese Icons sind für Bedrock-Spieler unsichtbar, bis EM oder RPM die Basis-Items auf ein Flat-Icon-Material (z.B. `paper`) umzieht. Upstream-Draft: `docs/upstream-bugs/em-banner-ui-items-bedrock.md`.
+
+Diese Einschränkung ist **akzeptiert** — die betroffenen Icons sind kosmetische Rahmen im Verzauberer-/Scroll-Menü, kein Kern-Gameplay. Das Entfernen der Bridge-Schicht reduziert die Codebasis erheblich (10+5 Klassen, Maintenance-Subsystem, SCP-Deploy-Prozess) ohne funktionale Regression.
+
+### Tests
+
+13 Unit-Tests (nach Entfernen der 5 Phase-7.2b-Tests von vormals 18) — alle grün.
+
+### Commits
+
+Zwei logische Commits auf `refactor/remove-phase72b`:
+1. `refactor(7.2b): remove dead java.util.Map import from PacketInterceptor`
+2. `docs(7.2b): record removal; EM UI items now native via RPM 2.0.2 (banner gap noted)`

@@ -332,8 +332,6 @@ Aktuelle Bridge-Verantwortung: **EM↔Bedrock UX-Layer** — Combat-styled BossB
 - packetevents 2.12.1 auf TestServer01 installiert
 - Ersetzt ProtocolLib komplett (ProtocolLib hat BUNDLE-Problem auf MC 1.21.x)
 - BOSS_EVENT-Suppression läuft auf Netty-IO-Thread, nicht Bukkit-Main-Thread → ThreadLocal-Bypass funktioniert nicht; Lösung ist First-Match-Heuristik (siehe `PacketInterceptor.handleBossEvent`)
-- 2D-Item-Inject (Phase 7.2b): SET_SLOT + WINDOW_ITEMS + ENTITY_METADATA Pakete erhalten `item_model = geyser_custom:<bedrockKey>` Component
+### Phase 7.2b — bridge_em Namespace (removed 2026-06-14)
 
-### Phase 7.2b — bridge_em Namespace (seit 2026-05-31)
-
-Bis 28.05. wurde `item_model = geyser_custom:em_<key>` injected, aber dieser Identifier ist seit RPM 2.0.0 Switch tot (Geyser kennt ihn nicht mehr; vorher kam er aus RPM 1.8.0-generierten Mappings auf Proxy01). Jetzt: Bridge generiert eigenen Bedrock-Pack (`em_bridge_pack.mcpack`) + Geyser custom-item-v2 Mappings-Datei (`em_bridge_mappings.json`) mit `bridge_em:<key>` Namespace. Beides muss nach Initial-Deploy + bei jedem EM-Update per SCP auf Proxy01 (siehe README "Phase 7.2b" Sektion). Bridge erkennt EM-Pack-Drift via SHA-256 Hash und warnt Ops im Chat (deutsch) + Console-WARN beim Boot. `/fmmbridge maintenance status` / `redeploy-instructions` / `mark-deployed` für Wartung.
+Historisch: Bridge injizierte `item_model = bridge_em:<key>` für EM-2D-UI-Items + generierte eigenes `em_bridge_pack.mcpack` + Geyser-Mappings. **Entfernt**, weil RPM 2.0.2 diese Items jetzt nativ konvertiert (`scanLegacyCustomModelOverrides`). Siehe CLAUDE_SESSION 2026-06-14 für Details.
