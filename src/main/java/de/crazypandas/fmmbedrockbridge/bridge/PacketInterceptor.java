@@ -4,14 +4,7 @@ import com.github.retrooper.packetevents.PacketEvents;
 import com.github.retrooper.packetevents.event.PacketListenerAbstract;
 import com.github.retrooper.packetevents.event.PacketListenerPriority;
 import com.github.retrooper.packetevents.event.PacketSendEvent;
-import com.github.retrooper.packetevents.protocol.component.ComponentTypes;
-import com.github.retrooper.packetevents.protocol.component.builtin.item.ItemModel;
-import com.github.retrooper.packetevents.protocol.entity.data.EntityData;
-import com.github.retrooper.packetevents.protocol.item.ItemStack;
 import com.github.retrooper.packetevents.protocol.packettype.PacketType;
-import com.github.retrooper.packetevents.resources.ResourceLocation;
-import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerSetSlot;
-import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerWindowItems;
 import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerBossBar;
 import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerEntityMetadata;
 import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerEntityPositionSync;
@@ -27,20 +20,14 @@ import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.geysermc.floodgate.api.FloodgateApi;
 
-import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.logging.Logger;
 
 /**
  * PacketEvents listener that:
- *  - Phase 7.2b: injects item_model = geyser_custom:&lt;bedrockKey&gt; on legacy
- *    custom_model_data items (Smaragd + CMD 31173 → BagOfCoin etc.) so Geyser/RPM
- *    can route them to the correct Bedrock identifier. Fills RPM 1.8.0's gap which
- *    only scans the 1.21.4+ items/ namespace.
  *  - Phase 7.1a: suppresses EM's "Evoker | 2" BossBar packet for Bedrock players
  *    via first-match heuristic, leaving our styled bridge BossBar visible.
  *  - Phase 7.1b: suppresses our auxiliary TextDisplay nametag entity for Java
@@ -49,10 +36,6 @@ import java.util.logging.Logger;
 public class PacketInterceptor {
 
     private static final Logger log = FMMBedrockBridge.getInstance().getLogger();
-
-    // Phase 7.2b — (javaMaterial, cmd) → bedrockKey for legacy custom_model_data items
-    private volatile Map<String, Map<Integer, String>> emItemModelMap = Collections.emptyMap();
-    private final AtomicInteger injectCount = new AtomicInteger();
 
     // Phase 7.1b — entity IDs hidden from ALL Java (non-Floodgate) players (our TextDisplay nametags)
     private final Set<Integer> javaHiddenEntityIds = ConcurrentHashMap.newKeySet();
@@ -66,95 +49,12 @@ public class PacketInterceptor {
         this.floodgateAvailable = Bukkit.getPluginManager().getPlugin("floodgate") != null;
     }
 
-    public void setEmItemModelMap(Map<String, Map<Integer, String>> map) {
-        Map<String, Map<Integer, String>> copy = new java.util.HashMap<>();
-        for (var e : map.entrySet()) copy.put(e.getKey(), Map.copyOf(e.getValue()));
-        this.emItemModelMap = Map.copyOf(copy);
-        int total = map.values().stream().mapToInt(Map::size).sum();
-        log.info("[BRIDGE] EM item_model injection map loaded: " + total + " entries across "
-                + map.size() + " materials");
-    }
-
-    private boolean injectItemModelIfNeeded(ItemStack item) {
-        if (item == null || item.isEmpty()) return false;
-        String typeName = item.getType().getName().toString();
-        Map<Integer, String> cmdMap = emItemModelMap.get(typeName);
-        if (cmdMap == null) return false;
-
-        java.util.Optional<com.github.retrooper.packetevents.protocol.component.builtin.item.ItemCustomModelData> cmdLists =
-                item.getComponent(ComponentTypes.CUSTOM_MODEL_DATA_LISTS);
-        java.util.Optional<Integer> cmdLegacy = item.getComponent(ComponentTypes.CUSTOM_MODEL_DATA);
-        Integer cmd = null;
-        if (cmdLists.isPresent() && !cmdLists.get().getFloats().isEmpty()) {
-            cmd = cmdLists.get().getFloats().get(0).intValue();
-        } else if (cmdLegacy.isPresent()) {
-            cmd = cmdLegacy.get();
-        }
-        if (cmd == null) return false;
-
-        String bedrockKey = cmdMap.get(cmd);
-        if (bedrockKey == null) return false;
-
-        item.setComponent(ComponentTypes.ITEM_MODEL,
-                new ItemModel(new ResourceLocation(
-                        de.crazypandas.fmmbedrockbridge.bedrock.GeyserMappingsWriter.BEDROCK_NAMESPACE,
-                        bedrockKey)));
-        int n = injectCount.incrementAndGet();
-        if (n <= 10 || n % 100 == 0) {
-            log.info("[BRIDGE] Injected item_model="
-                    + de.crazypandas.fmmbedrockbridge.bedrock.GeyserMappingsWriter.BEDROCK_NAMESPACE
-                    + ":" + bedrockKey + " for " + typeName + " cmd=" + cmd + " (n=" + n + ")");
-        }
-        return true;
-    }
-
     public void register() {
         listener = new PacketListenerAbstract(PacketListenerPriority.HIGHEST) {
             @Override
             public void onPacketSend(PacketSendEvent event) {
                 Object eventPlayer = event.getPlayer();
                 if (!(eventPlayer instanceof Player playerObj)) return;
-
-                // Phase 7.2b — inject item_model on inventory packets for Bedrock players
-                if (!emItemModelMap.isEmpty() && floodgateAvailable
-                        && FloodgateApi.getInstance().isFloodgatePlayer(playerObj.getUniqueId())) {
-                    if (event.getPacketType() == PacketType.Play.Server.SET_SLOT) {
-                        try {
-                            WrapperPlayServerSetSlot wrapper = new WrapperPlayServerSetSlot(event);
-                            if (injectItemModelIfNeeded(wrapper.getItem())) {
-                                event.markForReEncode(true);
-                            }
-                        } catch (Throwable t) {
-                            // Wrapper API mismatch — fail soft
-                        }
-                    } else if (event.getPacketType() == PacketType.Play.Server.WINDOW_ITEMS) {
-                        try {
-                            WrapperPlayServerWindowItems wrapper = new WrapperPlayServerWindowItems(event);
-                            boolean modified = false;
-                            for (ItemStack item : wrapper.getItems()) {
-                                if (injectItemModelIfNeeded(item)) modified = true;
-                            }
-                            wrapper.getCarriedItem().ifPresent(ci -> injectItemModelIfNeeded(ci));
-                            if (modified) event.markForReEncode(true);
-                        } catch (Throwable t) {
-                            // Wrapper API mismatch — fail soft
-                        }
-                    } else if (event.getPacketType() == PacketType.Play.Server.ENTITY_METADATA) {
-                        try {
-                            WrapperPlayServerEntityMetadata wrapper = new WrapperPlayServerEntityMetadata(event);
-                            boolean modified = false;
-                            for (EntityData<?> data : wrapper.getEntityMetadata()) {
-                                if (data.getValue() instanceof ItemStack stack
-                                        && injectItemModelIfNeeded(stack)) {
-                                    modified = true;
-                                }
-                            }
-                            if (modified) event.markForReEncode(true);
-                        } catch (Throwable t) {
-                            // Wrapper API mismatch — fail soft
-                        }
-                    }
-                }
 
                 // Phase 7.1b — Java-only suppress for our auxiliary TextDisplay nametags
                 if (!javaHiddenEntityIds.isEmpty() && floodgateAvailable
