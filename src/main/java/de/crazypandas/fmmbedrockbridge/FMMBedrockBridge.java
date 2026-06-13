@@ -12,7 +12,7 @@ import java.util.logging.Logger;
  *
  * Requires:
  *  - FreeMinecraftModels 2.6.0+ with sendCustomModelsToBedrockClients: true (mob/static rendering)
- *  - ResourcePackManager 1.8.0+ (Java→Bedrock pack conversion)
+ *  - ResourcePackManager 2.0.2+ (Java→Bedrock pack + EM UI item conversion)
  *  - PacketEvents (packet manipulation)
  *  - Floodgate (Bedrock player detection)
  *

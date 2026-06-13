@@ -133,14 +133,6 @@
             <scope>provided</scope>
         </dependency>
 
-        <!-- GeyserUtils Spigot -->
-        <dependency>
-            <groupId>me.zimzaza4</groupId>
-            <artifactId>geyserutils-spigot</artifactId>
-            <version>1.0-SNAPSHOT</version>
-            <scope>provided</scope>
-        </dependency>
-
         <!-- PacketEvents -->
         <dependency>
             <groupId>com.github.retrooper</groupId>

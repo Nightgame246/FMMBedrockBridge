@@ -11,14 +11,13 @@ depend:
 
 softdepend:
   - floodgate
-  - GeyserUtils
   - PacketEvents
   - EliteMobs
 
 commands:
   fmmbridge:
     description: FMMBedrockBridge admin commands
-    usage: /fmmbridge convert [modelId|all]
+    usage: /fmmbridge <debug>
     permission: fmmbedrockbridge.admin
     permission-message: You don't have permission to use this command.
 
