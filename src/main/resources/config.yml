@@ -49,15 +49,6 @@ phase71c:
   # Set a positive tick value to override only the Bedrock overlay timeout.
   damage-timeout-ticks: 0
 
-# Phase 7.2b — EliteMobs 2D UI Custom Items
-elite-items:
-  # When true, scans EM resource pack for legacy custom_model_data overrides (Emerald +
-  # CMD 31173 = BagOfCoin etc.) and injects item_model on inventory packets for Bedrock
-  # players so Geyser/RPM routes them to the correct Bedrock identifier.
-  enabled: true
-  # Path to EliteMobs resource pack folder (relative to server root).
-  resource-pack-path: "plugins/EliteMobs/resource_pack"
-
 # Phase 7.2b/maintenance — Drift-Detection für EM-Resource-Pack
 maintenance:
   # Wenn der EM-Resource-Pack sich seit dem letzten deployed-Stand geändert hat,
