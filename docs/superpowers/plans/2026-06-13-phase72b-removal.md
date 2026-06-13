@@ -63,6 +63,15 @@ vanilla emerald.
 - ❌ Icons broken → **STOP**. Re-enable `elite-items.enabled: true`, restore the proxy files,
   restart, file an RPM render bug with MagmaGuy. Do not remove any code.
 
+**GATE OUTCOME (evaluated 2026-06-14): GREEN-with-known-gap → proceed.**
+10/12 EM UI items render natively via RPM 2.0.2 (verified at mappings + pack-sprite level, no
+collisions). The 2 banner-based items — `green_banner`+CMD31173 → `boxinput` and
+`red_banner`+CMD31173 → `boxoutput` (Verzauberer/enchantment + elite-scroll menu frame icons) —
+do **not** render: Bedrock/Geyser cannot apply custom-item-v2 to banner base items (banners are
+block-entity/pattern-rendered, not flat icons). RPM's mapping is correct; the limit is in
+Geyser/Bedrock. Accepted as a known temporary upstream-pending gap (see Task 6 Step 7); 7.2b is
+removed in full regardless. Root cause + mechanism: memory `rpm-banner-customitem-limit`.
+
 ---
 
 ## Task 1: Strip the `maintenance` subtree from FMMBridgeCommand
@@ -394,6 +403,16 @@ Expected: `BUILD SUCCESS`.
 git add README.md CLAUDE_SESSION.md CLAUDE.md
 git commit -m "docs(7.2b): record removal; EM UI items now native via RPM 2.0.2"
 ```
+
+- [ ] **Step 7: Draft upstream report for the banner gap** (operator posts later)
+
+Add `docs/upstream-bugs/em-banner-ui-items-bedrock.md` describing: EM's `boxInput`/`boxOutput`
+(Verzauberer/enchantment + elite-scroll menus) use `green_banner`/`red_banner` + CMD 31173 as
+base items; Bedrock/Geyser cannot render custom-item-v2 on banner base items, so these icons are
+invisible to Bedrock clients under RPM's native conversion. Suggested fix: EM moves these two
+models onto a flat-icon base item (e.g. `paper`/`emerald`) like the other 10 UI icons, OR RPM
+re-bases banner-based legacy overrides onto a flat-icon carrier during Bedrock conversion.
+Commit with: `git commit -m "docs(upstream): EM banner UI items invisible on Bedrock (boxinput/boxoutput)"`.
 
 ---
 
