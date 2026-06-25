@@ -5,6 +5,45 @@
 
 ---
 
+## 🟢 FÜR CLAUDE: BOOTSTRAP (am Anfang JEDER Session zuerst lesen & ausführen)
+
+Wenn der User sagt „lies die HANDOFF.md", dann:
+
+1. **Diese Datei komplett lesen** — Abschnitte 1–6 geben den vollständigen Stand.
+2. **Git-Stand prüfen & richtigen Branch sicherstellen:**
+   ```bash
+   git status -sb
+   git checkout refactor/remove-phase72b   # falls noch nicht drauf
+   git pull                                # falls am anderen PC schon weitergearbeitet wurde
+   ```
+3. **Reference-Repos vorhanden & aktuell?** (gitignored, eigene Repos — kommen NICHT mit `git clone`):
+   ```bash
+   bash setup-references.sh
+   ```
+   Klont fehlende Refs und zieht Upstream-Updates (FMM/RPM/EliteMobs sind kritisch).
+4. **Build verifizieren** (optional, bei Bedarf):
+   ```bash
+   mvn -o clean package -DskipTests
+   ```
+5. Dann dem User den aktuellen Stand + die nächsten Schritte aus Abschnitt 3 zusammenfassen und auf seine Anweisung warten.
+
+## 🔴 FÜR CLAUDE: BEIM SESSION-ENDE (Pflicht, damit PC-Wechsel funktioniert)
+
+Bevor die Session endet bzw. wenn der User signalisiert, dass er aufhört / den PC wechselt:
+
+1. **`git status` prüfen** — uncommittete Arbeit committen (nicht mergen, auf dem Feature-Branch bleiben).
+2. **Diese HANDOFF.md aktualisieren:**
+   - `Stand:`-Datum oben anpassen
+   - Abschnitt 1 (Git-Stand) auf aktuellen Branch/Commit-Stand bringen
+   - Abschnitt 3 (Nächste Schritte) so umschreiben, dass das **nächste Ich** (an irgendeinem PC) sofort weiß, wo es weitergeht — erledigte Punkte raus/abhaken, neue rein
+   - Neue Erkenntnisse in den passenden Abschnitt
+3. **`git push`** — sonst sieht der andere PC die Änderungen nicht.
+4. Dem User bestätigen: „HANDOFF aktualisiert + gepusht, du kannst am anderen PC mit `lies die HANDOFF.md` weitermachen."
+
+> Dieser Hin-und-Her-Workflow (PC A ↔ PC B) lebt davon, dass HANDOFF.md am Session-Ende IMMER aktuell + gepusht ist. Das ist die Single Source of Truth für den Arbeitsstand.
+
+---
+
 ## 1. Wo wir gerade stehen (Git)
 
 - **Aktiver Branch:** `refactor/remove-phase72b`
@@ -58,8 +97,7 @@ Was von der Bridge **vielleicht** noch übrig bleibt (zu prüfen!):
 
 ## 3. Nächste Schritte (Priorität)
 
-1. **Refs aktualisieren & Changelogs lesen** — auf neuem PC in jedem `references/<repo>`:
-   `git pull` (FMM, RPM, EliteMobs sind kritisch). Volle 2.8.0/2.1.0-Changelogs durchgehen.
+1. **Refs aktualisieren & Changelogs lesen** — `bash setup-references.sh` ausführen (klont/aktualisiert alle 6 Refs, handhabt force-gepushte History automatisch). Dann volle FMM-2.8.0/RPM-2.1.0-Changelogs + neuen RPM-Geyser-Bridge-Code (`resourcepackmanager-geyser-bridge/`) durchgehen.
 2. **Entscheidungs-Test auf dem Server:** FMM 2.9.1 + RPM 2.2.1 + EM 10.7.1 frisch deployen, Bridge **deaktiviert**, und prüfen welche der noch verbleibenden Bridge-Features (BossBar/Nametag) nativ schon da sind.
    → Ergebnis bestimmt, ob die Bridge eingestampft oder auf einen Rest-Scope reduziert wird.
 3. Falls Bridge noch nötig: 7.2b-Removal-Branch nach `main` mergen, dann gegen FMM 2.9.1 API neu bauen/testen.
