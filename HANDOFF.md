@@ -53,16 +53,17 @@ Bevor die Session endet bzw. wenn der User signalisiert, dass er aufhört / den 
 ## 1. Wo wir gerade stehen (Git)
 
 - **Aktiver Branch:** `refactor/remove-phase72b` — vollständig mit `origin` synchron (0 ahead / 0 behind), HEAD `bd32c78`
-- **15 Commits vor `origin/main`**, als eigener Branch gepusht (**kein** Merge nach main)
+- **17 Commits vor `origin/main`**, als eigener Branch gepusht (**kein** Merge nach main), voll mit `origin` synchron
 - Working tree **sauber**
-- Letzter lokaler Build-JAR: `target/FMMBedrockBridge-0.1.0-SNAPSHOT-20260613-2258.jar` (13. Juni) — Code unverändert seitdem, nur Doku-Commits dazu
+- Letzter lokaler Build-JAR: `target/FMMBedrockBridge-0.1.0-SNAPSHOT-20260613-2258.jar` (13. Juni) — **Plugin-Code unverändert seit 13. Juni**, diese Session war reine Doku/Tooling
 - Build auf dem neuen PC zur Sicherheit nochmal laufen lassen: `mvn -o clean package -DskipTests`
 
-### Was in der Session 2026-06-25 dazukam (alles nur Doku/Tooling, kein Code)
+### Was in der Session 2026-06-25 dazukam (alles Doku/Tooling, KEIN Plugin-Code)
 - `HANDOFF.md` (diese Datei) + Bootstrap/Session-Ende-Protokoll
 - `setup-references.sh` — klont/aktualisiert die 6 Reference-Repos (gitignored)
 - `references/` auf aktuellen Upstream gebracht: **FMM 2.9.1, RPM 2.2.1, EM 10.7.1, BetterStructures 2.6.1** (FMM/EM brauchten Hard-Reset wegen force-gepushter History)
-- `CLAUDE.md`: „Rolle & Arbeitsweise" (Minecraft-Java-Dev für Plugins+Mods, Superpowers-Skills aktiv nutzen) + Multi-PC-Workflow-Regel
+- `CLAUDE.md`: „Rolle & Arbeitsweise" (Minecraft-Java-Dev für Plugins+Mods, Superpowers-Skills aktiv nutzen) + Multi-PC-Workflow-Regel + Skill-Portabilität
+- **`claude-skills/` + `install-skills.sh`** — die 7 Minecraft-Custom-Skills sind jetzt im Repo gebündelt (waren vorher nur lokal auf einem PC, nicht im Marketplace) und per `bash install-skills.sh` auf jeden PC spielbar
 
 ### Was dieser Branch macht (Phase 7.2b Removal)
 Vollständige Entfernung des **EM-2D-UI-Item-Subsystems** (`bridge_em` Namespace), weil **RPM 2.0.2 diese Items nativ konvertiert** (`scanLegacyCustomModelOverrides`). Entfernt:
