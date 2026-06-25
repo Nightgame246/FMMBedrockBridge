@@ -295,6 +295,10 @@ Die Konvertierung muss folgendes leisten:
 - FMM ist GPL-3.0 — alle abgeleiteten Werke müssen ebenfalls GPL-3.0 sein
 - Existierende GeyserModelEngine-Dateien auf dem Server können als Referenz für das Bedrock-Format dienen (Pfad: `/home/amp/.ampdata/instances/Proxy01/Minecraft/plugins/Geyser-Velocity/extensions/geysermodelengineextension/input_backup/`)
 - **Vor jedem git push:** `README.md` und `CLAUDE_SESSION.md` aktualisieren (Status-Tabelle, neue Klassen, Deployment-Schritte, Session-Fortschritt)
+- **Multi-PC-Workflow (`HANDOFF.md`):** Fabi arbeitet abwechselnd an mehreren PCs. `HANDOFF.md` im Repo-Root ist die Single Source of Truth für den Arbeitsstand.
+  - **Session-Start:** Sagt Fabi „lies die HANDOFF.md", den Bootstrap-Block oben in der Datei abarbeiten (Branch checken, `git pull`, `bash setup-references.sh`).
+  - **Session-Ende / PC-Wechsel:** IMMER `HANDOFF.md` aktualisieren (Stand-Datum, Git-Stand, nächste Schritte) **und** `git push` — sonst kann am anderen PC nicht weitergearbeitet werden. Das Session-Ende-Protokoll steht in der Datei selbst.
+  - Reference-Repos (`references/`) sind gitignored/separat → via `setup-references.sh` holen, nicht via `git clone` des Bridge-Repos.
 
 ## Architektur-Pivot 2026-05-24 + RPM 2.0.0 Upgrade 2026-05-28
 
