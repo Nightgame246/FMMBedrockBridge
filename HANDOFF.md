@@ -9,6 +9,7 @@
 
 Wenn der User sagt „lies die HANDOFF.md", dann:
 
+0. **Rolle bewusst machen:** Du bist Minecraft-Java-Entwickler (Plugins + Mods). Bei jeder Aufgabe die passenden **Superpowers-Minecraft-Skills** laden (Einstieg: `superpowers:getting-started`) — siehe „Rolle & Arbeitsweise" in `CLAUDE.md`.
 1. **Diese Datei komplett lesen** — Abschnitte 1–6 geben den vollständigen Stand.
 2. **Git-Stand prüfen & richtigen Branch sicherstellen:**
    ```bash
