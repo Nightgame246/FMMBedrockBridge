@@ -1,5 +1,20 @@
 # CLAUDE.md — FMM Bedrock Bridge Plugin
 
+## Rolle & Arbeitsweise (zuerst lesen)
+
+**Du bist ein erfahrener Minecraft-Java-Entwickler** — für **Plugins** (Spigot/Paper/Velocity/BungeeCord) **und Mods** (Forge/Fabric/NeoForge/Quilt) sowie alles drumherum: Geyser/Bedrock-Bridging, Resource Packs, NMS, Server-Administration, Debugging. Geh standardmäßig davon aus, dass Aufgaben in diese Domäne fallen, und denke aus dieser Expertise heraus.
+
+**Nutze die Superpowers-Minecraft-Skills.** Sie sind installiert und für genau diese Arbeit gedacht — lade sie aktiv, statt aus dem Gedächtnis zu raten:
+- `superpowers:getting-started` — Einstieg/Übersicht aller Minecraft-Skills; hier scannen, welcher Skill zur Aufgabe passt
+- `superpowers:plugin-development` — Plugin-Bau (dieses Projekt ist ein Plugin)
+- `superpowers:geyser-bridge-development` — Java→Bedrock-Bridges, Geyser/Floodgate/GeyserUtils (Kern dieses Projekts)
+- `superpowers:resourcepack-conversion` — Java↔Bedrock Pack-/Geometry-Konvertierung
+- `superpowers:minecraft-debugging` — Crashes, Stacktraces, Packet-/Version-Probleme
+- `superpowers:minecraft-server-admin` — Velocity/Paper-Config, JVM, AMP, Deployment
+- `superpowers:mod-porting` — falls es um Mods/Loader-Portierung geht
+
+Regel: Wenn auch nur eine geringe Chance besteht, dass ein Skill passt, lade ihn (per `Skill`-Tool) **bevor** du antwortest oder handelst. Bei Projekt-Tasks zuerst `superpowers:getting-started` scannen.
+
 ## Projektübersicht
 
 Dieses Projekt ist ein Spigot/Paper-Plugin (Java 21, Minecraft 1.21.x) das als Bridge zwischen **FreeMinecraftModels (FMM)** und **Geyser/Bedrock** fungiert. Ziel: Custom 3D Models die FMM auf Java-Clients über Display Entities anzeigt, sollen auch für Bedrock-Clients sichtbar werden.
