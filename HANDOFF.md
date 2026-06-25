@@ -22,6 +22,11 @@ Wenn der User sagt „lies die HANDOFF.md", dann:
    bash setup-references.sh
    ```
    Klont fehlende Refs und zieht Upstream-Updates (FMM/RPM/EliteMobs sind kritisch).
+3b. **Minecraft-Skills installiert?** (einmalig pro PC — die 7 Custom-Skills liegen NUR im Repo, nicht im Marketplace):
+   ```bash
+   bash install-skills.sh   # danach Claude Code neustarten
+   ```
+   Voraussetzung: Superpowers-Plugin per `/plugin` installiert (Marketplace `anthropics/claude-plugins-official`). Ohne diesen Schritt schlagen `superpowers:geyser-bridge-development` & Co. am neuen PC fehl.
 4. **Build verifizieren** (optional, bei Bedarf):
    ```bash
    mvn -o clean package -DskipTests

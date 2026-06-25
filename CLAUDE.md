@@ -15,6 +15,8 @@
 
 Regel: Wenn auch nur eine geringe Chance besteht, dass ein Skill passt, lade ihn (per `Skill`-Tool) **bevor** du antwortest oder handelst. Bei Projekt-Tasks zuerst `superpowers:getting-started` scannen.
 
+**Portabilität (wichtig bei PC-Wechsel):** Die 7 Minecraft-Skills sind **Custom-Skills, nicht im Marketplace** — sie liegen im Repo unter `claude-skills/` und werden per `bash install-skills.sh` auf jeden PC gespielt (setzt installiertes Superpowers-Plugin voraus). Die allgemeinen Skills (brainstorming, TDD, debugging) kommen aus dem offiziellen Superpowers-Plugin. Wenn ein `superpowers:<minecraft-skill>`-Aufruf fehlschlägt → `install-skills.sh` lief noch nicht auf diesem PC.
+
 ## Projektübersicht
 
 Dieses Projekt ist ein Spigot/Paper-Plugin (Java 21, Minecraft 1.21.x) das als Bridge zwischen **FreeMinecraftModels (FMM)** und **Geyser/Bedrock** fungiert. Ziel: Custom 3D Models die FMM auf Java-Clients über Display Entities anzeigt, sollen auch für Bedrock-Clients sichtbar werden.
