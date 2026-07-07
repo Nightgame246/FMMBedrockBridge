@@ -1,6 +1,6 @@
 # HANDOFF — FMMBedrockBridge
 
-> Übergabe-Datei für Weiterarbeit an einem anderen PC. Stand: **2026-06-25**
+> Übergabe-Datei für Weiterarbeit an einem anderen PC. Stand: **2026-07-07**
 > Branch: `refactor/remove-phase72b` (gepusht, **kein** Merge nach main)
 
 ---
@@ -52,11 +52,20 @@ Bevor die Session endet bzw. wenn der User signalisiert, dass er aufhört / den 
 
 ## 1. Wo wir gerade stehen (Git)
 
-- **Aktiver Branch:** `refactor/remove-phase72b` — vollständig mit `origin` synchron (0 ahead / 0 behind), HEAD `bd32c78`
-- **17 Commits vor `origin/main`**, als eigener Branch gepusht (**kein** Merge nach main), voll mit `origin` synchron
+- **Aktiver Branch:** `refactor/remove-phase72b` — mit `origin` synchron; HEAD = neuester Doku-Commit dieser Session (2026-07-07)
+- Vor `origin/main` als eigener Branch gepusht (**kein** Merge nach main)
 - Working tree **sauber**
-- Letzter lokaler Build-JAR: `target/FMMBedrockBridge-0.1.0-SNAPSHOT-20260613-2258.jar` (13. Juni) — **Plugin-Code unverändert seit 13. Juni**, diese Session war reine Doku/Tooling
+- Letzter lokaler Build-JAR: `target/FMMBedrockBridge-0.1.0-SNAPSHOT-20260613-2258.jar` (13. Juni) — **Plugin-Code unverändert seit 13. Juni**, Sessions 2026-06-25 + 2026-07-07 waren Doku/Tooling bzw. Live-Server-Diagnose
 - Build auf dem neuen PC zur Sicherheit nochmal laufen lassen: `mvn -o clean package -DskipTests`
+
+### Was in der Session 2026-07-07 dazukam (Live-Server-Diagnose, KEIN Plugin-Code)
+**Entscheidungs-Test aus Abschnitt 3 DURCHGEFÜHRT:** FMM 2.10.1 + RPM 2.2.2 + EM 10.7.2 frisch deployt, Bridge **deaktiviert**, auf TestServer01/Proxy01 getestet. Ergebnis: **der native Stack rendert Custom-Mobs auf Bedrock** — nach Behebung von zwei Deploy-Fallstricken (per SSH live diagnostiziert, Logs in `references/logs/`):
+- **Root Cause A** „Bedrock sah GAR keine Monster": RPM-Geyser-Bridge-Extension lädt nach RPM-Update nicht (Write zu spät im ersten Boot) → **Fix: Proxy ein zweites Mal neustarten**. Bestätigt: `Erweiterung ResourcePackManagerGeyserBridge aktiviert`.
+- **Root Cause B** „Monster ohne Animation": Extension sucht Pack unter `plugins/ResourcePackManager/...` (groß), Velocity-Ordner heißt `resourcepackmanager` (klein) → Linux case-sensitive → `bridge ready with 0` → keine Property/Animation-Schemas. **Fix: Symlink `ResourcePackManager → resourcepackmanager` auf Proxy + Restart**. Bestätigt: `Preloaded 316 … Registered 281 property schema(s) … bridge ready with 316`.
+- **In-Game-Animations-Check steht noch aus** (Fabi wollte nicht mehr testen) — Pipeline ist aber log-seitig komplett bestätigt.
+- SSH-Zugang dieses PCs (`lappi windows`) am Server autorisiert (siehe Memory `proxy-ssh-access`).
+- **references/ auf Upstream:** FMM 2.10.1, RPM 2.2.2, EM 10.7.2, BetterStructures 2.6.2 (via `setup-references.sh`).
+- Details + Deploy-Regeln in Memory: `native-bedrock-deploy-gotchas`, `fmmbridge-status`.
 
 ### Was in der Session 2026-06-25 dazukam (alles Doku/Tooling, KEIN Plugin-Code)
 - `HANDOFF.md` (diese Datei) + Bootstrap/Session-Ende-Protokoll
@@ -106,15 +115,23 @@ Was von der Bridge **vielleicht** noch übrig bleibt (zu prüfen!):
 - 7.1a/7.1b: Combat-styled **BossBar** + Combat-**Nametag** (HP/Bar) — macht FMM/EM das jetzt auch nativ auf Bedrock? **UNGEPRÜFT.**
 - Banner-basierte UI-Items (boxinput/boxoutput) — RPM-Lücke, aber das ist eine *Lücke*, kein Bridge-Feature.
 
+**Update 2026-07-07:** Mob-/Prop-Rendering auf Bedrock läuft nativ (Test durchgeführt, siehe Abschnitt 1). Bridge-Zweck damit weitgehend abgedeckt → die Bridge ist für Mob-Rendering **obsolet**. Offene Rest-Scope-Fragen: BossBar/Nametag (weiter ungeprüft) + Waffen-Offset (das ist ein RPM-Item-Konvertierungsproblem — legacy pre-1.21.4 `custom_model_data`-Format, RPM 2.2.2 flaggt es im Backend-Log —, KEIN Bridge-Feature).
+
 ---
 
 ## 3. Nächste Schritte (Priorität)
 
-1. **Refs aktualisieren & Changelogs lesen** — `bash setup-references.sh` ausführen (klont/aktualisiert alle 6 Refs, handhabt force-gepushte History automatisch). Dann volle FMM-2.8.0/RPM-2.1.0-Changelogs + neuen RPM-Geyser-Bridge-Code (`resourcepackmanager-geyser-bridge/`) durchgehen.
-2. **Entscheidungs-Test auf dem Server:** FMM 2.9.1 + RPM 2.2.1 + EM 10.7.1 frisch deployen, Bridge **deaktiviert**, und prüfen welche der noch verbleibenden Bridge-Features (BossBar/Nametag) nativ schon da sind.
-   → Ergebnis bestimmt, ob die Bridge eingestampft oder auf einen Rest-Scope reduziert wird.
-3. Falls Bridge noch nötig: 7.2b-Removal-Branch nach `main` mergen, dann gegen FMM 2.9.1 API neu bauen/testen.
-4. Falls Bridge obsolet: Archiv-Tag setzen, README als „superseded by native FMM/RPM/EM Bedrock support" markieren.
+Der Entscheidungs-Test ist **durch** (siehe Abschnitt 1): natives Mob-Rendering auf Bedrock funktioniert. Offen:
+
+1. **In-Game-Animations-Check** (unmittelbar): Bedrock-Client reconnecten, EM-Boss spawnen → bewegt er sich (Idle/Walk/Attack)? Pipeline ist log-seitig bestätigt (Property-Schemas registriert), nur die visuelle Bestätigung fehlt noch.
+2. **BossBar/Nametag nativ prüfen:** Sieht ein Bedrock-Spieler die Combat-BossBar + HP-Nametag ohne Bridge? → entscheidet, ob die Bridge einen Rest-Scope behält oder komplett weg kann.
+3. **Grundsatzentscheidung Bridge:**
+   - Falls BossBar/Nametag auch nativ da → **Bridge obsolet**: Archiv-Tag setzen, README als „superseded by native FMM/RPM/EM Bedrock support" markieren, `refactor/remove-phase72b` ggf. nur noch dokumentarisch.
+   - Falls nicht → Bridge auf BossBar/Nametag-Rest reduzieren, 7.2b-Branch nach `main` mergen, gegen FMM 2.10.x API neu bauen/testen.
+4. **Upstream an MagmaGuy melden:** RPM-Geyser-Bridge-Extension hardcodet `ResourcePackManager` statt den echten (Velocity-lowercase) Ordnernamen → bricht ohne Symlink auf case-sensitiven FS. (Bis Fix: Symlink auf dem Proxy MUSS bleiben.)
+5. **Waffen-Offset (separat):** legacy pre-1.21.4 `custom_model_data`-Item-Format re-exportieren ins 1.21.4+-Format (`assets/<namespace>/items/*.json`) — RPM-Backend-Warnung Z. 2594. Item-Schiene, unabhängig vom Entity-Rendering.
+
+**⚠️ Deploy-Merker (siehe Memory `native-bedrock-deploy-gotchas`):** Nach jedem RPM-Update den **Proxy zweimal neustarten** (Extension wird erst im ersten Boot geschrieben). Der Symlink `plugins/ResourcePackManager → resourcepackmanager` auf dem Proxy ist Pflicht, solange der Upstream-Bug offen ist.
 
 ---
 
