@@ -31,6 +31,13 @@ Wenn der User sagt „lies die HANDOFF.md", dann:
    ```bash
    mvn -o clean package -DskipTests
    ```
+   ⚠️ **Vorher am NEUEN PC einmalig:** Der pom baut gegen **FMM 2.10.1 / EM 10.7.2**, die aber **NICHT im magmaguy-Maven-Repo publiziert** sind (Repo endet bei FMM 2.7.1 / EM 10.5.0). Ohne die JARs im lokalen `.m2` schlägt der Build mit „Could not find artifact" fehl. Einmalig die echten JARs vom Server holen + installieren:
+   ```bash
+   scp amp@mc.crazypandas.de:'/home/amp/.ampdata/instances/TestServer01/Minecraft/plugins/{FreeMinecraftModels,EliteMobs}.jar' /tmp/
+   mvn install:install-file -Dfile=/tmp/FreeMinecraftModels.jar -DgroupId=com.magmaguy -DartifactId=FreeMinecraftModels -Dversion=2.10.1 -Dpackaging=jar
+   mvn install:install-file -Dfile=/tmp/EliteMobs.jar         -DgroupId=com.magmaguy -DartifactId=EliteMobs         -Dversion=10.7.2 -Dpackaging=jar
+   ```
+   (Falls kein `mvn` im PATH: IntelliJ bündelt eins unter `/usr/share/idea/plugins/maven/lib/maven3/bin/mvn`.) Danach läuft auch `-o` durch.
 5. Dann dem User den aktuellen Stand + die nächsten Schritte aus Abschnitt 3 zusammenfassen und auf seine Anweisung warten.
 
 ## 🔴 FÜR CLAUDE: BEIM SESSION-ENDE (Pflicht, damit PC-Wechsel funktioniert)
@@ -142,7 +149,7 @@ Was von der Bridge **vielleicht** noch übrig bleibt (zu prüfen!):
 Die Grundsatzentscheidung ist **getroffen** (siehe Abschnitt 1 + 2): natives Mob-Rendering/Animation ✓, BossBar/Nametag = Feature-Gap → **Bridge bleibt, reduziert auf 7.1a/7.1b.** Offen:
 
 1. **Branch mergen:** `refactor/remove-phase72b` → `main` (Phase-7.2b-Removal inhaltlich bestätigt — RPM konvertiert die 2D-UI-Items nativ). Vorher `CLAUDE_SESSION.md` + `README.md` Status-Tabelle nachziehen (Docs-Update-Regel).
-2. **Rebuild gegen FMM 2.10.x API** (⚠️ wichtig): Plugin-Code ist seit **13. Juni unverändert**, damals gegen FMM ~2.7. references/ steht jetzt auf **FMM 2.10.1 / RPM 2.2.2 / EM 10.7.2**. → `mvn -o clean package` gegen die neuen provided-Deps, auf API-Brüche prüfen (FMM `getDisplayName()`/`ModeledEntityManager`, EM `EliteMobSpawnEvent`). BossBar/Nametag-Pfad (`FMMEntityData`, `PacketInterceptor`) durchtesten.
+2. ~~**Rebuild gegen FMM 2.10.x API**~~ ✅ **erledigt 2026-07-08:** pom auf **FMM 2.10.1 / EM 10.7.2** gebumpt, gegen die echten Server-JARs (via SCP + `install-file`, siehe Bootstrap Schritt 4) gebaut → **BUILD SUCCESS, 13 Tests grün, keine API-Brüche.** Plugin-Code (13. Juni) ist quellkompatibel mit 2.10.x. Nur eine harmlose Deprecation-Warnung in `FMMBedrockBridge.java`. Artefakt: `target/FMMBedrockBridge-0.1.0-SNAPSHOT-20260708-1924.jar`.
 3. **BossBar/Nametag Live-Verify MIT Bridge:** Bridge aktiviert deployen → sieht der Bedrock-Spieler die Combat-BossBar + HP-Nametag jetzt? (Bestätigt, dass der Rest-Scope wirklich funktioniert.)
 4. **Upstream an MagmaGuy melden:** RPM-Geyser-Bridge-Extension hardcodet `ResourcePackManager` statt den echten (Velocity-lowercase) Ordnernamen → bricht ohne Symlink auf case-sensitiven FS. (Bis Fix: Symlink auf dem Proxy MUSS bleiben.)
 5. **Waffen-Offset (separat, KEIN Bridge-Feature):** legacy pre-1.21.4 `custom_model_data`-Item-Format re-exportieren ins 1.21.4+-Format (`assets/<namespace>/items/*.json`) — RPM-Backend-Warnung Z. 2594. Item-Schiene, unabhängig vom Entity-Rendering.
