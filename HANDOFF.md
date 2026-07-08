@@ -1,6 +1,6 @@
 # HANDOFF — FMMBedrockBridge
 
-> Übergabe-Datei für Weiterarbeit an einem anderen PC. Stand: **2026-07-07**
+> Übergabe-Datei für Weiterarbeit an einem anderen PC. Stand: **2026-07-08**
 > Branch: `refactor/remove-phase72b` (gepusht, **kein** Merge nach main)
 
 ---
@@ -67,6 +67,15 @@ Bevor die Session endet bzw. wenn der User signalisiert, dass er aufhört / den 
 - **references/ auf Upstream:** FMM 2.10.1, RPM 2.2.2, EM 10.7.2, BetterStructures 2.6.2 (via `setup-references.sh`).
 - Details + Deploy-Regeln in Memory: `native-bedrock-deploy-gotchas`, `fmmbridge-status`.
 
+### Was in der Session 2026-07-08 dazukam (Diagnose-Abschluss + Grundsatzentscheidung, KEIN Plugin-Code)
+**Die offenen Verify-Punkte aus 2026-07-07 sind beantwortet — Grundsatzentscheidung steht:**
+- **Punkt 1 (In-Game-Animation) ✓** — EM-Boss animiert auf Bedrock nativ. Native Pipeline damit auch visuell bestätigt.
+- **Punkt 2 (Combat-BossBar + HP-Nametag) ✗ nativ** — Bedrock sieht sie NICHT. Java zeigt sie (Java-natives Feature). = **Feature-Gap**, nicht Lag (siehe unten). → **bleibt Bridge-Scope (7.1a/7.1b).**
+- **Lag-Verdacht geklärt:** Server-**TPS = 20** (Server-Thread sauber). Der von Fabi gefühlte Lag trifft **Java UND Bedrock lokal gleichermaßen** → **lokales Internet-Problem auf Fabis Seite**, KEIN Server-/Geyser-/Bridge-Thema. Vom Tisch. (Symmetrischer Lag kann Punkt 2 nicht erklären, da Java die BossBar trotzdem zeigt.)
+- **`references/` per `setup-references.sh`/`git pull` auf Upstream:** FMM **2.10.1**, RPM **2.2.2**, EM **10.7.2**, BetterStructures 2.6.2, GeyserModelEngine (translucent-textures), GeyserUtils unverändert (loadSkin-Bug offen).
+
+**⇒ GRUNDSATZENTSCHEIDUNG: Bridge wird NICHT archiviert.** Mob-Rendering/Animation/3D-Items/UI-Items laufen nativ (FMM 2.10 + RPM 2.2 + EM 10.7). Übrig bleibt der Rest-Scope **Combat-BossBar + HP-Nametag** (7.1a/7.1b). Der Branch `refactor/remove-phase72b` (entfernt das 2D-Item-Subsystem, weil RPM es nativ kann) ist damit inhaltlich bestätigt und **merge-reif nach `main`**.
+
 ### Was in der Session 2026-06-25 dazukam (alles Doku/Tooling, KEIN Plugin-Code)
 - `HANDOFF.md` (diese Datei) + Bootstrap/Session-Ende-Protokoll
 - `setup-references.sh` — klont/aktualisiert die 6 Reference-Repos (gitignored)
@@ -115,21 +124,30 @@ Was von der Bridge **vielleicht** noch übrig bleibt (zu prüfen!):
 - 7.1a/7.1b: Combat-styled **BossBar** + Combat-**Nametag** (HP/Bar) — macht FMM/EM das jetzt auch nativ auf Bedrock? **UNGEPRÜFT.**
 - Banner-basierte UI-Items (boxinput/boxoutput) — RPM-Lücke, aber das ist eine *Lücke*, kein Bridge-Feature.
 
-**Update 2026-07-07:** Mob-/Prop-Rendering auf Bedrock läuft nativ (Test durchgeführt, siehe Abschnitt 1). Bridge-Zweck damit weitgehend abgedeckt → die Bridge ist für Mob-Rendering **obsolet**. Offene Rest-Scope-Fragen: BossBar/Nametag (weiter ungeprüft) + Waffen-Offset (das ist ein RPM-Item-Konvertierungsproblem — legacy pre-1.21.4 `custom_model_data`-Format, RPM 2.2.2 flaggt es im Backend-Log —, KEIN Bridge-Feature).
+**Update 2026-07-08 (ENTSCHIEDEN):** Rest-Scope-Fragen aus 07-07 sind geklärt.
+
+| Scope | Status |
+|---|---|
+| Mob-Rendering + Animation auf Bedrock | ✅ **nativ** (FMM 2.10 + RPM 2.2 + EM 10.7) — Bridge obsolet |
+| EM-UI-Items (10/12, ohne Banner) | ✅ nativ (RPM 2.0.2) |
+| Combat-**BossBar** + HP-**Nametag** | ❌ **nicht nativ** → **bleibt Bridge-Scope (7.1a/7.1b)** |
+| Waffen-Offset | RPM-Item-Konvertierungsproblem (legacy pre-1.21.4 `custom_model_data`), **KEIN Bridge-Feature** |
+
+**⇒ Bridge NICHT archivieren, sondern auf 7.1a/7.1b (BossBar + Nametag) reduzieren.** `refactor/remove-phase72b` ist merge-reif.
 
 ---
 
 ## 3. Nächste Schritte (Priorität)
 
-Der Entscheidungs-Test ist **durch** (siehe Abschnitt 1): natives Mob-Rendering auf Bedrock funktioniert. Offen:
+Die Grundsatzentscheidung ist **getroffen** (siehe Abschnitt 1 + 2): natives Mob-Rendering/Animation ✓, BossBar/Nametag = Feature-Gap → **Bridge bleibt, reduziert auf 7.1a/7.1b.** Offen:
 
-1. **In-Game-Animations-Check** (unmittelbar): Bedrock-Client reconnecten, EM-Boss spawnen → bewegt er sich (Idle/Walk/Attack)? Pipeline ist log-seitig bestätigt (Property-Schemas registriert), nur die visuelle Bestätigung fehlt noch.
-2. **BossBar/Nametag nativ prüfen:** Sieht ein Bedrock-Spieler die Combat-BossBar + HP-Nametag ohne Bridge? → entscheidet, ob die Bridge einen Rest-Scope behält oder komplett weg kann.
-3. **Grundsatzentscheidung Bridge:**
-   - Falls BossBar/Nametag auch nativ da → **Bridge obsolet**: Archiv-Tag setzen, README als „superseded by native FMM/RPM/EM Bedrock support" markieren, `refactor/remove-phase72b` ggf. nur noch dokumentarisch.
-   - Falls nicht → Bridge auf BossBar/Nametag-Rest reduzieren, 7.2b-Branch nach `main` mergen, gegen FMM 2.10.x API neu bauen/testen.
+1. **Branch mergen:** `refactor/remove-phase72b` → `main` (Phase-7.2b-Removal inhaltlich bestätigt — RPM konvertiert die 2D-UI-Items nativ). Vorher `CLAUDE_SESSION.md` + `README.md` Status-Tabelle nachziehen (Docs-Update-Regel).
+2. **Rebuild gegen FMM 2.10.x API** (⚠️ wichtig): Plugin-Code ist seit **13. Juni unverändert**, damals gegen FMM ~2.7. references/ steht jetzt auf **FMM 2.10.1 / RPM 2.2.2 / EM 10.7.2**. → `mvn -o clean package` gegen die neuen provided-Deps, auf API-Brüche prüfen (FMM `getDisplayName()`/`ModeledEntityManager`, EM `EliteMobSpawnEvent`). BossBar/Nametag-Pfad (`FMMEntityData`, `PacketInterceptor`) durchtesten.
+3. **BossBar/Nametag Live-Verify MIT Bridge:** Bridge aktiviert deployen → sieht der Bedrock-Spieler die Combat-BossBar + HP-Nametag jetzt? (Bestätigt, dass der Rest-Scope wirklich funktioniert.)
 4. **Upstream an MagmaGuy melden:** RPM-Geyser-Bridge-Extension hardcodet `ResourcePackManager` statt den echten (Velocity-lowercase) Ordnernamen → bricht ohne Symlink auf case-sensitiven FS. (Bis Fix: Symlink auf dem Proxy MUSS bleiben.)
-5. **Waffen-Offset (separat):** legacy pre-1.21.4 `custom_model_data`-Item-Format re-exportieren ins 1.21.4+-Format (`assets/<namespace>/items/*.json`) — RPM-Backend-Warnung Z. 2594. Item-Schiene, unabhängig vom Entity-Rendering.
+5. **Waffen-Offset (separat, KEIN Bridge-Feature):** legacy pre-1.21.4 `custom_model_data`-Item-Format re-exportieren ins 1.21.4+-Format (`assets/<namespace>/items/*.json`) — RPM-Backend-Warnung Z. 2594. Item-Schiene, unabhängig vom Entity-Rendering.
+
+**Erledigt 2026-07-08:** ~~In-Game-Animation~~ ✓ nativ · ~~BossBar/Nametag-Frage~~ ✓ geklärt (Feature-Gap) · ~~Lag-Verdacht~~ ✓ lokales Internet · ~~Grundsatzentscheidung~~ ✓ Bridge bleibt.
 
 **⚠️ Deploy-Merker (siehe Memory `native-bedrock-deploy-gotchas`):** Nach jedem RPM-Update den **Proxy zweimal neustarten** (Extension wird erst im ersten Boot geschrieben). Der Symlink `plugins/ResourcePackManager → resourcepackmanager` auf dem Proxy ist Pflicht, solange der Upstream-Bug offen ist.
 
