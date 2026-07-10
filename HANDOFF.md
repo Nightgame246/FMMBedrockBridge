@@ -154,13 +154,17 @@ Was von der Bridge **vielleicht** noch übrig bleibt (zu prüfen!):
 
 ## 3. Nächste Schritte (Priorität)
 
-Die Grundsatzentscheidung ist **getroffen** und der Refactor ist **nach `main` gemerged** (2026-07-10). Bridge bleibt, reduziert auf 7.1a/7.1b. Offen:
+Die Grundsatzentscheidung ist **getroffen**, der Refactor ist **nach `main` gemerged** (2026-07-10) und der **Rest-Scope ist live verifiziert**. Bridge bleibt, reduziert auf 7.1a/7.1b. Offen:
 
-1. **BossBar/Nametag Live-Verify MIT Bridge:** Bridge aktiviert deployen → sieht der Bedrock-Spieler die Combat-BossBar + HP-Nametag jetzt? (Bestätigt, dass der Rest-Scope wirklich funktioniert.) **← der nächste inhaltliche Schritt.**
-2. **Upstream an MagmaGuy melden:** RPM-Geyser-Bridge-Extension hardcodet `ResourcePackManager` statt den echten (Velocity-lowercase) Ordnernamen → bricht ohne Symlink auf case-sensitiven FS. (Bis Fix: Symlink auf dem Proxy MUSS bleiben.)
-3. **Waffen-Offset (separat, KEIN Bridge-Feature):** legacy pre-1.21.4 `custom_model_data`-Item-Format re-exportieren ins 1.21.4+-Format (`assets/<namespace>/items/*.json`) — RPM-Backend-Warnung Z. 2594. Item-Schiene, unabhängig vom Entity-Rendering.
+1. **Upstream an MagmaGuy melden:** RPM-Geyser-Bridge-Extension hardcodet `ResourcePackManager` statt den echten (Velocity-lowercase) Ordnernamen → bricht ohne Symlink auf case-sensitiven FS. (Bis Fix: Symlink auf dem Proxy MUSS bleiben.)
+2. **Waffen-Offset (separat, KEIN Bridge-Feature):** legacy pre-1.21.4 `custom_model_data`-Item-Format re-exportieren ins 1.21.4+-Format (`assets/<namespace>/items/*.json`) — RPM-Backend-Warnung Z. 2594. Item-Schiene, unabhängig vom Entity-Rendering.
 
-**Erledigt 2026-07-10:** ~~Branch nach main mergen~~ ✓ (`--no-ff`, Backup-Tag `backup/pre-72b-merge-main` gesetzt, Docs nachgezogen, gepusht).
+**Erledigt 2026-07-10 (Deploy + Live-Verify):**
+- ~~JAR (`…-20260710-1454.jar`) auf TestServer01 deployt~~ ✓ (SHA-verifiziert)
+- ~~Server-Config auf sauberes neues Format gebracht~~ ✓ (tote `elite-items`/`maintenance` raus, `phase73` rein; alte als `config.yml.bak-20260710` gesichert)
+- ~~Bridge-Boot geprüft~~ ✓ (alle Subsysteme registriert, FMM/Floodgate found, **0 Exceptions**)
+- ~~**BossBar/Nametag Live-Verify MIT aktiver Bridge**~~ ✓ **Fabi bestätigt in-game: Combat-BossBar + HP-Nametag auf Bedrock „sah alles gut aus".** Rest-Scope (7.1a/7.1b) funktioniert auf FMM 2.10.1 + RPM 2.2.2 + EM 10.7.2.
+- ~~Branch nach main mergen~~ ✓ (`--no-ff`, Backup-Tag `backup/pre-72b-merge-main` gesetzt, Docs nachgezogen, gepusht).
 **Erledigt 2026-07-08:** ~~Rebuild gegen FMM 2.10.x API~~ ✓ (BUILD SUCCESS, 13 grün) · ~~In-Game-Animation~~ ✓ nativ · ~~BossBar/Nametag-Frage~~ ✓ geklärt (Feature-Gap) · ~~Lag-Verdacht~~ ✓ lokales Internet · ~~Grundsatzentscheidung~~ ✓ Bridge bleibt.
 
 **⚠️ Deploy-Merker (siehe Memory `native-bedrock-deploy-gotchas`):** Nach jedem RPM-Update den **Proxy zweimal neustarten** (Extension wird erst im ersten Boot geschrieben). Der Symlink `plugins/ResourcePackManager → resourcepackmanager` auf dem Proxy ist Pflicht, solange der Upstream-Bug offen ist.
