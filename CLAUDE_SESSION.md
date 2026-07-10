@@ -1151,3 +1151,23 @@ Diese Einschränkung ist **akzeptiert** — die betroffenen Icons sind kosmetisc
 Zwei logische Commits auf `refactor/remove-phase72b`:
 1. `refactor(7.2b): remove dead java.util.Map import from PacketInterceptor`
 2. `docs(7.2b): record removal; EM UI items now native via RPM 2.0.2 (banner gap noted)`
+
+---
+
+## Session: 2026-07-10 — Merge `refactor/remove-phase72b` → `main`
+
+### Was passiert ist
+Die in den Sessions 2026-07-07/07-08 getroffene Grundsatzentscheidung (natives Mob-Rendering/Animation ✓ via FMM 2.10 + RPM 2.2 + EM 10.7; Combat-BossBar + HP-Nametag = Feature-Gap → Bridge bleibt, reduziert auf 7.1a/7.1b) wurde umgesetzt: der Phase-7.2b-Removal-Branch ist nach `main` gemerged.
+
+- **Backup vor dem Merge:** Tag `backup/pre-72b-merge-main` auf den alten `main`-Stand (`4a277d8`) gesetzt + zu origin gepusht. (Zusätzlich weiterhin `archive/2026-05-24-pre-rpm18-pivot` als Pre-Pivot-Sicherung.)
+- **Merge:** `git merge --no-ff refactor/remove-phase72b` → expliziter Merge-Commit `be08a2f` (bewusst kein Fast-Forward, damit der Refactor als Einheit revertierbar bleibt).
+- Kein Plugin-Code in dieser Session — reiner Integrations-/Doku-Schritt.
+
+### Git-Stand danach
+- `main` enthält Phase-7.2b-Removal + FMM-2.10.1/EM-10.7.2-Bump + HANDOFF/Skills-Bundling.
+- Rückweg im Notfall: `git reset --hard backup/pre-72b-merge-main` (alter main) bzw. Merge-Commit revert.
+
+### Offen (siehe HANDOFF Abschnitt 3)
+- BossBar/Nametag Live-Verify MIT aktivierter Bridge auf Bedrock.
+- Upstream-Report an MagmaGuy (RPM-Geyser-Bridge hardcodet `ResourcePackManager` → Symlink-Zwang auf case-sensitivem FS).
+- Waffen-Offset (separat, kein Bridge-Feature): legacy `custom_model_data` re-exportieren.
