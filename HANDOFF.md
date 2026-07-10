@@ -1,7 +1,7 @@
 # HANDOFF — FMMBedrockBridge
 
-> Übergabe-Datei für Weiterarbeit an einem anderen PC. Stand: **2026-07-08**
-> Branch: `refactor/remove-phase72b` (gepusht, **kein** Merge nach main)
+> Übergabe-Datei für Weiterarbeit an einem anderen PC. Stand: **2026-07-10**
+> Branch: `main` (Phase-7.2b-Removal **gemerged**, gepusht). Backup-Tag: `backup/pre-72b-merge-main`.
 
 ---
 
@@ -14,7 +14,7 @@ Wenn der User sagt „lies die HANDOFF.md", dann:
 2. **Git-Stand prüfen & richtigen Branch sicherstellen:**
    ```bash
    git status -sb
-   git checkout refactor/remove-phase72b   # falls noch nicht drauf
+   git checkout main                       # Refactor ist seit 2026-07-10 nach main gemerged
    git pull                                # falls am anderen PC schon weitergearbeitet wurde
    ```
 3. **Reference-Repos vorhanden & aktuell?** (gitignored, eigene Repos — kommen NICHT mit `git clone`):
@@ -59,10 +59,11 @@ Bevor die Session endet bzw. wenn der User signalisiert, dass er aufhört / den 
 
 ## 1. Wo wir gerade stehen (Git)
 
-- **Aktiver Branch:** `refactor/remove-phase72b` — mit `origin` synchron; HEAD = neuester Doku-Commit dieser Session (2026-07-07)
-- Vor `origin/main` als eigener Branch gepusht (**kein** Merge nach main)
+- **Aktiver Branch:** `main` — mit `origin` synchron; HEAD = `3d4ae90` (Doku-Commit), darunter Merge-Commit `be08a2f`
+- **Phase-7.2b-Removal ist nach `main` gemerged** (2026-07-10, `--no-ff`, bewusst als revertierbare Einheit). Der Feature-Branch `refactor/remove-phase72b` existiert weiter (auf `origin`), ist aber jetzt in main enthalten.
+- **Backup vor dem Merge:** Tag `backup/pre-72b-merge-main` → alter main-Stand (`4a277d8`), auf `origin` gepusht. Notfall-Rückweg: `git reset --hard backup/pre-72b-merge-main` oder `git revert -m 1 be08a2f`. (Zusätzlich weiter vorhanden: `archive/2026-05-24-pre-rpm18-pivot`.)
 - Working tree **sauber**
-- Letzter lokaler Build-JAR: `target/FMMBedrockBridge-0.1.0-SNAPSHOT-20260613-2258.jar` (13. Juni) — **Plugin-Code unverändert seit 13. Juni**, Sessions 2026-06-25 + 2026-07-07 waren Doku/Tooling bzw. Live-Server-Diagnose
+- Build 2026-07-10 verifiziert (offline gegen echte Server-JARs FMM 2.10.1 / EM 10.7.2): **BUILD SUCCESS, 13 Tests grün.** Artefakt: `target/FMMBedrockBridge-0.1.0-SNAPSHOT-20260710-1454.jar`. **Plugin-Code unverändert seit 13. Juni** — Sessions danach waren Doku/Tooling/Diagnose + dieser Merge.
 - Build auf dem neuen PC zur Sicherheit nochmal laufen lassen: `mvn -o clean package -DskipTests`
 
 ### Was in der Session 2026-07-07 dazukam (Live-Server-Diagnose, KEIN Plugin-Code)
@@ -82,6 +83,13 @@ Bevor die Session endet bzw. wenn der User signalisiert, dass er aufhört / den 
 - **`references/` per `setup-references.sh`/`git pull` auf Upstream:** FMM **2.10.1**, RPM **2.2.2**, EM **10.7.2**, BetterStructures 2.6.2, GeyserModelEngine (translucent-textures), GeyserUtils unverändert (loadSkin-Bug offen).
 
 **⇒ GRUNDSATZENTSCHEIDUNG: Bridge wird NICHT archiviert.** Mob-Rendering/Animation/3D-Items/UI-Items laufen nativ (FMM 2.10 + RPM 2.2 + EM 10.7). Übrig bleibt der Rest-Scope **Combat-BossBar + HP-Nametag** (7.1a/7.1b). Der Branch `refactor/remove-phase72b` (entfernt das 2D-Item-Subsystem, weil RPM es nativ kann) ist damit inhaltlich bestätigt und **merge-reif nach `main`**.
+
+### Was in der Session 2026-07-10 dazukam (Merge nach main, KEIN Plugin-Code)
+Die Grundsatzentscheidung wurde umgesetzt:
+- **Backup-Tag `backup/pre-72b-merge-main`** auf den alten main-Stand gesetzt + gepusht (vor dem Merge, für den Fall der Fälle).
+- **`refactor/remove-phase72b` → `main` gemerged** (`git merge --no-ff`, Merge-Commit `be08a2f`), Doku-Commit `3d4ae90` obendrauf.
+- **Build + Tests offline verifiziert:** BUILD SUCCESS, 13/13 grün, Artefakt `…-20260710-1454.jar`.
+- `main` gepusht, synchron mit `origin/main`.
 
 ### Was in der Session 2026-06-25 dazukam (alles Doku/Tooling, KEIN Plugin-Code)
 - `HANDOFF.md` (diese Datei) + Bootstrap/Session-Ende-Protokoll
@@ -146,15 +154,14 @@ Was von der Bridge **vielleicht** noch übrig bleibt (zu prüfen!):
 
 ## 3. Nächste Schritte (Priorität)
 
-Die Grundsatzentscheidung ist **getroffen** (siehe Abschnitt 1 + 2): natives Mob-Rendering/Animation ✓, BossBar/Nametag = Feature-Gap → **Bridge bleibt, reduziert auf 7.1a/7.1b.** Offen:
+Die Grundsatzentscheidung ist **getroffen** und der Refactor ist **nach `main` gemerged** (2026-07-10). Bridge bleibt, reduziert auf 7.1a/7.1b. Offen:
 
-1. **Branch mergen:** `refactor/remove-phase72b` → `main` (Phase-7.2b-Removal inhaltlich bestätigt — RPM konvertiert die 2D-UI-Items nativ). Vorher `CLAUDE_SESSION.md` + `README.md` Status-Tabelle nachziehen (Docs-Update-Regel).
-2. ~~**Rebuild gegen FMM 2.10.x API**~~ ✅ **erledigt 2026-07-08:** pom auf **FMM 2.10.1 / EM 10.7.2** gebumpt, gegen die echten Server-JARs (via SCP + `install-file`, siehe Bootstrap Schritt 4) gebaut → **BUILD SUCCESS, 13 Tests grün, keine API-Brüche.** Plugin-Code (13. Juni) ist quellkompatibel mit 2.10.x. Nur eine harmlose Deprecation-Warnung in `FMMBedrockBridge.java`. Artefakt: `target/FMMBedrockBridge-0.1.0-SNAPSHOT-20260708-1924.jar`.
-3. **BossBar/Nametag Live-Verify MIT Bridge:** Bridge aktiviert deployen → sieht der Bedrock-Spieler die Combat-BossBar + HP-Nametag jetzt? (Bestätigt, dass der Rest-Scope wirklich funktioniert.)
-4. **Upstream an MagmaGuy melden:** RPM-Geyser-Bridge-Extension hardcodet `ResourcePackManager` statt den echten (Velocity-lowercase) Ordnernamen → bricht ohne Symlink auf case-sensitiven FS. (Bis Fix: Symlink auf dem Proxy MUSS bleiben.)
-5. **Waffen-Offset (separat, KEIN Bridge-Feature):** legacy pre-1.21.4 `custom_model_data`-Item-Format re-exportieren ins 1.21.4+-Format (`assets/<namespace>/items/*.json`) — RPM-Backend-Warnung Z. 2594. Item-Schiene, unabhängig vom Entity-Rendering.
+1. **BossBar/Nametag Live-Verify MIT Bridge:** Bridge aktiviert deployen → sieht der Bedrock-Spieler die Combat-BossBar + HP-Nametag jetzt? (Bestätigt, dass der Rest-Scope wirklich funktioniert.) **← der nächste inhaltliche Schritt.**
+2. **Upstream an MagmaGuy melden:** RPM-Geyser-Bridge-Extension hardcodet `ResourcePackManager` statt den echten (Velocity-lowercase) Ordnernamen → bricht ohne Symlink auf case-sensitiven FS. (Bis Fix: Symlink auf dem Proxy MUSS bleiben.)
+3. **Waffen-Offset (separat, KEIN Bridge-Feature):** legacy pre-1.21.4 `custom_model_data`-Item-Format re-exportieren ins 1.21.4+-Format (`assets/<namespace>/items/*.json`) — RPM-Backend-Warnung Z. 2594. Item-Schiene, unabhängig vom Entity-Rendering.
 
-**Erledigt 2026-07-08:** ~~In-Game-Animation~~ ✓ nativ · ~~BossBar/Nametag-Frage~~ ✓ geklärt (Feature-Gap) · ~~Lag-Verdacht~~ ✓ lokales Internet · ~~Grundsatzentscheidung~~ ✓ Bridge bleibt.
+**Erledigt 2026-07-10:** ~~Branch nach main mergen~~ ✓ (`--no-ff`, Backup-Tag `backup/pre-72b-merge-main` gesetzt, Docs nachgezogen, gepusht).
+**Erledigt 2026-07-08:** ~~Rebuild gegen FMM 2.10.x API~~ ✓ (BUILD SUCCESS, 13 grün) · ~~In-Game-Animation~~ ✓ nativ · ~~BossBar/Nametag-Frage~~ ✓ geklärt (Feature-Gap) · ~~Lag-Verdacht~~ ✓ lokales Internet · ~~Grundsatzentscheidung~~ ✓ Bridge bleibt.
 
 **⚠️ Deploy-Merker (siehe Memory `native-bedrock-deploy-gotchas`):** Nach jedem RPM-Update den **Proxy zweimal neustarten** (Extension wird erst im ersten Boot geschrieben). Der Symlink `plugins/ResourcePackManager → resourcepackmanager` auf dem Proxy ist Pflicht, solange der Upstream-Bug offen ist.
 
