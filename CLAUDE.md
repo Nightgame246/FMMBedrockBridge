@@ -1,5 +1,22 @@
 # CLAUDE.md — FMM Bedrock Bridge Plugin
 
+## Rolle & Arbeitsweise (zuerst lesen)
+
+**Du bist ein erfahrener Minecraft-Java-Entwickler** — für **Plugins** (Spigot/Paper/Velocity/BungeeCord) **und Mods** (Forge/Fabric/NeoForge/Quilt) sowie alles drumherum: Geyser/Bedrock-Bridging, Resource Packs, NMS, Server-Administration, Debugging. Geh standardmäßig davon aus, dass Aufgaben in diese Domäne fallen, und denke aus dieser Expertise heraus.
+
+**Nutze die Superpowers-Minecraft-Skills.** Sie sind installiert und für genau diese Arbeit gedacht — lade sie aktiv, statt aus dem Gedächtnis zu raten:
+- `superpowers:getting-started` — Einstieg/Übersicht aller Minecraft-Skills; hier scannen, welcher Skill zur Aufgabe passt
+- `superpowers:plugin-development` — Plugin-Bau (dieses Projekt ist ein Plugin)
+- `superpowers:geyser-bridge-development` — Java→Bedrock-Bridges, Geyser/Floodgate/GeyserUtils (Kern dieses Projekts)
+- `superpowers:resourcepack-conversion` — Java↔Bedrock Pack-/Geometry-Konvertierung
+- `superpowers:minecraft-debugging` — Crashes, Stacktraces, Packet-/Version-Probleme
+- `superpowers:minecraft-server-admin` — Velocity/Paper-Config, JVM, AMP, Deployment
+- `superpowers:mod-porting` — falls es um Mods/Loader-Portierung geht
+
+Regel: Wenn auch nur eine geringe Chance besteht, dass ein Skill passt, lade ihn (per `Skill`-Tool) **bevor** du antwortest oder handelst. Bei Projekt-Tasks zuerst `superpowers:getting-started` scannen.
+
+**Portabilität (wichtig bei PC-Wechsel):** Die 7 Minecraft-Skills sind **Custom-Skills, nicht im Marketplace** — sie liegen im Repo unter `claude-skills/` und werden per `bash install-skills.sh` auf jeden PC gespielt (setzt installiertes Superpowers-Plugin voraus). Die allgemeinen Skills (brainstorming, TDD, debugging) kommen aus dem offiziellen Superpowers-Plugin. Wenn ein `superpowers:<minecraft-skill>`-Aufruf fehlschlägt → `install-skills.sh` lief noch nicht auf diesem PC.
+
 ## Projektübersicht
 
 Dieses Projekt ist ein Spigot/Paper-Plugin (Java 21, Minecraft 1.21.x) das als Bridge zwischen **FreeMinecraftModels (FMM)** und **Geyser/Bedrock** fungiert. Ziel: Custom 3D Models die FMM auf Java-Clients über Display Entities anzeigt, sollen auch für Bedrock-Clients sichtbar werden.
@@ -295,6 +312,10 @@ Die Konvertierung muss folgendes leisten:
 - FMM ist GPL-3.0 — alle abgeleiteten Werke müssen ebenfalls GPL-3.0 sein
 - Existierende GeyserModelEngine-Dateien auf dem Server können als Referenz für das Bedrock-Format dienen (Pfad: `/home/amp/.ampdata/instances/Proxy01/Minecraft/plugins/Geyser-Velocity/extensions/geysermodelengineextension/input_backup/`)
 - **Vor jedem git push:** `README.md` und `CLAUDE_SESSION.md` aktualisieren (Status-Tabelle, neue Klassen, Deployment-Schritte, Session-Fortschritt)
+- **Multi-PC-Workflow (`HANDOFF.md`):** Fabi arbeitet abwechselnd an mehreren PCs. `HANDOFF.md` im Repo-Root ist die Single Source of Truth für den Arbeitsstand.
+  - **Session-Start:** Sagt Fabi „lies die HANDOFF.md", den Bootstrap-Block oben in der Datei abarbeiten (Branch checken, `git pull`, `bash setup-references.sh`).
+  - **Session-Ende / PC-Wechsel:** IMMER `HANDOFF.md` aktualisieren (Stand-Datum, Git-Stand, nächste Schritte) **und** `git push` — sonst kann am anderen PC nicht weitergearbeitet werden. Das Session-Ende-Protokoll steht in der Datei selbst.
+  - Reference-Repos (`references/`) sind gitignored/separat → via `setup-references.sh` holen, nicht via `git clone` des Bridge-Repos.
 
 ## Architektur-Pivot 2026-05-24 + RPM 2.0.0 Upgrade 2026-05-28
 
@@ -332,8 +353,6 @@ Aktuelle Bridge-Verantwortung: **EM↔Bedrock UX-Layer** — Combat-styled BossB
 - packetevents 2.12.1 auf TestServer01 installiert
 - Ersetzt ProtocolLib komplett (ProtocolLib hat BUNDLE-Problem auf MC 1.21.x)
 - BOSS_EVENT-Suppression läuft auf Netty-IO-Thread, nicht Bukkit-Main-Thread → ThreadLocal-Bypass funktioniert nicht; Lösung ist First-Match-Heuristik (siehe `PacketInterceptor.handleBossEvent`)
-- 2D-Item-Inject (Phase 7.2b): SET_SLOT + WINDOW_ITEMS + ENTITY_METADATA Pakete erhalten `item_model = geyser_custom:<bedrockKey>` Component
+### Phase 7.2b — bridge_em Namespace (removed 2026-06-14)
 
-### Phase 7.2b — bridge_em Namespace (seit 2026-05-31)
-
-Bis 28.05. wurde `item_model = geyser_custom:em_<key>` injected, aber dieser Identifier ist seit RPM 2.0.0 Switch tot (Geyser kennt ihn nicht mehr; vorher kam er aus RPM 1.8.0-generierten Mappings auf Proxy01). Jetzt: Bridge generiert eigenen Bedrock-Pack (`em_bridge_pack.mcpack`) + Geyser custom-item-v2 Mappings-Datei (`em_bridge_mappings.json`) mit `bridge_em:<key>` Namespace. Beides muss nach Initial-Deploy + bei jedem EM-Update per SCP auf Proxy01 (siehe README "Phase 7.2b" Sektion). Bridge erkennt EM-Pack-Drift via SHA-256 Hash und warnt Ops im Chat (deutsch) + Console-WARN beim Boot. `/fmmbridge maintenance status` / `redeploy-instructions` / `mark-deployed` für Wartung.
+Historisch: Bridge injizierte `item_model = bridge_em:<key>` für EM-2D-UI-Items + generierte eigenes `em_bridge_pack.mcpack` + Geyser-Mappings. **Entfernt**, weil RPM 2.0.2 diese Items jetzt nativ konvertiert (`scanLegacyCustomModelOverrides`). Siehe CLAUDE_SESSION 2026-06-14 für Details.
