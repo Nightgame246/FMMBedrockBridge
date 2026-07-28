@@ -126,6 +126,27 @@ Extends Phase 7.3 to EliteMobs' NPC quest menu — the only other Bedrock-forced
 
 Config: `phase73.bedrock-quest-reroute: true` (toggles independently of `bedrock-dialog-reroute`). Requires MC >= 1.21.6. Java players unaffected.
 
+## Server tooling (`server-tools/`)
+
+Admin helpers for the AMP host — **not part of the plugin build**, versioned here so they
+survive the multi-PC workflow. See `server-tools/README.md` for deployment.
+
+| File | Target on the server | Purpose |
+|---|---|---|
+| `plugin-update-check.sh` | `~/plugin-update-check.sh` | Reports available plugin updates (Modrinth with loader filter, GitHub releases, GeyserMC, `fill.papermc.io/v3`). Read-only; exit 10 = updates available, so it is cron-friendly. |
+| `backup-testserver.sh` | `~/backup-testserver.sh` | Full instance backup — paper jars, `plugins/`, configs, version manifest, checksums. |
+| `server-CLAUDE.md` | `~/.claude/CLAUDE.md` | User-level note for the Claude Code instance running on the server. |
+
+The update check deliberately separates **MANUELL** (MagmaGuy Discord builds, premium plugins)
+and **OHNE QUELLE** (no verified mapping) from **AKTUELL** — those sections are coverage gaps,
+not an all-clear. `[PP]`-prefixed plugins and `Polymart.jar` are skipped: PluginPortal and
+Polymart manage their own updates, and replacing those jars by hand breaks their updaters.
+
+> ⚠️ **Coupled set:** Geyser · ResourcePackManager · FreeMinecraftModels · EliteMobs · Floodgate
+> move together. Geyser 2.11 breaks the custom-entity bridge in RPM < 2.3.0 (Bedrock players see
+> pigs instead of models). Restart the proxy **twice** after any RPM update — the Geyser extension
+> is only written on the first boot. Bedrock rendering can only be verified in-game, never from logs.
+
 ## License
 
 GPL-3.0 — compatible with FreeMinecraftModels.

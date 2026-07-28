@@ -1171,3 +1171,47 @@ Die in den Sessions 2026-07-07/07-08 getroffene Grundsatzentscheidung (natives M
 - BossBar/Nametag Live-Verify MIT aktivierter Bridge auf Bedrock.
 - Upstream-Report an MagmaGuy (RPM-Geyser-Bridge hardcodet `ResourcePackManager` → Symlink-Zwang auf case-sensitivem FS).
 - Waffen-Offset (separat, kein Bridge-Feature): legacy `custom_model_data` re-exportieren.
+
+---
+
+## Session: 2026-07-28/29 — Upstream-Changelogs, Server-Backup, Claude auf dem Server, Update-Tooling
+
+Kein Plugin-Code. Diagnose, Server-Setup und Tooling.
+
+### Neue Upstream-Releases (von Fabi aus dem MagmaGuy-Discord eingespielt)
+FMM **2.10.2**, EM **10.7.3**, RPM **2.3.0**, BetterStructures **2.6.3** (+ EternalTD 1.6.4, ResurrectionChest 2.2.5, CannonRTP 1.1.4, BetterFood 1.4.4).
+
+**Der Source dieser Builds ist NICHT auf GitHub.** `setup-references.sh` zeigt FMM/RPM/EM weiterhin auf `2.10.1 / 2.2.2 / 10.7.2` (letzter Push 28.06.); nur BetterStructures 2.6.3 ist gepusht. Diese Versionen lassen sich also nicht im Quellcode gegenprüfen — Verifikation nur live gegen die JARs.
+
+### Was uns davon trifft
+- **RPM 2.3.0** — „Bedrock custom-entity bridge updated for Geyser 2.11". Parallel hat GeyserModelEngine upstream `fix/geyser-2.11-sync` gemerged (HEAD `ae3b04e`): zwei unabhängige Projekte fixen denselben Bruch ⇒ **Geyser 2.11 hat die Custom-Entity-API geändert**.
+- **Geyser auf Proxy01 ist `2.10.1-b1175`** (per SSH verifiziert, JAR vom 27.06.) — der Bruch trifft uns also **noch nicht**. Aber: sobald Geyser auf 2.11 geht, fällt Bedrock mit RPM 2.2.2 auf Pig-Fallback. Die `.b1107`/`.b1129`-Backups im Plugin-Ordner belegen einen aktiven Update-Mechanismus ⇒ **Geyser nicht anfassen, bis RPM 2.3.0 läuft**.
+- **RPM 2.3.0** behauptet „proxy networks stay fully automatic" ⇒ könnte den Symlink-Workaround **und** den geplanten Upstream-Report erledigen. Nach dem Update testen, nicht annehmen.
+- **EM 10.7.3** fasst unseren Rest-Scope an, beides Risiko statt Gewinn:
+  - „Proximity boss bars no longer flicker and reorder wildly" → unsere First-Match-Heuristik + `BossBarRegistry` in `PacketInterceptor.java:120-145` hängen genau daran (7.1a).
+  - „[New] Bedrock (Geyser) players now see NPC role tags (`bedrockNPCRoleYOffset`)" → EM sendet jetzt selbst Nametag-artiges an Bedrock; mögliche Doppelung mit `BedrockNametagController` (7.1b).
+- **FMM 2.10.2** unkritisch (1.20.2-Spawn-Fix, MagmaCore).
+
+### Server-Backup TestServer01
+`/home/amp/backups/TestServer01-20260728-2211/` — 1,8 GB zstd (2,98 GB / 26.051 Einträge, Integrität geprüft): paper-JARs unkomprimiert, `plugins.tar.zst`, `server-configs.tar.gz`, `MANIFEST.txt` (alle Plugin-Versionen), `SHA256SUMS`.
+
+### Claude Code auf dem Server
+Fabi wollte Claude auf dem Server, gestartet als **root**, weil „die AMP-Console komisch ist". **Missverständnis aufgelöst:** die AMP-Web-Console ist keine Shell, sondern der stdin des Minecraft-Servers — deshalb gehen dort nur Server-Befehle. Der Systemuser `amp` hat eine normale bash (diese Session arbeitet die ganze Zeit damit). Root bringt nichts dazu; `amp` ist ohnehin in der **docker-Gruppe** und damit faktisch root-äquivalent. Der Claude-Installer weigert sich zudem selbst, unter `sudo` zu laufen.
+
+Installiert: **Claude Code 2.1.220** (nativer Build, kein Node nötig) als `amp` unter `~/.local/bin/claude`, PATH in `~/.bashrc` ergänzt. Login steht aus (nur interaktiv möglich). RCON auf TestServer01 bewusst **nicht** aktiviert (`enable-rcon=false`) ⇒ der Server-Claude kann keine Server-Befehle absetzen.
+
+### Neu im Repo: `server-tools/` (Commit `f1dd00c`)
+- `plugin-update-check.sh` — meldet Plugin-Updates, ändert nichts, Exit 10 = Updates da (cron-tauglich). Trennt **MANUELL** (Discord/Premium) und **OHNE QUELLE** (ungeprüft) sichtbar von AKTUELL, statt Lücken als Entwarnung auszugeben. `[PP]`/Polymart werden übersprungen (eigener Updater).
+- `backup-testserver.sh`, `server-CLAUDE.md` (Ziel: `~/.claude/CLAUDE.md`), `README.md`.
+
+Beim Bau verifiziert und dabei **vier API-Fallstricke** gefunden (in `server-tools/README.md` dokumentiert):
+1. `api.papermc.io/v2` ist abgeschaltet (`{"error":"sunset"}`) → `fill.papermc.io/v3`
+2. Modrinth **ohne Loader-Filter** liefert für Bukkit-Plugins Velocity-/Fabric-Versionen (real bei LuckPerms, NoChatReports)
+3. Geyser `.../builds/latest` antwortet **leer**; Buildnummern stehen in `.../versions/<v>` unter `.builds`
+4. Versionsvergleich muss **numerisch** sein — sonst gilt ProtocolLib `5.4.1-SNAPSHOT` als veraltet gegenüber Release `5.4.0`, und Floodgate `b132` als „aktuell" gegenüber `b138` (Buildnummer muss vor dem Entfernen der Klammer ausgelesen werden)
+
+### Update-Lage TestServer01 (Script-Output)
+Paper **113 → 130**; Floodgate **b132 → b138**; EssentialsX 2.21.2 → 2.22.0; FAWE 2.14.1 → 2.15.3; LuckPerms 5.5.8 → 5.5.53; Skript 2.12.2 → 2.16.0; packetevents 2.12.1 → 2.13.0. ProtocolLib läuft als Dev-Build **neuer** als der Release (nicht downgraden, wird von LibsDisguises gebraucht). 14 Plugins manuell, 5 ohne Quelle, 15 fremdverwaltet.
+
+### Altlast entdeckt
+`GeyserModelEngine-1.0.3.jar` bringt ein geshadetes **packetevents 2.11.2** mit, während separat **2.12.1** installiert ist — zwei Versionen derselben Library auf einem Classpath. GeyserModelEngine hookt nur ModelEngine (Ticxo), nicht FMM ⇒ seit dem nativen Rendering vermutlich überflüssig. Wegwerf-Kandidat, vorher mit Fabi klären.

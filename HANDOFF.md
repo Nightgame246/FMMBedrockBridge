@@ -1,7 +1,10 @@
 # HANDOFF — FMMBedrockBridge
 
-> Übergabe-Datei für Weiterarbeit an einem anderen PC. Stand: **2026-07-10**
+> Übergabe-Datei für Weiterarbeit an einem anderen PC. Stand: **2026-07-29**
 > Branch: `main` (Phase-7.2b-Removal **gemerged**, gepusht). Backup-Tag: `backup/pre-72b-merge-main`.
+>
+> ⚠️ **Beim Wiedereinstieg zuerst Abschnitt 3 lesen** — es liegen neue Upstream-Releases vor
+> (FMM 2.10.2, EM 10.7.3, RPM 2.3.0) und **Geyser darf nicht vor RPM 2.3.0 hochgezogen werden.**
 
 ---
 
@@ -59,12 +62,21 @@ Bevor die Session endet bzw. wenn der User signalisiert, dass er aufhört / den 
 
 ## 1. Wo wir gerade stehen (Git)
 
-- **Aktiver Branch:** `main` — mit `origin` synchron; HEAD = `3d4ae90` (Doku-Commit), darunter Merge-Commit `be08a2f`
+- **Aktiver Branch:** `main` — HEAD = `f1dd00c` (`tooling(server)`: neues `server-tools/`), darunter die Doku-Commits vom 10.07. und Merge-Commit `be08a2f`
 - **Phase-7.2b-Removal ist nach `main` gemerged** (2026-07-10, `--no-ff`, bewusst als revertierbare Einheit). Der Feature-Branch `refactor/remove-phase72b` existiert weiter (auf `origin`), ist aber jetzt in main enthalten.
 - **Backup vor dem Merge:** Tag `backup/pre-72b-merge-main` → alter main-Stand (`4a277d8`), auf `origin` gepusht. Notfall-Rückweg: `git reset --hard backup/pre-72b-merge-main` oder `git revert -m 1 be08a2f`. (Zusätzlich weiter vorhanden: `archive/2026-05-24-pre-rpm18-pivot`.)
 - Working tree **sauber**
 - Build 2026-07-10 verifiziert (offline gegen echte Server-JARs FMM 2.10.1 / EM 10.7.2): **BUILD SUCCESS, 13 Tests grün.** Artefakt: `target/FMMBedrockBridge-0.1.0-SNAPSHOT-20260710-1454.jar`. **Plugin-Code unverändert seit 13. Juni** — Sessions danach waren Doku/Tooling/Diagnose + dieser Merge.
 - Build auf dem neuen PC zur Sicherheit nochmal laufen lassen: `mvn -o clean package -DskipTests`
+
+### Was in der Session 2026-07-28/29 dazukam (Upstream-Check, Server-Setup, Tooling — KEIN Plugin-Code)
+- **Neue Upstream-Releases** (Fabi aus dem MagmaGuy-Discord): FMM **2.10.2**, EM **10.7.3**, RPM **2.3.0**, BetterStructures **2.6.3**. ⚠️ **Der Source dieser Builds ist nicht auf GitHub** — `references/` zeigt FMM/RPM/EM weiter auf 2.10.1 / 2.2.2 / 10.7.2 (letzter Push 28.06.). Nicht im Code gegenprüfbar, nur live gegen die JARs.
+- **Geyser-Kopplung entdeckt:** RPM 2.3.0 fixt „Bedrock custom-entity bridge for **Geyser 2.11**"; GeyserModelEngine hat parallel `fix/geyser-2.11-sync` gemerged. Zwei Projekte, derselbe Bruch. **Proxy01 läuft auf Geyser `2.10.1-b1175`** (per SSH verifiziert) → trifft uns noch nicht, aber **Geyser nicht hochziehen, solange RPM auf 2.2.2 steht** (sonst Pig-Fallback auf Bedrock).
+- **EM 10.7.3 berührt unseren Rest-Scope** — beides Risiko, kein Gewinn: „Proximity boss bars no longer flicker/reorder" trifft unsere First-Match-Heuristik (`PacketInterceptor.java:120-145`, 7.1a); „NPC role tags auf Bedrock (`bedrockNPCRoleYOffset`)" kann mit `BedrockNametagController` doppeln (7.1b).
+- **Vollbackup TestServer01:** `/home/amp/backups/TestServer01-20260728-2211/` (1,8 GB zstd, Integrität geprüft, Manifest mit allen Plugin-Versionen).
+- **Claude Code auf dem Server installiert** — 2.1.220 als User `amp` (nicht root; die AMP-Web-Console ist keine Shell, sondern Server-stdin — `amp` hat eine normale bash). Login steht noch aus, RCON bewusst aus.
+- **Neu im Repo: `server-tools/`** (Commit `f1dd00c`) — `plugin-update-check.sh`, `backup-testserver.sh`, `server-CLAUDE.md` (→ `~/.claude/CLAUDE.md`), README mit vier dokumentierten API-Fallstricken.
+- **Update-Lage TestServer01:** Paper 113 → 130, Floodgate b132 → b138, EssentialsX/FAWE/LuckPerms/Skript/packetevents ebenfalls veraltet. ProtocolLib ist ein Dev-Build **neuer** als der Release — nicht downgraden (LibsDisguises braucht ihn).
 
 ### Was in der Session 2026-07-07 dazukam (Live-Server-Diagnose, KEIN Plugin-Code)
 **Entscheidungs-Test aus Abschnitt 3 DURCHGEFÜHRT:** FMM 2.10.1 + RPM 2.2.2 + EM 10.7.2 frisch deployt, Bridge **deaktiviert**, auf TestServer01/Proxy01 getestet. Ergebnis: **der native Stack rendert Custom-Mobs auf Bedrock** — nach Behebung von zwei Deploy-Fallstricken (per SSH live diagnostiziert, Logs in `references/logs/`):
@@ -154,10 +166,26 @@ Was von der Bridge **vielleicht** noch übrig bleibt (zu prüfen!):
 
 ## 3. Nächste Schritte (Priorität)
 
-Die Grundsatzentscheidung ist **getroffen**, der Refactor ist **nach `main` gemerged** (2026-07-10) und der **Rest-Scope ist live verifiziert**. Bridge bleibt, reduziert auf 7.1a/7.1b. Offen:
+Die Grundsatzentscheidung ist **getroffen**, der Refactor ist **nach `main` gemerged** (2026-07-10) und der **Rest-Scope ist live verifiziert**. Bridge bleibt, reduziert auf 7.1a/7.1b.
 
-1. **Upstream an MagmaGuy melden:** RPM-Geyser-Bridge-Extension hardcodet `ResourcePackManager` statt den echten (Velocity-lowercase) Ordnernamen → bricht ohne Symlink auf case-sensitiven FS. (Bis Fix: Symlink auf dem Proxy MUSS bleiben.)
-2. **Waffen-Offset (separat, KEIN Bridge-Feature):** legacy pre-1.21.4 `custom_model_data`-Item-Format re-exportieren ins 1.21.4+-Format (`assets/<namespace>/items/*.json`) — RPM-Backend-Warnung Z. 2594. Item-Schiene, unabhängig vom Entity-Rendering.
+**Nächster großer Block: Update-Runde auf TestServer01.** Reihenfolge ist nicht beliebig — die Plugins sind gekoppelt.
+
+1. **JARs besorgen (nur Fabi).** FMM 2.10.2, EM 10.7.3, RPM 2.3.0 liegen hinter Discord/nightbreak — nicht automatisch holbar. Ohne sie geht Schritt 2 nicht.
+2. **RPM 2.3.0 zuerst, Geyser bleibt auf 2.10.1.** RPM „probt" laut Changelog die laufende Geyser-Version, sollte also auf 2.10.1 weiterlaufen — **unverifiziert**, deshalb Log-Check Pflicht:
+   `Erweiterung ResourcePackManagerGeyserBridge aktiviert` **und** `bridge ready with <n>` (nicht `0`).
+   Proxy **zweimal** neu starten.
+3. **EM 10.7.3 + FMM 2.10.2** aufs Backend.
+4. **Bedrock-Verify in dieser Reihenfolge** (nur in-game möglich, Logs reichen NICHT):
+   Mob rendert (kein Schwein) → Animation → Combat-BossBar (7.1a) → HP-Nametag (7.1b, **auf Doppelung mit EMs neuen NPC-Rollen-Tags achten**).
+5. **Symlink-Test:** `plugins/ResourcePackManager → resourcepackmanager` probeweise entfernen, Proxy neu. Bleibt `bridge ready with <n>` ≠ 0, ist der Upstream-Bug gefixt → **Punkt „Upstream-Report" entfällt**, sonst melden.
+6. **Erst danach** optional Geyser auf 2.11 (mit RPM 2.3.0 als Netz).
+7. **Dep-Bump im pom** (FMM 2.10.1→2.10.2, EM 10.7.2→10.7.3) + Rebuild. Nicht im Maven-Repo → JARs vom Server holen und `mvn install:install-file` (siehe Bootstrap Punkt 4).
+
+**Danach / unabhängig:**
+- **Waffen-Offset (KEIN Bridge-Feature):** legacy pre-1.21.4 `custom_model_data`-Item-Format re-exportieren ins 1.21.4+-Format (`assets/<namespace>/items/*.json`) — RPM-Backend-Warnung Z. 2594.
+- **Altlast aufräumen:** `GeyserModelEngine-1.0.3.jar` shaded packetevents **2.11.2**, während separat **2.12.1** installiert ist — zwei Versionen derselben Lib auf einem Classpath. Hookt nur ModelEngine, nicht FMM → vermutlich überflüssig, mit Fabi klären.
+- **Server-Claude:** Login steht noch aus (`ssh amp@mc.crazypandas.de` → `claude`). Notiz liegt unter `~/.claude/CLAUDE.md`; bei Änderungen an den Deploy-Regeln aus `server-tools/server-CLAUDE.md` per scp nachziehen.
+- **Update-Check jederzeit:** `ssh amp@mc.crazypandas.de '~/plugin-update-check.sh TestServer01'`
 
 **Erledigt 2026-07-10 (Deploy + Live-Verify):**
 - ~~JAR (`…-20260710-1454.jar`) auf TestServer01 deployt~~ ✓ (SHA-verifiziert)
