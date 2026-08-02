@@ -1,10 +1,67 @@
 # HANDOFF — FMMBedrockBridge
 
-> Übergabe-Datei für Weiterarbeit an einem anderen PC. Stand: **2026-07-29**
-> Branch: `main` (Phase-7.2b-Removal **gemerged**, gepusht). Backup-Tag: `backup/pre-72b-merge-main`.
+> Übergabe-Datei für Weiterarbeit an einem anderen PC. Stand: **2026-08-02**
+> Branch: **`feat/mc-26.2-readiness`** (neu, nicht gemerged). `main` = `074c550`, sauber.
 >
-> ⚠️ **Beim Wiedereinstieg zuerst Abschnitt 3 lesen** — es liegen neue Upstream-Releases vor
-> (FMM 2.10.2, EM 10.7.3, RPM 2.3.0) und **Geyser darf nicht vor RPM 2.3.0 hochgezogen werden.**
+> ⚠️ **Beim Wiedereinstieg zuerst Abschnitt 0 lesen** — Minecraft hat die Versionierung
+> umgestellt (kein 1.22, sondern **26.1/26.2**), und **MC 26.2 verlangt Java 25** auf dem Server.
+
+---
+
+## 0. 🆕 NEU 2026-08-02: Minecraft ist auf jahresbasierte Versionen umgestellt
+
+**Das ändert die Update-Planung grundlegend.** Mojang hat das `1.x`-Schema abgeschafft:
+es gibt **kein 1.22**, sondern **26.1** („Tiny Takeover", März 2026) und **26.2**
+(„Chaos Cubed", Juni 2026). Format `YY.Drop.Hotfix`. Höchste Version aktuell: **26.2**,
+Paper-Artefakt `26.2.build.87-stable` (das `-R0.1-SNAPSHOT`-Namensschema ist weg).
+
+### Die Abhängigkeitskette für MC 26.2
+
+| Komponente | Für 26.2 nötig | Auf dem Server (Stand 02.08.) | |
+|---|---|---|---|
+| **Java** | **25** (Paper 26.2 = Class-File 69) | 21 | ⚠️ **neu entdeckt** |
+| Paper | 26.2.build.87-stable | 1.21.x | offen |
+| **Geyser** | **2.11.0** (26.2 gemerged 10.07.) | 2.10.1-b1175 | ⚠️ Blocker |
+| **RPM** | **2.3.0** (wegen Geyser 2.11) | 2.2.2 | ⚠️ Blocker |
+| **PacketEvents** | **2.13.0** (26.2-Support, 22.06.) | 2.12.1 | ⚠️ Bump |
+| FMM / EM / RPM | bauen **schon** gegen spigot-api 26.2 | 2.10.1 / 10.7.2 / 2.2.2 | ✅ ok |
+| Velocity | ungeprüft (3.5.1 / 4.0.0 draußen) | 3.5.0-SNAPSHOT | ❓ offen |
+| Floodgate, ProtocolLib, LibsDisguises, FAWE, Essentials, Skript | ungeprüft | — | ❓ offen |
+
+**Die Geyser-Sperre aus Abschnitt 3 ist genau der Knoten:** MC 26.2 erzwingt Geyser 2.11,
+und Geyser 2.11 erzwingt RPM 2.3.0. Das RPM-2.3.0-Update ist damit der Schlüssel für alles
+Weitere — die geplante Reihenfolge (RPM zuerst) stimmt also weiterhin.
+
+**Java 25 war bisher auf niemandes Zettel.** Der Server läuft auf Java 21; Paper 26.2 lässt
+sich damit nicht einmal laden. Das muss vor der Paper-Umstellung geklärt werden (AMP-JVM-Auswahl,
+und ob alle anderen Plugins unter Java 25 laufen).
+
+### Was der Branch `feat/mc-26.2-readiness` schon macht
+
+Die Bridge ist auf 26.2 vorbereitet, **bleibt aber auf 1.21.x lauffähig** (bewusste Entscheidung,
+damit sofort deploybar/testbar, statt bis zur Server-Umstellung blind zu sein):
+- `pom.xml`: `paper-api` über `${paper.api.version}` = `26.2.build.87-stable`, PacketEvents → **2.13.0**,
+  `maven.compiler.release=21` (Bytecode 21 → läuft auf Java 21 **und** 25)
+- neues Maven-Profil **`legacy-1.21`** — kompiliert dieselben Quellen gegen 1.21.10.
+  Ein einzelner Compile kann Doppel-Kompatibilität nicht beweisen, zwei schon.
+- **`verify-both-apis.sh`** — fährt beide Durchläufe + prüft die Bytecode-Version des Artefakts
+- **Bugfix `McVersions`**: der Parser brach bei nicht-numerischen Segmenten ab
+  (`26.2.build.87-stable` → `NumberFormatException` → `false`) und hätte damit den
+  Phase-7.3-Reroute auf einem 26.x-Server **still deaktiviert**. Mit Regressionstests belegt
+  (Test fällt ohne den Fix). 16 Tests grün im Legacy-Durchlauf.
+- `plugin.yml`: `api-version` bleibt **bewusst** `'1.21'` (Mindest-Angabe; ein 1.21.x-Server
+  würde `'26.2'` ablehnen). Genau so machen es FMM/EM auch.
+
+**Offen auf dem Branch:**
+- [ ] **26.2-Compile ungeprüft** — braucht lokal ein **JDK 25** (`sudo pacman -S jdk25-openjdk`;
+      `jre25-openjdk` reicht nicht, das hat kein `javac`). Danach `bash verify-both-apis.sh`.
+      Vorprüfung ohne Compiler: alle 25 Bukkit/Paper-Imports und alle riskanten Member
+      (`Attribute.MAX_HEALTH`, `BarColor/BarStyle`, `createBossBar`, `getCustomName`,
+      `getAttribute`, `getMaxHealth`) existieren in **beiden** API-Generationen.
+- [ ] Dep-Bump FMM 2.10.1→2.10.2 / EM 10.7.2→10.7.3, sobald Fabi sie deployt hat
+      (Server stand am 02.08. noch auf 2.10.1 / 10.7.2 / 2.2.2 vom 7. Juli).
+
+---
 
 ---
 
@@ -180,6 +237,21 @@ Die Grundsatzentscheidung ist **getroffen**, der Refactor ist **nach `main` geme
 5. **Symlink-Test:** `plugins/ResourcePackManager → resourcepackmanager` probeweise entfernen, Proxy neu. Bleibt `bridge ready with <n>` ≠ 0, ist der Upstream-Bug gefixt → **Punkt „Upstream-Report" entfällt**, sonst melden.
 6. **Erst danach** optional Geyser auf 2.11 (mit RPM 2.3.0 als Netz).
 7. **Dep-Bump im pom** (FMM 2.10.1→2.10.2, EM 10.7.2→10.7.3) + Rebuild. Nicht im Maven-Repo → JARs vom Server holen und `mvn install:install-file` (siehe Bootstrap Punkt 4).
+
+### Wenn danach auf MC 26.2 umgestellt werden soll (siehe Abschnitt 0)
+
+Reihenfolge, **nicht** beliebig — jeder Schritt ist Voraussetzung des nächsten:
+
+8. **Java 25 auf dem Server klären.** Paper 26.2 ist Class-File 69 und lädt unter Java 21
+   gar nicht. Prüfen: stellt AMP eine JVM 25 bereit, und laufen ProtocolLib / LibsDisguises /
+   FAWE / Skript / packetevents darunter? **Das ist der eigentliche Blocker, nicht Paper selbst.**
+9. **PacketEvents auf 2.13.0** (erste Version mit 26.2-Support) — kann schon vorher passieren,
+   2.13.0 kann auch 1.21.x.
+10. **Geyser 2.11.0 + RPM 2.3.0** müssen zu diesem Zeitpunkt bereits stehen (Schritte 2/6).
+11. **Paper auf 26.2** — Proxy (Velocity-Kompatibilität mit 26.2 ist noch **ungeprüft**) und
+    Backends. Vorher Vollbackup, vgl. `server-tools/backup-testserver.sh`.
+12. **Bridge-JAR** aus `feat/mc-26.2-readiness` deployen (läuft auch vorher schon auf 1.21.x —
+    kann also früh mitgetestet werden, das war der Sinn der Doppel-Kompatibilität).
 
 **Danach / unabhängig:**
 - **Waffen-Offset (KEIN Bridge-Feature):** legacy pre-1.21.4 `custom_model_data`-Item-Format re-exportieren ins 1.21.4+-Format (`assets/<namespace>/items/*.json`) — RPM-Backend-Warnung Z. 2594.
