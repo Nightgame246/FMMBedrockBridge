@@ -1215,3 +1215,48 @@ Paper **113 → 130**; Floodgate **b132 → b138**; EssentialsX 2.21.2 → 2.22.
 
 ### Altlast entdeckt
 `GeyserModelEngine-1.0.3.jar` bringt ein geshadetes **packetevents 2.11.2** mit, während separat **2.12.1** installiert ist — zwei Versionen derselben Library auf einem Classpath. GeyserModelEngine hookt nur ModelEngine (Ticxo), nicht FMM ⇒ seit dem nativen Rendering vermutlich überflüssig. Wegwerf-Kandidat, vorher mit Fabi klären.
+
+---
+
+## Session: 2026-08-02 — Minecraft 26.x: Branch `feat/mc-26.2-readiness`
+
+### Upstream-Check (Auftrag: „schau ob die Updates jetzt auf GitHub sind")
+**Nein.** FMM/RPM/EM hängen weiter auf dem Stand vom **28.06.** (`dfd7aed3` 2.10.1 / `b2c36b7` 2.2.2 / `4c9bba73` 10.7.2) — die Discord-Builds 2.10.2 / 2.3.0 / 10.7.3 sind nicht gepusht. GitHub-Releases helfen nicht (letzte Tags uralt: FMM 05/2025, RPM 07/2024, EM 03/2023). Bewegt hat sich nur: **BetterStructures 2.6.3** (22.07., für uns irrelevant), **GeyserModelEngine** (31.07., nur Bukkit→Folia-Scheduler), GeyserUtils unverändert (loadSkin-Bug offen).
+
+### Der eigentliche Fund: Minecraft hat die Versionierung umgestellt
+Beim Auflösen der Frage „was ist die höchstmögliche MC-Version" kam heraus, dass Mojang das `1.x`-Schema abgeschafft hat: **kein 1.22**, sondern **26.1** („Tiny Takeover", 24.03.2026) und **26.2** („Chaos Cubed", Juni 2026), Format `YY.Drop.Hotfix`. Paper-Artefakt heißt jetzt `26.2.build.87-stable` statt `<mc>-R0.1-SNAPSHOT`.
+
+**Der MagmaGuy-Stack ist da längst:** FMM 2.10.1, RPM 2.2.2 **und** EM 10.7.2 kompilieren alle bereits gegen `spigot-api:26.2` (in den `references/`-Poms nachgeprüft). Die Bridge war das hinterherhinkende Teil.
+
+**Abhängigkeitskette für MC 26.2** — Java 25 war neu und stand auf keinem Zettel:
+
+| Komponente | Nötig | Server (02.08.) |
+|---|---|---|
+| Java | **25** (Paper 26.2 = Class-File 69) | 21 ⚠️ |
+| Geyser | 2.11.0 (26.2 gemerged 10.07., PR #6452) | 2.10.1-b1175 ⚠️ |
+| RPM | 2.3.0 (wegen Geyser 2.11) | 2.2.2 ⚠️ |
+| PacketEvents | 2.13.0 (26.2-Support, 22.06.) | 2.12.1 ⚠️ |
+| FMM / EM | bauen schon gegen 26.2 | ok |
+
+Damit ist die **Geyser-Sperre aus der Vorsession genau der Knoten**: MC 26.2 → Geyser 2.11 → RPM 2.3.0. Die geplante Reihenfolge (RPM zuerst) bleibt richtig.
+
+### Branch `feat/mc-26.2-readiness`
+Entscheidung mit Fabi: **ein JAR für beide Generationen**, damit sofort deploy- und testbar statt bis zur Server-Umstellung blind.
+
+- `pom.xml`: `paper-api` → `${paper.api.version}` = `26.2.build.87-stable`; PacketEvents `2.12.1` → **`2.13.0`**; `maven.compiler.source/target` → **`maven.compiler.release=21`**
+- **Maven-Profil `legacy-1.21`** kompiliert dieselben Quellen gegen `1.21.10-R0.1-SNAPSHOT`
+- **`verify-both-apis.sh`** — beide Durchläufe + Assertion auf Bytecode-Version 65. Findet auch das JDK selbst (JRE 25 reicht **nicht**, die hat kein `javac`).
+- `plugin.yml`: `api-version` bleibt **bewusst** `'1.21'` — Mindest-Angabe; ein 1.21.x-Server würde `'26.2'` ablehnen, ein 26.2-Server akzeptiert `'1.21'`. FMM/EM machen es genauso (deklarieren `1.21.4`, kompilieren gegen 26.2).
+
+### Bugfix `McVersions` (hätte 7.3 still abgeschaltet)
+Der Parser brach bei einem nicht-numerischen Segment mit `NumberFormatException` ab und lieferte `false`. Bei `26.2.build.87-stable` hätte der `>= 1.21.6`-Gate damit **den Phase-7.3-Reroute auf einem 26.x-Server lautlos deaktiviert** — kein Log, kein Fehler, das Feature einfach weg. Jetzt werden führende numerische Segmente geparst und Trailing-Junk ignoriert; ein nicht-numerisches *erstes* Segment bleibt `false` (fail-closed, da nicht ordenbar). Regressionstests: der neue Test fällt mit dem alten Parser (gegengeprüft), hält mit dem neuen.
+
+### Verifikation
+`bash verify-both-apis.sh`: **beide Durchläufe BUILD SUCCESS, je 16/16 Tests grün**, Bytecode-Version 65. Artefakt `FMMBedrockBridge-0.1.0-SNAPSHOT-20260802-1505.jar`.
+
+Zusätzlich geprüft: alle 25 Bukkit/Paper-Imports existieren in 26.2; die riskanten Member (`Attribute.MAX_HEALTH`, `BarColor`/`BarStyle`, `Bukkit.createBossBar`, `getCustomName`, `getAttribute`, `getMaxHealth`) existieren in **beiden** Generationen. Deprecation-Diff 1.21.10 ↔ 26.2: **identisch, 4 Stück** (`getDescription`, `getMaxHealth`, `InventoryView.getTitle`, `getCustomName`) — Altlasten, **nichts neu durch 26.2**, kein Handlungsdruck.
+
+### Offen
+- Dep-Bump FMM 2.10.1→2.10.2 / EM 10.7.2→10.7.3, sobald deployt (Server stand am 02.08. noch auf den JARs vom 7. Juli)
+- Velocity-Kompatibilität mit 26.2 ungeprüft (3.5.1 und 4.0.0 sind draußen, Proxy auf 3.5.0-SNAPSHOT)
+- Floodgate/ProtocolLib/LibsDisguises/FAWE/Skript unter Java 25 ungeprüft

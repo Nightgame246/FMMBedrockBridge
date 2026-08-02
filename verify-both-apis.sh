@@ -63,8 +63,11 @@ echo "════ Bytecode-Ziel prüfen ════"
 # Der erste Durchlauf hat das JAR gebaut, der zweite es weggeräumt — neu bauen fürs Artefakt.
 $MVN -q clean package
 JAR=$(ls -t target/FMMBedrockBridge-*.jar | head -1)
-CLS=$(unzip -p "$JAR" de/crazypandas/fmmbedrockbridge/bridge/McVersions.class | od -An -tu1 -j6 -N2 | tr -d ' ')
-if [ "$CLS" != "65" ]; then
+# od padded auf 3 Stellen ("065") -> 10#, sonst wird das als Oktal gelesen bzw.
+# schlaegt der Stringvergleich fehl.
+CLS=$((10#$(unzip -p "$JAR" de/crazypandas/fmmbedrockbridge/bridge/McVersions.class \
+            | od -An -tu1 -j6 -N2 | tr -d ' ')))
+if [ "$CLS" -ne 65 ]; then
   echo "FEHLER: Bytecode-Version $CLS, erwartet 65 (Java 21)." >&2
   echo "  Ein höherer Wert lädt auf den Java-21-Servern nicht." >&2
   exit 1

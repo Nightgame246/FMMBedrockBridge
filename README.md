@@ -23,12 +23,17 @@ That's it. No mob rendering, no animation conversion, no 3D item conversion — 
 
 ## Requirements
 
-**Backend Server (Paper/Spigot 1.21.x):**
+**Backend Server (Paper/Spigot 1.21.x **or** 26.x):**
 - [FreeMinecraftModels](https://github.com/MagmaGuy/FreeMinecraftModels) **2.6.0+** with `sendCustomModelsToBedrockClients: true` in its `config.yml`
 - [ResourcePackManager](https://github.com/MagmaGuy/ResourcePackManager) **2.0.0+** (generates the Bedrock pack, serves it to the proxy via embedded HTTP server)
 - [EliteMobs](https://github.com/MagmaGuy/EliteMobs) (optional — required for BossBar replacement and dialog-reroute)
 - [Floodgate](https://github.com/GeyserMC/Floodgate) (required for Bedrock player detection — its `key.pem` also derives the RPM Network-Mode key)
-- [PacketEvents](https://github.com/retrooper/packetevents) **2.12.1+** (required for packet manipulation)
+- [PacketEvents](https://github.com/retrooper/packetevents) **2.12.1+** on 1.21.x, **2.13.0+** on 26.x (required for packet manipulation)
+
+> **Minecraft 26.x:** Mojang replaced the `1.x` scheme with year-based versions in 2026 — there
+> is no 1.22, the line runs 1.21.11 → **26.1** → **26.2**. The plugin supports both generations
+> from a single jar (see Build). Server-side, MC 26.2 additionally requires **Java 25** and, for
+> Bedrock, **Geyser 2.11+** together with **RPM 2.3.0+**.
 
 **Proxy (Velocity/BungeeCord):**
 - [Geyser](https://geysermc.org/)
@@ -37,12 +42,24 @@ That's it. No mob rendering, no animation conversion, no 3D item conversion — 
 
 ## Build
 
-Requires Java 21 and Maven.
+Requires **JDK 25** and Maven. The jar itself targets Java 21 bytecode and runs on both Java 21
+and 25 — but *compiling* needs 25, because Paper's 26.2 API ships class file version 69, which
+javac 21 cannot read at all.
 
 ```bash
 mvn clean package
 # Output: target/FMMBedrockBridge-<version>.jar
 ```
+
+One jar serves both Minecraft generations. That is not something a single compile can prove, so
+the same sources are compiled twice — against 26.2 and against 1.21.10:
+
+```bash
+bash verify-both-apis.sh
+```
+
+Both runs must pass, and the script also asserts the emitted bytecode is version 65 (Java 21).
+Only API present in *both* generations may be used; anything 26.x-only needs a reflective guard.
 
 There is no longer a separate Geyser Extension submodule — RPM does that work.
 
