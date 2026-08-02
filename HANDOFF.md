@@ -1,10 +1,15 @@
 # HANDOFF — FMMBedrockBridge
 
-> Übergabe-Datei für Weiterarbeit an einem anderen PC. Stand: **2026-08-02**
-> Branch: **`feat/mc-26.2-readiness`** (neu, nicht gemerged). `main` = `074c550`, sauber.
+> Übergabe-Datei für Weiterarbeit an einem anderen PC. Stand: **2026-08-02 (abends)**
+> Branch: **`feat/mc-26.2-readiness`** — gepusht, **bewusst nicht gemerged**.
+> `main` trägt nur einen Zeiger hierher (Commit `020aed4`).
 >
-> ⚠️ **Beim Wiedereinstieg zuerst Abschnitt 0 lesen** — Minecraft hat die Versionierung
-> umgestellt (kein 1.22, sondern **26.1/26.2**), und **MC 26.2 verlangt Java 25** auf dem Server.
+> ⚠️ **Beim Wiedereinstieg zuerst Abschnitt 0 + 0b lesen:** Minecraft hat die Versionierung
+> umgestellt (kein 1.22, sondern **26.1/26.2**), **MC 26.2 verlangt Java 25**, und der Server
+> steht seit dem 02.08. abends auf **FMM 2.10.2 + EM 10.7.3 + RPM 2.3.0 + Geyser 2.11**.
+>
+> 🔎 **Der nächste konkrete Schritt ist ein In-Game-Test auf Bedrock** (Abschnitt 0b) —
+> alles andere ist log-seitig bestätigt, aber das Bild hat noch niemand gesehen.
 
 ---
 
@@ -17,20 +22,22 @@ Paper-Artefakt `26.2.build.87-stable` (das `-R0.1-SNAPSHOT`-Namensschema ist weg
 
 ### Die Abhängigkeitskette für MC 26.2
 
-| Komponente | Für 26.2 nötig | Auf dem Server (Stand 02.08.) | |
-|---|---|---|---|
-| **Java** | **25** (Paper 26.2 = Class-File 69) | 21 | ⚠️ **neu entdeckt** |
-| Paper | 26.2.build.87-stable | 1.21.x | offen |
-| **Geyser** | **2.11.0** (26.2 gemerged 10.07.) | 2.10.1-b1175 | ⚠️ Blocker |
-| **RPM** | **2.3.0** (wegen Geyser 2.11) | 2.2.2 | ⚠️ Blocker |
-| **PacketEvents** | **2.13.0** (26.2-Support, 22.06.) | 2.12.1 | ⚠️ Bump |
-| FMM / EM / RPM | bauen **schon** gegen spigot-api 26.2 | 2.10.1 / 10.7.2 / 2.2.2 | ✅ ok |
-| Velocity | ungeprüft (3.5.1 / 4.0.0 draußen) | 3.5.0-SNAPSHOT | ❓ offen |
-| Floodgate, ProtocolLib, LibsDisguises, FAWE, Essentials, Skript | ungeprüft | — | ❓ offen |
+Stand **nach** der Update-Runde vom Abend des 02.08. (siehe Abschnitt 0b):
 
-**Die Geyser-Sperre aus Abschnitt 3 ist genau der Knoten:** MC 26.2 erzwingt Geyser 2.11,
-und Geyser 2.11 erzwingt RPM 2.3.0. Das RPM-2.3.0-Update ist damit der Schlüssel für alles
-Weitere — die geplante Reihenfolge (RPM zuerst) stimmt also weiterhin.
+| Komponente | Für 26.2 nötig | Auf dem Server (02.08. abends) | |
+|---|---|---|---|
+| **Java** | **25** (Paper 26.2 = Class-File 69) | 21 | ⚠️ **letzter echter Blocker** |
+| Paper | 26.2.build.87-stable | 1.21.x | offen |
+| Geyser | 2.11.0 (26.2 gemerged 10.07.) | **2.11.0-b1205** | ✅ erledigt |
+| RPM | 2.3.0 (wegen Geyser 2.11) | **2.3.0** (Backend **und** Proxy) | ✅ erledigt |
+| FMM / EM | bauen schon gegen spigot-api 26.2 | **2.10.2 / 10.7.3** | ✅ ok |
+| **PacketEvents** | **2.13.0** (26.2-Support, 22.06.) | 2.12.1 | ⚠️ Bump offen |
+| Velocity | ungeprüft (3.5.1 / 4.0.0 draußen) | 3.5.0-SNAPSHOT | ❓ offen |
+| Floodgate, ProtocolLib, LibsDisguises, FAWE, Essentials, Skript | unter **Java 25** ungeprüft | — | ❓ offen |
+
+**Die Geyser-Sperre ist aufgelöst.** Geyser 2.11 + RPM 2.3.0 laufen seit dem 02.08. produktiv
+(`bridge ready with 316`). Damit bleiben für MC 26.2 nur noch **Java 25** (der eigentliche
+Blocker), der PacketEvents-Bump und die ungeprüfte Velocity-Kompatibilität.
 
 **Java 25 war bisher auf niemandes Zettel.** Der Server läuft auf Java 21; Paper 26.2 lässt
 sich damit nicht einmal laden. Das muss vor der Paper-Umstellung geklärt werden (AMP-JVM-Auswahl,
@@ -71,6 +78,39 @@ Zusatzprüfungen: alle 25 Bukkit/Paper-Imports und alle riskanten Member
       Bei `getCustomName` Vorsicht: hängt an der EM-Namenslogik (EVOKER-Boss-Fall).
 
 ---
+
+## 0b. Update-Runde 02.08. abends — Server steht, Geyser-Bruch gefixt
+
+Fabi hat FMM **2.10.2**, EM **10.7.3**, RPM **2.3.0** aufs Backend gespielt und Geyser auf
+**2.11.0-b1205** hochgezogen. Dabei ging die Bedrock-Darstellung kaputt und wurde live repariert:
+
+- **Symptom:** `NoClassDefFoundError: org/geysermc/geyser/entity/EntityDefinition` beim
+  `ProxyInitializeEvent`; `bridge ready with …` kam gar nicht mehr, 89 Exceptions im Proxy-Log.
+- **Ursache:** nur das **Backend** war aktualisiert, die **Proxy-Seite lief noch auf RPM 2.2.2**.
+  Deren Bridge-Extension referenziert eine Klasse, die Geyser 2.11 entfernt hat.
+- **Warum das Backend-Update den Proxy nicht mitzieht:** RPM schreibt nie in fremde
+  Server-Verzeichnisse. Das Backend legt die Extension nur unter
+  `plugins/ResourcePackManager/geyser-extension/` bereit und loggt einen Hinweis. Der
+  Auto-Install läuft auf der **Proxy**-Seite — ein veraltetes Proxy-RPM installiert also
+  weiter die alte Extension.
+- **Fix:** auf Proxy01 **beide** Dateien ersetzt (Backups `.bak-20260802-1826`):
+  `plugins/ResourcePackManager.jar` und
+  `plugins/Geyser-Velocity/extensions/ResourcePackManager-GeyserBridge.jar`.
+  **Ein** Neustart reichte → `bridge ready with 316 custom entity definitions`, 0 Exceptions.
+- **RPM 2.3.0 ist eine Universal-JAR** (`plugin.yml` **und** `velocity-plugin.json`) — die alte
+  `proxy-extension/`-Prozedur ist hinfällig, man kopiert dieselbe JAR auf den Proxy.
+  `CLAUDE.md` ist entsprechend korrigiert.
+
+**Offen aus dieser Runde:**
+- [ ] **Bedrock in-game verifizieren** — die Logs beweisen nur die Pipeline, nicht das Bild.
+      Reihenfolge: Mob rendert → Animation → Combat-BossBar (7.1a) → HP-Nametag (7.1b).
+      Bei EM 10.7.3 auf **Doppelung** mit den neuen NPC-Rollen-Tags achten.
+- [ ] **Symlink weiterhin nötig** — die Bridge liest aus `plugins/ResourcePackManager/…` (groß),
+      RPM schreibt nach `plugins/resourcepackmanager/…` (klein). 2.3.0 hat das nicht gefixt
+      ⇒ der **Upstream-Report an MagmaGuy bleibt fällig**.
+- [ ] `NetworkSync: previous poll is still running` erscheint pro Boot 3–4× über 8 Backends,
+      auch nach abgeschlossenem Merge. Laut eigener Meldung ein hängendes Backend-Fetch.
+      Unkritisch, aber einen Blick wert.
 
 ---
 
