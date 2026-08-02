@@ -64,8 +64,6 @@ Zusatzprüfungen: alle 25 Bukkit/Paper-Imports und alle riskanten Member
 (Paper 26.2 = Class-File 69, javac 21 kann sie nicht lesen).
 
 **Offen auf dem Branch:**
-- [ ] Dep-Bump FMM 2.10.1→2.10.2 / EM 10.7.2→10.7.3, sobald Fabi sie deployt hat
-      (Server stand am 02.08. noch auf 2.10.1 / 10.7.2 / 2.2.2 vom 7. Juli).
 - [ ] Nicht gemerged, nicht deployt. Das JAR läuft auch auf dem aktuellen 1.21.x —
       kann also jederzeit früh mitgetestet werden.
 - [ ] Follow-up (kein Blocker): 4 deprecated Aufrufe ablösen — `getDescription`,
@@ -247,7 +245,11 @@ Die Grundsatzentscheidung ist **getroffen**, der Refactor ist **nach `main` geme
    Mob rendert (kein Schwein) → Animation → Combat-BossBar (7.1a) → HP-Nametag (7.1b, **auf Doppelung mit EMs neuen NPC-Rollen-Tags achten**).
 5. **Symlink-Test:** `plugins/ResourcePackManager → resourcepackmanager` probeweise entfernen, Proxy neu. Bleibt `bridge ready with <n>` ≠ 0, ist der Upstream-Bug gefixt → **Punkt „Upstream-Report" entfällt**, sonst melden.
 6. **Erst danach** optional Geyser auf 2.11 (mit RPM 2.3.0 als Netz).
-7. **Dep-Bump im pom** (FMM 2.10.1→2.10.2, EM 10.7.2→10.7.3) + Rebuild. Nicht im Maven-Repo → JARs vom Server holen und `mvn install:install-file` (siehe Bootstrap Punkt 4).
+
+> **Kein Dep-Bump im pom auf FMM 2.10.2 / EM 10.7.3** (Entscheidung Fabi, 02.08.). Die Bridge baut
+> weiter gegen 2.10.1 / 10.7.2 — beide APIs sind stabil, und die neuen JARs liegen ohnehin nicht im
+> Maven-Repo (müssten einzeln per `install:install-file` eingespielt werden). Erst nachziehen, wenn
+> ein konkreter API-Bedarf auftaucht.
 
 ### Wenn danach auf MC 26.2 umgestellt werden soll (siehe Abschnitt 0)
 

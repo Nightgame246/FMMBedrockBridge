@@ -1257,6 +1257,5 @@ Der Parser brach bei einem nicht-numerischen Segment mit `NumberFormatException`
 Zusätzlich geprüft: alle 25 Bukkit/Paper-Imports existieren in 26.2; die riskanten Member (`Attribute.MAX_HEALTH`, `BarColor`/`BarStyle`, `Bukkit.createBossBar`, `getCustomName`, `getAttribute`, `getMaxHealth`) existieren in **beiden** Generationen. Deprecation-Diff 1.21.10 ↔ 26.2: **identisch, 4 Stück** (`getDescription`, `getMaxHealth`, `InventoryView.getTitle`, `getCustomName`) — Altlasten, **nichts neu durch 26.2**, kein Handlungsdruck.
 
 ### Offen
-- Dep-Bump FMM 2.10.1→2.10.2 / EM 10.7.2→10.7.3, sobald deployt (Server stand am 02.08. noch auf den JARs vom 7. Juli)
 - Velocity-Kompatibilität mit 26.2 ungeprüft (3.5.1 und 4.0.0 sind draußen, Proxy auf 3.5.0-SNAPSHOT)
 - Floodgate/ProtocolLib/LibsDisguises/FAWE/Skript unter Java 25 ungeprüft
