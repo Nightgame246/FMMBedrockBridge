@@ -1,5 +1,24 @@
 # HANDOFF — FMMBedrockBridge
 
+> # 🚨 DIESE DATEI IST VERALTET (Stand 2026-07-29)
+>
+> **Der aktuelle Arbeitsstand liegt auf dem Branch `feat/mc-26.2-readiness`** (gepusht,
+> bewusst NICHT gemerged). Dort steht die gepflegte HANDOFF.md. Zum Weiterarbeiten:
+>
+> ```bash
+> git fetch origin
+> git checkout feat/mc-26.2-readiness
+> ```
+>
+> Alles unterhalb dieses Kastens ist der Stand vom 29.07. und kennt weder die
+> Minecraft-Versionsumstellung (26.1/26.2 statt 1.22) noch die Server-Update-Runde
+> vom 02.08. Insbesondere ist die Warnung „Geyser nicht hochziehen" **überholt** —
+> Geyser 2.11 + RPM 2.3.0 laufen seit dem 02.08. produktiv.
+>
+> *(Zeiger gesetzt 2026-08-02 beim Session-Ende, damit der PC-Wechsel funktioniert.)*
+
+---
+
 > Übergabe-Datei für Weiterarbeit an einem anderen PC. Stand: **2026-07-29**
 > Branch: `main` (Phase-7.2b-Removal **gemerged**, gepusht). Backup-Tag: `backup/pre-72b-merge-main`.
 >
