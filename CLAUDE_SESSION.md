@@ -1259,3 +1259,36 @@ Zusätzlich geprüft: alle 25 Bukkit/Paper-Imports existieren in 26.2; die riska
 ### Offen
 - Velocity-Kompatibilität mit 26.2 ungeprüft (3.5.1 und 4.0.0 sind draußen, Proxy auf 3.5.0-SNAPSHOT)
 - Floodgate/ProtocolLib/LibsDisguises/FAWE/Skript unter Java 25 ungeprüft
+
+### Nachtrag 2026-08-02 (abends): Update-Runde live — Geyser-2.11-Bruch gefixt
+
+Fabi hat FMM **2.10.2**, EM **10.7.3**, RPM **2.3.0** aufs Backend deployt (17:24–17:25, Boot 17:28) und danach **Geyser auf 2.11.0-b1205** hochgezogen. Ergebnis: **die RPM-Geyser-Bridge war tot.**
+
+```
+Couldn't pass ProxyInitializeEvent to geyser 2.11.0-b1205 (git-master-3aeedfa)
+java.lang.NoClassDefFoundError: org/geysermc/geyser/entity/EntityDefinition
+    at GeyserExtensionManager.enableExtension(GeyserExtensionManager.java:85)
+```
+`bridge ready with …` kam gar nicht mehr (vorher 316), 89 Exceptions im Log, nur GME + GeyserUtils aktiviert.
+
+**Ursache:** Backend auf 2.3.0, **Proxy-Seite noch 2.2.2 vom 07.07.** — deren Bridge-Extension referenziert eine Klasse, die Geyser 2.11 entfernt hat. Exakt die dokumentierte Kopplung.
+
+**Warum das Backend-Update den Proxy nicht mitzog** (Fabis Erwartung): RPM schreibt nie in fremde Server-Verzeichnisse. Das Backend legt die Extension nur unter `plugins/ResourcePackManager/geyser-extension/` bereit und loggt es explizit („copy it into your Geyser's 'extensions' folder … you must ALSO install ResourcePackManager on the proxy"). Der Auto-Install läuft auf der **Proxy**-Seite — belegt durch die mtimes: Proxy-RPM-JAR 07.07. 21:56, Extension 07.07. 22:13 (17 Min später, also vom Proxy-Plugin geschrieben). Ein veraltetes Proxy-RPM installiert folglich weiter die alte Extension.
+
+**Fix:** beide Proxy-Dateien ersetzt (Backups als `.bak-20260802-1826`), SHA-256-gleich zum Backend:
+- `plugins/ResourcePackManager.jar` → 2.2.2 → **2.3.0**
+- `plugins/Geyser-Velocity/extensions/ResourcePackManager-GeyserBridge.jar` → 377588 B (07.07.) → **375482 B (15.07.)**
+
+**Nach einem** Neustart (nicht zwei) grün:
+```
+Erweiterung ResourcePackManagerGeyserBridge aktiviert
+Preloaded 316 custom Bedrock entity identifiers and 281 property definition(s)
+Registered 316 RSPM custom Bedrock entity definitions with Geyser
+ResourcePackManager Geyser bridge ready with 316 custom entity definitions.
+Geyser auf UDP-Port 25565 gestartet — Fertig (19,907s)!
+```
+0 NoClassDefFoundError, 0 Exceptions. **Stack jetzt: FMM 2.10.2 + EM 10.7.3 + RPM 2.3.0 + Geyser 2.11.0-b1205.** Die Geyser-Sperre ist damit aufgelöst.
+
+**RPM 2.3.0 ist eine Universal-JAR** — enthält `plugin.yml` *und* `velocity-plugin.json` (beide 2.3.0); den Ordner `proxy-extension/` gibt es nicht mehr. Die alte Prozedur (`unzip -j … proxy-extension/ResourcePackManager-Velocity.jar`) ist hinfällig; `CLAUDE.md` entsprechend korrigiert.
+
+**Offen:** Bedrock-Rendering in-game noch nicht verifiziert (Logs beweisen nur die Pipeline). Symlink `ResourcePackManager -> resourcepackmanager` weiterhin nötig — die Bridge liest aus dem großgeschriebenen Pfad, RPM schreibt in den kleingeschriebenen ⇒ Upstream-Report bleibt fällig. `NetworkSync: previous poll is still running` erscheint pro Boot 3–4× über 8 Backends (auch nach dem Merge) — laut eigener Meldung ein Hinweis auf ein hängendes Backend-Fetch; unkritisch, aber einen Blick wert.

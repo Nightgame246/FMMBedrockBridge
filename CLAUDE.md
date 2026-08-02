@@ -331,12 +331,16 @@ Aktuelle Bridge-Verantwortung: **EM↔Bedrock UX-Layer** — Combat-styled BossB
 
 ### ResourcePackManager 2.0.0 — Network-Mode (ab 2026-05-28)
 - Multi-Module: Backend-JAR (`plugins/ResourcePackManager.jar`) auf Paper, **Velocity-Sub-JAR** (`ResourcePackManager-Velocity.jar`) auf Proxy
-- **Multi-Host-Setup-Quirk:** Backend extrahiert die Velocity-JAR beim ersten Boot nach `plugins/ResourcePackManager/proxy-extension/` — bei separatem Proxy-Host muss man `unzip -j ResourcePackManager.jar proxy-extension/ResourcePackManager-Velocity.jar` ausführen und auf Proxy/plugins/ legen (Bukkit-JAR auf Velocity wird mit "appears to be a Paper/Bukkit plugin" abgelehnt)
+- **Multi-Host-Setup-Quirk (bis 2.2.2):** Backend extrahiert die Velocity-JAR beim ersten Boot nach `plugins/ResourcePackManager/proxy-extension/` — bei separatem Proxy-Host muss man `unzip -j ResourcePackManager.jar proxy-extension/ResourcePackManager-Velocity.jar` ausführen und auf Proxy/plugins/ legen (Bukkit-JAR auf Velocity wird mit "appears to be a Paper/Bukkit plugin" abgelehnt)
+- **Ab 2.3.0 hinfällig — die Backend-JAR ist eine Universal-JAR:** sie enthält `plugin.yml` **und** `velocity-plugin.json` (beide 2.3.0). Man kopiert schlicht dieselbe JAR auf den Proxy. Ein `proxy-extension/`-Ordner existiert in der JAR nicht mehr, nur noch `geyser-extension/`. Verifiziert 2026-08-02 (Proxy bootet damit sauber).
 - **Network-Mode aktiviert sich automatisch** wenn Backend Velocity detected (`paper-global.yml proxies.velocity.enabled`). Backend serviert pack/mappings auf `MC-Port + networkHttpOffset-v2` (default `+1`) via `PackHttpServer`, Proxy pollt alle 5s mit If-Modified-Since
 - **Network-Key auto-derived** aus `plugins/floodgate/key.pem` (Floodgate-Hash) — kein Paste nötig
 - Bedrock-Pack-Delivery: Proxy mergt alle Backends per `BedrockMappingsMerger` und sendet via `GeyserBinder` direkt an Geyser-Session — kein manueller scp mehr nötig
 - Fixe gegenüber 1.8.0: 80-Zeichen-Pfad-Warnings weg (SHA-256 hex prefixes), `bedrockConverterDebug: false` default (weniger Spam), Multi-Host detection sauber
 - Diagnose: `/rspm status` auf Backend UND Proxy zeigt deploy-mode + key + pack-state
+- **Backend-Update updatet den Proxy NICHT.** Das Backend legt die passende Geyser-Extension nur unter `plugins/ResourcePackManager/geyser-extension/` bereit und loggt einen Hinweis — in fremde Server-Verzeichnisse (eigene AMP-Instanz) schreibt es grundsätzlich nicht. Der Auto-Install läuft auf der **Proxy**-Seite: das RPM-Plugin dort installiert die Extension nach `Geyser-Velocity/extensions/`. Ein veraltetes Proxy-RPM installiert also weiter die **alte** Extension. Bei jedem RPM-Update **beide** Seiten anfassen:
+  1. `plugins/ResourcePackManager.jar` (Universal-JAR vom Backend)
+  2. `plugins/Geyser-Velocity/extensions/ResourcePackManager-GeyserBridge.jar` (aus `geyser-extension/` des Backends)
 - Offen bei MagmaGuy melden: schwarze Schatten auf Custom Models (RPM-Visual-Bug)
 
 ### GeyserUtils 1.0-SNAPSHOT (2026-01-11) — loadSkin NPE
