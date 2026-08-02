@@ -52,14 +52,25 @@ damit sofort deploybar/testbar, statt bis zur Server-Umstellung blind zu sein):
 - `plugin.yml`: `api-version` bleibt **bewusst** `'1.21'` (Mindest-Angabe; ein 1.21.x-Server
   würde `'26.2'` ablehnen). Genau so machen es FMM/EM auch.
 
+**Verifiziert (02.08., `bash verify-both-apis.sh`):** beide Durchläufe **BUILD SUCCESS,
+je 16/16 Tests grün**, Bytecode-Version 65. Artefakt `…-20260802-1505.jar`.
+Zusatzprüfungen: alle 25 Bukkit/Paper-Imports und alle riskanten Member
+(`Attribute.MAX_HEALTH`, `BarColor`/`BarStyle`, `createBossBar`, `getCustomName`,
+`getAttribute`, `getMaxHealth`) existieren in **beiden** Generationen; Deprecation-Diff
+1.21.10 ↔ 26.2 **identisch** (4 Altlasten, nichts neu durch 26.2).
+
+⚠️ **Am neuen PC einmalig:** `sudo pacman -S jdk25-openjdk` — `jre25-openjdk` reicht
+**nicht**, die hat kein `javac`. Ohne JDK 25 schlägt der Default-Build fehl
+(Paper 26.2 = Class-File 69, javac 21 kann sie nicht lesen).
+
 **Offen auf dem Branch:**
-- [ ] **26.2-Compile ungeprüft** — braucht lokal ein **JDK 25** (`sudo pacman -S jdk25-openjdk`;
-      `jre25-openjdk` reicht nicht, das hat kein `javac`). Danach `bash verify-both-apis.sh`.
-      Vorprüfung ohne Compiler: alle 25 Bukkit/Paper-Imports und alle riskanten Member
-      (`Attribute.MAX_HEALTH`, `BarColor/BarStyle`, `createBossBar`, `getCustomName`,
-      `getAttribute`, `getMaxHealth`) existieren in **beiden** API-Generationen.
 - [ ] Dep-Bump FMM 2.10.1→2.10.2 / EM 10.7.2→10.7.3, sobald Fabi sie deployt hat
       (Server stand am 02.08. noch auf 2.10.1 / 10.7.2 / 2.2.2 vom 7. Juli).
+- [ ] Nicht gemerged, nicht deployt. Das JAR läuft auch auf dem aktuellen 1.21.x —
+      kann also jederzeit früh mitgetestet werden.
+- [ ] Follow-up (kein Blocker): 4 deprecated Aufrufe ablösen — `getDescription`,
+      `Damageable.getMaxHealth`, `InventoryView.getTitle`, `Nameable.getCustomName`.
+      Bei `getCustomName` Vorsicht: hängt an der EM-Namenslogik (EVOKER-Boss-Fall).
 
 ---
 
