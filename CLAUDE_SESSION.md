@@ -1292,3 +1292,100 @@ Geyser auf UDP-Port 25565 gestartet — Fertig (19,907s)!
 **RPM 2.3.0 ist eine Universal-JAR** — enthält `plugin.yml` *und* `velocity-plugin.json` (beide 2.3.0); den Ordner `proxy-extension/` gibt es nicht mehr. Die alte Prozedur (`unzip -j … proxy-extension/ResourcePackManager-Velocity.jar`) ist hinfällig; `CLAUDE.md` entsprechend korrigiert.
 
 **Offen:** Bedrock-Rendering in-game noch nicht verifiziert (Logs beweisen nur die Pipeline). Symlink `ResourcePackManager -> resourcepackmanager` weiterhin nötig — die Bridge liest aus dem großgeschriebenen Pfad, RPM schreibt in den kleingeschriebenen ⇒ Upstream-Report bleibt fällig. `NetworkSync: previous poll is still running` erscheint pro Boot 3–4× über 8 Backends (auch nach dem Merge) — laut eigener Meldung ein Hinweis auf ein hängendes Backend-Fetch; unkritisch, aber einen Blick wert.
+
+## Session: 2026-08-08 — Netzwerk-Ausfall (GeyserUtils × Geyser 2.11.1) + Props-Diagnose
+
+### Vorfall: Bedrock sah netzwerkweit KEINE Entities mehr
+
+Fabi hatte Geyser aktualisiert (JAR-Tausch 07.08. 21:18, wirksam mit dem Proxy-Boot heute 14:07).
+Danach sahen Bedrock-Spieler auf dem gesamten Netzwerk **gar keine Entities** — nicht nur keine
+Custom Models.
+
+**Root Cause:** die GeyserUtils-**Geyser-Extension** (Build 01.02.2026, `extension.yml: api: 2.4.1`)
+**ersetzt** Geysers eigenen AddEntity-Translator und greift dabei auf `Registries.ENTITY_DEFINITIONS`
+zu — ein Feld, das **Geyser 2.11.1-b1210** nicht mehr hat:
+
+```
+[geyser]: Konnte Paket ClientboundAddEntityPacket nicht übersetzen
+java.lang.NoSuchFieldError: Class org.geysermc.geyser.registry.Registries
+  does not have member field 'org.geysermc.geyser.registry.SimpleMappedRegistry ENTITY_DEFINITIONS'
+	at me.zimzaza4.geyserutils.geyser.replace.JavaAddEntityTranslatorReplace.translate(...:57)
+```
+
+Damit starb **jedes** Entity-Spawn, bevor irgendetwas gerendert wurde. Kausalität sauber belegt:
+
+| Log | Vorkommen |
+|---|---|
+| 01.08.–07.08. (alle Rotationen) | **0** |
+| 2026-08-08-2.log.gz | 29.316 |
+| latest.log (Boot 14:07) | 4.086 |
+
+**Fix:** Extension deaktiviert (umbenannt, nicht gelöscht) →
+`geyserutils-geyser-1.0-SNAPSHOT.jar.disabled-20260808-geyser2111`. Die Bridge nutzt GeyserUtils
+post-Pivot nicht mehr (`grep` über `src/` leer), FMM/RPM rendern nativ. **Nach Restart verifiziert:**
+0 AddEntity-Fehler, `bridge ready with 316`, GeyserModelEngineExtension lädt auch ohne GeyserUtils
+sauber. Übrig nur die 3 bekannten `battlepass_*`-Item-Konflikte (kosmetisch).
+
+Upstream hätte Commit `9dc686a` (12.07.2026, „Update to Geyser API 2.11.0") — Neubau nur nötig,
+falls GeyserUtils je wieder gebraucht wird.
+
+### Diagnose: Props erscheinen auf Bedrock als Schwein
+
+Danach der eigentliche Rest-Befund von Fabi: Mobs rendern korrekt, **Props sind Schweine**.
+
+Das Schwein ist FMMs **Träger-Entity** — `BedrockModeledEntity` nutzt für den Fake-Entity-Pfad
+`carrierEntityType(EntityType.PIG)`, während DynamicEntity über `bindToUnderlyingEntity` den echten
+Mob bindet. Schwein heißt also: die Custom-Entity-Zuordnung hat nicht gegriffen.
+
+**Systematisch ausgeschlossen:**
+1. *Java-Seite falsch?* Nein. `/fmm debug bedrock on` zeigt nur die `displayTo entry`-Zeile — die
+   Fallback-Zeilen (`wasAlreadyViewing=`, `V2=false fallback`, `FALLBACK to UUID-broadcast`) fehlen
+   alle. Da sie im Code **nach** dem Bedrock-Zweig stehen (der mit `return` endet), beweist ihr
+   Fehlen, dass der Zweig genommen wurde und `isAvailable()` true war.
+2. *Pack unvollständig?* Nein. Diff aller 315 lokalen `.bbmodel` gegen die 316 Entity-Defs im
+   Merged Pack: **kein Prop-Modell fehlt**. (Zwei Fehlalarme im ersten Diff — Groß-/Kleinschreibung
+   und Leerzeichen→Unterstrich; nach Korrektur bleiben nur 10 Item-Modelle übrig, die korrekt keine
+   Entity-Def brauchen.)
+3. *Zuordnung kommt zu spät?* Nein — sie kommt **gar nicht**. `RspmGeyserBridgeCore` führt
+   `CUSTOM_ENTITIES: GeyserConnection → {javaEntityId → identifier}` und hat eigene Warnungen
+   `loggedLateEntityReplacement` und `warnedUnregisteredSpawnDefinition`. **Beide haben nie gefeuert**
+   — im ganzen Proxy-Log stehen nur die vier Boot-Zeilen der Extension.
+
+**Verbleibender Verdacht:** `prepareEntitySpawn` geht im Fake-Entity-Pfad verloren — entweder stumm
+geschluckt in `runBridgeSafely(...)` oder übersprungen im `pluginProvider`-Early-Return von
+`FakeCustomEntityImpl.displayTo` (das ist der einzige Zweig, der `prepareBedrockSpawn` auslässt).
+Der Bukkit-Pfad (Mobs) meldet dagegen und spawnt erst einen Tick später über den Entity-Tracker.
+
+Nicht in der Bridge fixbar → **Upstream**. Caveat im Report vermerkt: Zeilenangaben stammen aus
+FMM 2.10.1 / Magmacore-HEAD (28.06.), deployt ist 2.10.2 (Source nicht auf GitHub).
+
+### Upstream-Report-Entwürfe
+
+- **NEU** `docs/upstream-bugs/fmm-props-render-as-pig-carrier-on-bedrock.md`
+- **NEU** `docs/upstream-bugs/rpm-geyser-bridge-case-sensitive-pack-path.md` — der Symlink-Bug, jetzt
+  hart belegt: zwei Zeilen aus **demselben** Log von heute zeigen, dass das Plugin nach
+  `plugins/resourcepackmanager/…` schreibt und die Extension aus `plugins/ResourcePackManager/…`
+  liest. Damit ist bewiesen, dass er in **2.3.0** noch drin ist.
+- `rpm-black-shadows-custom-models.md` als **✅ erledigt** markiert — MagmaGuy hat den Schatten-Bug
+  gefixt (Info Fabi). Nie eingereicht, bleibt als Beleg liegen.
+
+Fabi weiß noch nicht, wo er die Reports einreicht → bleiben vorerst Entwürfe.
+
+### Weitere Erkenntnisse
+
+- **Staging-Workflow geklärt (wichtig!):** TestServer01 ist Staging, Survival01 Produktion. Survival
+  bleibt **bewusst** auf Dezember-2025-Ständen (FMM 2.3.14, EM 9.6.0, RPM 1.7.0, BS 2.1.0), bis auf
+  Test alles läuft — dann wird der Plugin-Stand rübergezogen. Alte Versionen dort sind **kein Fund**.
+- **`NetworkSync: previous poll is still running` ist damit erklärt und unkritisch:** `merging 1
+  Bedrock zip(s) across 8 backend(s)` — nur TestServer01 liefert überhaupt ein Bedrock-Bundle, die
+  anderen sieben haben planmäßig nichts zu liefern. Kein Timeout-Bug. Punkt kann von der Liste.
+- **Server-Stand weicht von der HANDOFF ab:** Geyser jetzt **2.11.1-b1210** (statt 2.11.0-b1205),
+  Velocity **4.1.0-SNAPSHOT** (statt 3.5.0) — letzteres war in der 26.2-Liste noch „ungeprüft".
+- `references/Magmacore` neu geklont — EasyMinecraftGoals ist seit 19.03.2026 deprecated und in
+  Magmacore aufgegangen; `BedrockCustomEntityBridgeRegistry` & Co. liegen jetzt dort.
+  `setup-references.sh` kennt beides noch nicht.
+- Diagnose-Werkzeug gelernt: `/fmm debug bedrock on|off` → Log-Stream `[FMM-BedrockDebug]`. Sehr
+  gesprächig (~280 Zeilen in 2 Minuten) — danach wieder ausschalten.
+
+### Kein Plugin-Code angefasst
+Diese Session war Live-Diagnose + Doku. Der Branch `feat/mc-26.2-readiness` ist unverändert.

@@ -341,12 +341,23 @@ Aktuelle Bridge-Verantwortung: **EM↔Bedrock UX-Layer** — Combat-styled BossB
 - **Backend-Update updatet den Proxy NICHT.** Das Backend legt die passende Geyser-Extension nur unter `plugins/ResourcePackManager/geyser-extension/` bereit und loggt einen Hinweis — in fremde Server-Verzeichnisse (eigene AMP-Instanz) schreibt es grundsätzlich nicht. Der Auto-Install läuft auf der **Proxy**-Seite: das RPM-Plugin dort installiert die Extension nach `Geyser-Velocity/extensions/`. Ein veraltetes Proxy-RPM installiert also weiter die **alte** Extension. Bei jedem RPM-Update **beide** Seiten anfassen:
   1. `plugins/ResourcePackManager.jar` (Universal-JAR vom Backend)
   2. `plugins/Geyser-Velocity/extensions/ResourcePackManager-GeyserBridge.jar` (aus `geyser-extension/` des Backends)
-- Offen bei MagmaGuy melden: schwarze Schatten auf Custom Models (RPM-Visual-Bug)
+- ~~Offen bei MagmaGuy melden: schwarze Schatten auf Custom Models (RPM-Visual-Bug)~~ — **von MagmaGuy gefixt** (2026-08-08). Entwurf bleibt als Beleg unter `docs/upstream-bugs/rpm-black-shadows-custom-models.md`, ist aber als erledigt markiert.
+- **Case-Sensitivity-Bug lebt weiter (RPM 2.3.0):** Das Velocity-Plugin schreibt nach `plugins/resourcepackmanager/…` (klein), die Geyser-Extension liest aus `plugins/ResourcePackManager/…` (groß). Auf Linux → `bridge ready with 0`, Bedrock-Models ohne Animationen. Symlink `ln -s resourcepackmanager ResourcePackManager` bleibt Pflicht. Report-Entwurf: `docs/upstream-bugs/rpm-geyser-bridge-case-sensitive-pack-path.md`
+
+### FMM 2.10.2 — Props erscheinen auf Bedrock als Schwein (offen, upstream)
+
+- **Symptom:** PropEntity/StaticEntity rendern für Bedrock als **Schwein**, DynamicEntity (Mobs/EM-Bosse) korrekt. Java sieht alles richtig.
+- Das Schwein ist FMMs **Träger-Entity**: `BedrockModeledEntity` nutzt für den Fake-Entity-Pfad `carrierEntityType(EntityType.PIG)`; DynamicEntity bindet stattdessen den echten Mob (`bindToUnderlyingEntity`). Schwein = „Custom-Entity-Zuordnung hat nicht gegriffen".
+- **Ausgeschlossen** (2026-08-08 verifiziert): Java-Seite nimmt den richtigen Bedrock-Zweig (Debug-Log via `/fmm debug bedrock on` — die Fallback-Zeilen fehlen alle); Pack vollständig (alle 315 bbmodels haben Entity-Defs, 316 registriert); Zuordnung kommt nicht „zu spät", sondern **gar nicht** an (die Extension-Warnungen `loggedLateEntityReplacement` / `warnedUnregisteredSpawnDefinition` feuern nie).
+- **Verdacht:** `prepareEntitySpawn` geht im Fake-Entity-Pfad verloren — entweder stumm geschluckt in `runBridgeSafely(...)` oder übersprungen im `pluginProvider`-Early-Return von `FakeCustomEntityImpl.displayTo`.
+- Nicht in der Bridge fixbar. Report-Entwurf: `docs/upstream-bugs/fmm-props-render-as-pig-carrier-on-bedrock.md`
+- Diagnose-Werkzeug: `/fmm debug bedrock on|off` (Log-Stream `[FMM-BedrockDebug]`, sehr gesprächig — wieder ausschalten!)
 
 ### GeyserUtils 1.0-SNAPSHOT (2026-01-11) — loadSkin NPE
 - `loadSkin()` (`GeyserUtils.java:384-403`) iteriert über Skin-Ordner und **überschreibt** `geometryFile` für **jede** `.json` — wenn mehrere JSONs im Ordner liegen, gewinnt die filesystem-abhängig zuletzt zurückgegebene → wenn das keine valide Bedrock-geometry ist, NPE auf `.get("minecraft:geometry").getAsJsonArray()`
 - **Fix:** In `Geyser-Velocity/extensions/geyserutils/skins/*/` darf nur EINE .json liegen (`geometry.json`). Alte Bridge-generierte Reste (`model-config.json`, `animations.json`, `animation_controllers.json`) löschen — siehe Aufräum-Befehl in `CLAUDE_SESSION.md` 2026-05-28
 - Upstream (zimzaza4/GeyserUtils) hat seit 2026-01-11 keine Updates — Bug bleibt bestehen
+- **⚠️ Die Proxy-Extension ist seit 2026-08-08 DEAKTIVIERT** (`geyserutils-geyser-1.0-SNAPSHOT.jar.disabled-20260808-geyser2111`). Der Feb-2026-Build ist gegen Geyser-API 2.4.1 gebaut und greift auf `Registries.ENTITY_DEFINITIONS` zu — ab **Geyser 2.11.1** entfernt. Da GeyserUtils Geysers AddEntity-Translator **ersetzt**, starb damit jedes Entity-Spawn: Bedrock sah netzwerkweit **gar keine Entities**. Die Bridge nutzt GeyserUtils post-Pivot nicht mehr, FMM/RPM rendern nativ. Falls je wieder gebraucht: Upstream-Commit `9dc686a` (12.07.2026, „Update to Geyser API 2.11.0") neu bauen.
 
 ### EliteMobs 10.3.1 — styled Name für EVOKER-Bosses
 - Für EVOKER-basierte CustomBosses (Ice Elemental etc.) liefern BEIDE `livingEntity.getCustomName()` UND `eliteEntity.getName()` "Evoker | 2" statt des YAML-`name:`-Werts

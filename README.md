@@ -163,6 +163,13 @@ Polymart manage their own updates, and replacing those jars by hand breaks their
 > move together. Geyser 2.11 breaks the custom-entity bridge in RPM < 2.3.0 (Bedrock players see
 > pigs instead of models). Restart the proxy **twice** after any RPM update — the Geyser extension
 > is only written on the first boot. Bedrock rendering can only be verified in-game, never from logs.
+>
+> ⚠️ **Also audit `Geyser-Velocity/extensions/` on every Geyser update.** Extensions that *replace*
+> a Geyser packet translator fail hard when the internal API moves. On 2026-08-08 a stale
+> **GeyserUtils** build (compiled against Geyser API 2.4.1) hit `NoSuchFieldError` on
+> `Registries.ENTITY_DEFINITIONS` inside its `ClientboundAddEntityPacket` replacement under Geyser
+> 2.11.1 — every entity spawn died and Bedrock clients network-wide saw **no entities at all**. If
+> Bedrock suddenly renders nothing, look in `extensions/` before suspecting RPM or FMM.
 
 ## License
 

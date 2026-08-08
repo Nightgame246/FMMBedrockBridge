@@ -1,15 +1,90 @@
 # HANDOFF — FMMBedrockBridge
 
-> Übergabe-Datei für Weiterarbeit an einem anderen PC. Stand: **2026-08-02 (abends)**
+> Übergabe-Datei für Weiterarbeit an einem anderen PC. Stand: **2026-08-08 (abends)**
 > Branch: **`feat/mc-26.2-readiness`** — gepusht, **bewusst nicht gemerged**.
 > `main` trägt nur einen Zeiger hierher (Commit `020aed4`).
 >
-> ⚠️ **Beim Wiedereinstieg zuerst Abschnitt 0 + 0b lesen:** Minecraft hat die Versionierung
-> umgestellt (kein 1.22, sondern **26.1/26.2**), **MC 26.2 verlangt Java 25**, und der Server
-> steht seit dem 02.08. abends auf **FMM 2.10.2 + EM 10.7.3 + RPM 2.3.0 + Geyser 2.11**.
+> ⚠️ **Beim Wiedereinstieg zuerst Abschnitt 0a lesen** (Vorfall + aktueller Server-Stand),
+> danach 0 + 0b für den 26.2-Kontext.
 >
-> 🔎 **Der nächste konkrete Schritt ist ein In-Game-Test auf Bedrock** (Abschnitt 0b) —
-> alles andere ist log-seitig bestätigt, aber das Bild hat noch niemand gesehen.
+> 🔎 **Nächster konkreter Schritt: In-Game-Test auf Bedrock von 7.1a/7.1b** (Combat-BossBar +
+> HP-Nametag). Mob-Rendering ist bestätigt, die Props sind als Fremdbaustelle abgehakt.
+
+---
+
+## 0a. 🆕 Session 2026-08-08 — Netzwerk-Ausfall gefixt, Props-Bug lokalisiert
+
+### Vorfall: Bedrock sah netzwerkweit KEINE Entities (behoben)
+
+Nach dem Geyser-Update auf **2.11.1-b1210** sahen Bedrock-Spieler gar keine Entities mehr.
+Ursache war **nicht** RPM/FMM, sondern die alte **GeyserUtils-Geyser-Extension** (Build 01.02.2026,
+`api: 2.4.1`): sie **ersetzt** Geysers AddEntity-Translator und greift auf
+`Registries.ENTITY_DEFINITIONS` zu — in Geyser 2.11.1 entfernt. Jedes Entity-Spawn starb mit
+`NoSuchFieldError`. Belegt: 0 Vorkommen vom 01.–07.08., 29.316 + 4.086 am 08.08.
+
+**Fix (erledigt, verifiziert):** Extension umbenannt zu
+`geyserutils-geyser-1.0-SNAPSHOT.jar.disabled-20260808-geyser2111`. Nach Restart 0 AddEntity-Fehler,
+`bridge ready with 316`, GME lädt auch ohne GeyserUtils. Die Bridge nutzt GeyserUtils post-Pivot
+nicht mehr.
+
+> **Merker für künftige Geyser-Updates:** bei „Bedrock sieht nichts" **zuerst**
+> `Geyser-Velocity/extensions/` auf alte Extensions prüfen, die Translator ersetzen — nicht bei
+> RPM/FMM suchen.
+
+### Aktueller Server-Stand (08.08. aus den Logs verifiziert)
+
+| | Proxy01 | TestServer01 |
+|---|---|---|
+| Basis | **Velocity 4.1.0-SNAPSHOT** | **Paper 1.21.10**-130, **Java 21** |
+| Geyser | **2.11.1-b1210** | — |
+| Floodgate | 2.2.5-SNAPSHOT (b138) | 2.2.5-SNAPSHOT |
+| RPM | **2.3.0** + GeyserBridge (14.07.) | **2.3.0** |
+| FMM / EM / BS | — | **2.10.2** / **10.7.3** / **2.6.3** |
+| PacketEvents | — | **2.12.1** (Bump auf 2.13.0 offen) |
+| Via / ViaBackwards | 5.12.0-SNAPSHOT | — |
+| GeyserUtils | **deaktiviert** | — |
+
+⚠️ Zwei Abweichungen zum Stand vom 02.08.: **Geyser 2.11.1** (nicht 2.11.0-b1205) und
+**Velocity 4.1.0-SNAPSHOT** (nicht 3.5.0) — Velocity war in der 26.2-Liste noch als „ungeprüft"
+geführt, das ist jetzt überholt.
+
+### Staging-Workflow (wichtig, war vorher nirgends dokumentiert)
+
+**TestServer01 = Staging, Survival01 = Produktion.** Survival bleibt **bewusst** auf
+Dezember-2025-Ständen (FMM 2.3.14, EM 9.6.0, RPM 1.7.0, BS 2.1.0), bis auf Test alles läuft — dann
+wird der Plugin-Stand rübergezogen. **Alte Versionen auf Survival sind kein Fund und nicht zu
+melden.** Folgerungen: auf Survival sehen Bedrock-Spieler planmäßig keine Custom-Models, und
+`NetworkSync: previous poll is still running` / `merging 1 Bedrock zip(s) across 8 backend(s)` ist
+**erwartetes Verhalten** — nur TestServer01 liefert überhaupt ein Bundle. Der Punkt ist damit
+erledigt, kein Timeout-Bug.
+
+### Props erscheinen auf Bedrock als Schwein (offen, upstream)
+
+Mobs rendern korrekt, **Props als Schwein**. Das Schwein ist FMMs Träger-Entity
+(`BedrockModeledEntity` → `carrierEntityType(EntityType.PIG)` im Fake-Entity-Pfad; DynamicEntity
+bindet stattdessen den echten Mob). Systematisch ausgeschlossen: Java-Seite nimmt den richtigen
+Zweig (Debug-Log, über die *fehlenden* Fallback-Zeilen bewiesen), Pack vollständig (315 bbmodels vs
+316 Defs, kein Prop fehlt), Zuordnung kommt nicht zu spät sondern **gar nicht** an (die
+Extension-Warnungen `loggedLateEntityReplacement` / `warnedUnregisteredSpawnDefinition` feuern nie).
+Verdacht: `prepareEntitySpawn` geht im Fake-Pfad verloren — stumm geschluckt in `runBridgeSafely(...)`
+oder übersprungen im `pluginProvider`-Early-Return von `FakeCustomEntityImpl.displayTo`.
+**Nicht in der Bridge fixbar.** Details: `docs/upstream-bugs/fmm-props-render-as-pig-carrier-on-bedrock.md`
+
+Diagnose-Werkzeug: `/fmm debug bedrock on|off` → Log-Stream `[FMM-BedrockDebug]`, sehr gesprächig,
+danach wieder ausschalten.
+
+### Upstream-Reports — liegen als Entwurf, NICHT eingereicht
+
+Fabi weiß noch nicht, wo er sie einreicht (08.08.). Kanäle: GitHub-Issues der jeweiligen Repos
+(`MagmaGuy/FreeMinecraftModels`, `MagmaGuy/ResourcePackManager`) oder MagmaGuys Discord, aus dem die
+Builds kommen.
+
+- `docs/upstream-bugs/fmm-props-render-as-pig-carrier-on-bedrock.md` — **neu**
+- `docs/upstream-bugs/rpm-geyser-bridge-case-sensitive-pack-path.md` — **neu**, Symlink-Bug jetzt hart
+  belegt (zwei Zeilen aus demselben Log: Plugin schreibt `resourcepackmanager/`, Extension liest
+  `ResourcePackManager/`) ⇒ in 2.3.0 nachweislich noch drin
+- `docs/upstream-bugs/rpm-black-shadows-custom-models.md` — **✅ erledigt**, von MagmaGuy gefixt, nie
+  eingereicht, bleibt als Beleg
 
 ---
 
@@ -28,11 +103,11 @@ Stand **nach** der Update-Runde vom Abend des 02.08. (siehe Abschnitt 0b):
 |---|---|---|---|
 | **Java** | **25** (Paper 26.2 = Class-File 69) | 21 | ⚠️ **letzter echter Blocker** |
 | Paper | 26.2.build.87-stable | 1.21.x | offen |
-| Geyser | 2.11.0 (26.2 gemerged 10.07.) | **2.11.0-b1205** | ✅ erledigt |
+| Geyser | 2.11.0 (26.2 gemerged 10.07.) | **2.11.1-b1210** (Stand 08.08.) | ✅ erledigt |
 | RPM | 2.3.0 (wegen Geyser 2.11) | **2.3.0** (Backend **und** Proxy) | ✅ erledigt |
 | FMM / EM | bauen schon gegen spigot-api 26.2 | **2.10.2 / 10.7.3** | ✅ ok |
 | **PacketEvents** | **2.13.0** (26.2-Support, 22.06.) | 2.12.1 | ⚠️ Bump offen |
-| Velocity | ungeprüft (3.5.1 / 4.0.0 draußen) | 3.5.0-SNAPSHOT | ❓ offen |
+| Velocity | ungeprüft | **4.1.0-SNAPSHOT** (Stand 08.08.) | ❓ 26.2-Eignung weiter ungeprüft |
 | Floodgate, ProtocolLib, LibsDisguises, FAWE, Essentials, Skript | unter **Java 25** ungeprüft | — | ❓ offen |
 
 **Die Geyser-Sperre ist aufgelöst.** Geyser 2.11 + RPM 2.3.0 laufen seit dem 02.08. produktiv
@@ -101,16 +176,17 @@ Fabi hat FMM **2.10.2**, EM **10.7.3**, RPM **2.3.0** aufs Backend gespielt und 
   `proxy-extension/`-Prozedur ist hinfällig, man kopiert dieselbe JAR auf den Proxy.
   `CLAUDE.md` ist entsprechend korrigiert.
 
-**Offen aus dieser Runde:**
-- [ ] **Bedrock in-game verifizieren** — die Logs beweisen nur die Pipeline, nicht das Bild.
-      Reihenfolge: Mob rendert → Animation → Combat-BossBar (7.1a) → HP-Nametag (7.1b).
-      Bei EM 10.7.3 auf **Doppelung** mit den neuen NPC-Rollen-Tags achten.
-- [ ] **Symlink weiterhin nötig** — die Bridge liest aus `plugins/ResourcePackManager/…` (groß),
-      RPM schreibt nach `plugins/resourcepackmanager/…` (klein). 2.3.0 hat das nicht gefixt
-      ⇒ der **Upstream-Report an MagmaGuy bleibt fällig**.
-- [ ] `NetworkSync: previous poll is still running` erscheint pro Boot 3–4× über 8 Backends,
-      auch nach abgeschlossenem Merge. Laut eigener Meldung ein hängendes Backend-Fetch.
-      Unkritisch, aber einen Blick wert.
+**Offen aus dieser Runde (Stand 08.08.):**
+- [ ] **Bedrock in-game verifizieren** — Mob-Rendering ist inzwischen bestätigt (08.08.), offen
+      bleiben **Combat-BossBar (7.1a) → HP-Nametag (7.1b)**. Bei EM 10.7.3 auf **Doppelung** mit
+      den neuen NPC-Rollen-Tags achten.
+- [x] ~~Symlink-Bug an MagmaGuy melden~~ → Report-**Entwurf** liegt
+      (`docs/upstream-bugs/rpm-geyser-bridge-case-sensitive-pack-path.md`), am 08.08. hart belegt.
+      Der Symlink `ResourcePackManager → resourcepackmanager` bleibt bis zum Fix Pflicht.
+      **Einreichen steht noch aus.**
+- [x] ~~`NetworkSync: previous poll is still running` prüfen~~ → **erklärt und unkritisch**: nur
+      TestServer01 liefert ein Bedrock-Bundle, die anderen 7 Backends planmäßig nichts
+      (Staging-Workflow, siehe 0a). Kein Bug.
 
 ---
 
@@ -168,7 +244,12 @@ Bevor die Session endet bzw. wenn der User signalisiert, dass er aufhört / den 
 
 ## 1. Wo wir gerade stehen (Git)
 
-- **Aktiver Branch:** `main` — HEAD = `f1dd00c` (`tooling(server)`: neues `server-tools/`), darunter die Doku-Commits vom 10.07. und Merge-Commit `be08a2f`
+- **Aktiver Branch:** `feat/mc-26.2-readiness` (Stand 08.08.) — enthält alles aus `main` plus den
+  26.2-Build-Umbau, den `McVersions`-Bugfix und die Doku-Sessions vom 02.08. und 08.08.
+  `main` (`020aed4`) trägt nur einen Zeiger hierher. **Plugin-Code seit dem 02.08. unverändert** —
+  die Session vom 08.08. war reine Live-Diagnose + Doku.
+- (historisch) Vor dem 26.2-Branch war `main` bei `f1dd00c` (`tooling(server)`: `server-tools/`),
+  darunter die Doku-Commits vom 10.07. und Merge-Commit `be08a2f`
 - **Phase-7.2b-Removal ist nach `main` gemerged** (2026-07-10, `--no-ff`, bewusst als revertierbare Einheit). Der Feature-Branch `refactor/remove-phase72b` existiert weiter (auf `origin`), ist aber jetzt in main enthalten.
 - **Backup vor dem Merge:** Tag `backup/pre-72b-merge-main` → alter main-Stand (`4a277d8`), auf `origin` gepusht. Notfall-Rückweg: `git reset --hard backup/pre-72b-merge-main` oder `git revert -m 1 be08a2f`. (Zusätzlich weiter vorhanden: `archive/2026-05-24-pre-rpm18-pivot`.)
 - Working tree **sauber**
@@ -272,19 +353,20 @@ Was von der Bridge **vielleicht** noch übrig bleibt (zu prüfen!):
 
 ## 3. Nächste Schritte (Priorität)
 
-Die Grundsatzentscheidung ist **getroffen**, der Refactor ist **nach `main` gemerged** (2026-07-10) und der **Rest-Scope ist live verifiziert**. Bridge bleibt, reduziert auf 7.1a/7.1b.
+Die Update-Runde auf TestServer01 ist **durch** (02.08. + 08.08.): FMM 2.10.2 + EM 10.7.3 +
+RPM 2.3.0 + Geyser 2.11.1 laufen, Mob-Rendering auf Bedrock bestätigt.
 
-**Nächster großer Block: Update-Runde auf TestServer01.** Reihenfolge ist nicht beliebig — die Plugins sind gekoppelt.
+**Nächster Block: Rest-Scope der Bridge in-game verifizieren.**
 
-1. **JARs besorgen (nur Fabi).** FMM 2.10.2, EM 10.7.3, RPM 2.3.0 liegen hinter Discord/nightbreak — nicht automatisch holbar. Ohne sie geht Schritt 2 nicht.
-2. **RPM 2.3.0 zuerst, Geyser bleibt auf 2.10.1.** RPM „probt" laut Changelog die laufende Geyser-Version, sollte also auf 2.10.1 weiterlaufen — **unverifiziert**, deshalb Log-Check Pflicht:
-   `Erweiterung ResourcePackManagerGeyserBridge aktiviert` **und** `bridge ready with <n>` (nicht `0`).
-   Proxy **zweimal** neu starten.
-3. **EM 10.7.3 + FMM 2.10.2** aufs Backend.
-4. **Bedrock-Verify in dieser Reihenfolge** (nur in-game möglich, Logs reichen NICHT):
-   Mob rendert (kein Schwein) → Animation → Combat-BossBar (7.1a) → HP-Nametag (7.1b, **auf Doppelung mit EMs neuen NPC-Rollen-Tags achten**).
-5. **Symlink-Test:** `plugins/ResourcePackManager → resourcepackmanager` probeweise entfernen, Proxy neu. Bleibt `bridge ready with <n>` ≠ 0, ist der Upstream-Bug gefixt → **Punkt „Upstream-Report" entfällt**, sonst melden.
-6. **Erst danach** optional Geyser auf 2.11 (mit RPM 2.3.0 als Netz).
+1. **Combat-BossBar (7.1a) + HP-Nametag (7.1b) auf Bedrock prüfen** — nur in-game möglich, Logs
+   reichen nicht. Bei EM 10.7.3 auf **Doppelung** mit den neuen NPC-Rollen-Tags achten.
+   Das ist der letzte offene Punkt am eigentlichen Bridge-Scope.
+2. **Upstream-Reports einreichen** (nur Fabi — Zugang zu GitHub-Issues/Discord). Zwei Entwürfe
+   liegen fertig unter `docs/upstream-bugs/`, siehe Abschnitt 0a.
+3. **Symlink-Test** (optional, nach einem künftigen RPM-Update): `plugins/ResourcePackManager →
+   resourcepackmanager` probeweise entfernen, Proxy neu. Bleibt `bridge ready with <n>` ≠ 0, ist
+   der Bug gefixt → Report zurückziehen.
+4. **Danach:** Plugin-Stand von TestServer01 auf Survival01 übertragen (Staging-Workflow, 0a).
 
 > **Kein Dep-Bump im pom auf FMM 2.10.2 / EM 10.7.3** (Entscheidung Fabi, 02.08.). Die Bridge baut
 > weiter gegen 2.10.1 / 10.7.2 — beide APIs sind stabil, und die neuen JARs liegen ohnehin nicht im
