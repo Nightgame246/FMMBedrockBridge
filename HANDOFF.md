@@ -70,13 +70,32 @@ Modrinth-Abfrage vom 09.08. zeigt für `2.13.0+spigot` die Game-Versions **1.8.8
 `plugin-update-check.sh` fasst PP-Plugins bewusst nicht an und meldet sie nur als
 „fremdverwaltet".
 
-### Altlast bestätigt: GeyserModelEngine
+### ✅ Entwarnung: GeyserModelEngine ist KEINE Altlast (alte Annahme widerlegt)
 
-`GeyserModelEngine-1.0.3.jar` (13.02.) shaded **packetevents 2.11.2** neben dem separat
-installierten 2.12.1 — zwei Versionen derselben Lib auf einem Classpath. Der Update-Check meldet
-deshalb „packetevents 2.11.2 → 2.13.0" und zeigt auf die **GME-JAR**, nicht auf das PP-Plugin.
-GME hookt nur ModelEngine, **nicht FMM** ⇒ für uns funktionslos. **Vor** der Java-25-/26.2-Runde
-rauswerfen, sonst produziert genau das später einen unklaren Fehler.
+Die HANDOFF führte bisher „GME shaded packetevents 2.11.2 neben 2.12.1 = zwei Versionen auf einem
+Classpath, vermutlich überflüssig, rauswerfen". **Das ist falsch, am 09.08. im JAR und im Boot-Log
+widerlegt.** GME und ModelEngine **bleiben drin** (Entscheidung Fabi: werden für künftige Projekte
+noch gebraucht).
+
+Was tatsächlich der Fall ist:
+
+- Die gebundelten packetevents-Klassen sind **relociert** nach
+  `re/imc/geysermodelengine/libs/io/github/retrooper/packetevents/…` (1767 Einträge)
+  ⇒ **kein Classpath-Konflikt** mit dem echten packetevents 2.12.1.
+- GME hat eine **`paper-plugin.yml`** (`name: GeyserModelEngine`, `main:
+  re.imc.geysermodelengine.GeyserModelEngine`, `load: STARTUP`) — die liest Paper **zuerst**.
+  Im Boot-Log vom 08.08. steht sauber `Enabling GeyserModelEngine v1.0.3` **und** parallel
+  `Enabling packetevents v2.12.1`. Beide laufen, kein Namenskonflikt.
+- Die **Root-`plugin.yml` ist ein Shading-Artefakt** — sie ist wörtlich die von packetevents
+  (`name: packetevents`, `version: 2.11.2`). Nur deshalb meldete `plugin-update-check.sh`
+  „packetevents 2.11.2 → 2.13.0 [GeyserModelEngine-1.0.3.jar]". **Das war ein Fehler unseres
+  Skripts, kein Serverbefund** — am 09.08. gefixt (liest jetzt `paper-plugin.yml` mit Vorrang).
+
+⚠️ **Abhängigkeit, die man kennen muss:** GMEs `paper-plugin.yml` deklariert
+`GeyserUtils: required: true` **und** `packetevents: required: true`. Das Backend-Plugin
+`geyserutils-spigot-1.0-SNAPSHOT.jar` muss also **liegen bleiben**, solange GME drin ist —
+deaktiviert wurde am 08.08. nur die **Proxy-seitige Geyser-Extension**, nicht das Spigot-Plugin.
+Wer beim Aufräumen die Backend-JAR mitnimmt, kippt GME.
 
 ### Paper 26.2 ist final verfügbar
 
@@ -461,16 +480,18 @@ Bewusst so geschnitten, dass **jeder Schritt einzeln verifizierbar** ist und der
 **nicht** mit dem MC-Versionswechsel zusammenfällt:
 
 1. **PacketEvents 2.12.1 → 2.13.0** über PluginPortal. Geht sofort, 2.13.0 kann 1.8.8–26.2.
-2. **`GeyserModelEngine-1.0.3.jar` entfernen** (Backend TestServer01). Shaded packetevents 2.11.2,
-   hookt nur ModelEngine — für uns funktionslos, aber ein Classpath-Konflikt in Wartestellung.
-   Kurz mit Fabi gegenchecken, ob ModelEngine-Modelle auf dem Testserver noch gebraucht werden.
-3. **TestServer01 in AMP auf `temurin-25` umstellen — noch auf Paper 1.21.10.** Danach Log auf
+2. **TestServer01 in AMP auf `temurin-25` umstellen — noch auf Paper 1.21.10.** Danach Log auf
    Plugin-Ladefehler prüfen (Kandidaten: ProtocolLib 5.4.1, LibsDisguises 11.0.18, FAWE 2.15.4,
    Skript 2.12.2, MythicMobs 5.10.1, ShopGUI+ 1.111.0). **Vorher Vollbackup**
    (`server-tools/backup-testserver.sh`).
-4. **Erst dann Paper auf 26.2** (final verfügbar). Proxy läuft bereits auf Velocity 4.1.0/Java 25.
-5. **Bridge-JAR aus `feat/mc-26.2-readiness` deployen** — auf dem Server liegt noch der Build vom
-   **10.07.**. Das JAR läuft auch auf 1.21.x, kann also schon in Schritt 1–3 mitlaufen.
+3. **Erst dann Paper auf 26.2** (final verfügbar). Proxy läuft bereits auf Velocity 4.1.0/Java 25.
+4. **Bridge-JAR aus `feat/mc-26.2-readiness` deployen** — auf dem Server liegt noch der Build vom
+   **10.07.**. Das JAR läuft auch auf 1.21.x, kann also schon in Schritt 1–2 mitlaufen.
+
+> **GME/ModelEngine bleiben drin** (Entscheidung Fabi 09.08.: werden für künftige Projekte noch
+> gebraucht). Das ist unproblematisch — der vermeintliche Classpath-Konflikt existiert nicht,
+> siehe Entwarnung in Abschnitt 0. Beim Java-25-Test aber **mit auf der Beobachtungsliste**:
+> GME 1.0.3 ist vom 13.02. und `load: STARTUP`.
 
 Optional nebenher: **Floodgate b138 → b140** (minor, Backend + Proxy im Gleichschritt).
 
@@ -486,7 +507,7 @@ Optional nebenher: **Floodgate b138 → b140** (minor, Backend + Proxy im Gleich
 
 **Danach / unabhängig:**
 - **Waffen-Offset (KEIN Bridge-Feature):** legacy pre-1.21.4 `custom_model_data`-Item-Format re-exportieren ins 1.21.4+-Format (`assets/<namespace>/items/*.json`) — RPM-Backend-Warnung Z. 2594.
-- ~~**Altlast aufräumen:** `GeyserModelEngine-1.0.3.jar`~~ → **hochgezogen zu Strang B, Schritt 2** (09.08. bestätigt: shaded packetevents 2.11.2 neben separatem 2.12.1; der Update-Check zeigt deshalb auf die GME-JAR, nicht auf das PP-Plugin).
+- ~~**Altlast aufräumen:** `GeyserModelEngine-1.0.3.jar` shaded packetevents~~ → **erledigt/hinfällig (09.08.):** kein Classpath-Konflikt (Klassen relociert), GME lädt korrekt über `paper-plugin.yml`, und GME/ModelEngine bleiben auf Fabis Wunsch drin. Siehe Entwarnung in Abschnitt 0.
 - **Server-Claude:** Login steht noch aus (`ssh amp@mc.crazypandas.de` → `claude`). Notiz liegt unter `~/.claude/CLAUDE.md`; bei Änderungen an den Deploy-Regeln aus `server-tools/server-CLAUDE.md` per scp nachziehen.
 - **Update-Check jederzeit:** `ssh amp@mc.crazypandas.de '~/plugin-update-check.sh TestServer01'`
 

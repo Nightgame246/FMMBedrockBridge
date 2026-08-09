@@ -1432,12 +1432,30 @@ Modrinth-Abfrage: `2.13.0+spigot` deckt **1.8.8 … 26.2** ab (inkl. 1.21.10) �
 kein Paper 26.2 nötig. PP verwaltet das JAR, muss also dort angestoßen werden;
 `plugin-update-check.sh` fasst PP-Plugins bewusst nicht an.
 
-### Altlast GeyserModelEngine bestätigt
+### GeyserModelEngine: vermutete Altlast → widerlegt, plus Bug im eigenen Tooling
 
-`GeyserModelEngine-1.0.3.jar` shaded **packetevents 2.11.2** neben dem separaten 2.12.1 — zwei
-Versionen derselben Lib auf einem Classpath. Deshalb meldet der Update-Check „packetevents 2.11.2 →
-2.13.0" und zeigt auf die **GME-JAR**, nicht auf das PP-Plugin. GME hookt nur ModelEngine, nicht FMM
-⇒ für uns funktionslos. Vor der Java-25-Runde rauswerfen.
+Erster Eindruck war „GME shaded packetevents 2.11.2 neben 2.12.1 ⇒ Classpath-Konflikt, rauswerfen".
+Auf Nachfrage von Fabi (GME + ModelEngine sollen für künftige Projekte drinbleiben) nachgeprüft —
+**die Annahme war falsch:**
+
+- Die gebundelten packetevents-Klassen sind **relociert** nach
+  `re/imc/geysermodelengine/libs/io/github/retrooper/packetevents/…` (1767 Einträge) ⇒ **kein
+  Konflikt** mit dem echten packetevents 2.12.1.
+- GME hat eine **`paper-plugin.yml`** (`name: GeyserModelEngine`, `main:
+  re.imc.geysermodelengine.GeyserModelEngine`, `load: STARTUP`), die Paper bevorzugt. Boot-Log
+  08.08.: `Enabling GeyserModelEngine v1.0.3` **und** `Enabling packetevents v2.12.1` — beide laufen.
+- Die **Root-`plugin.yml` von GME ist ein Shading-Artefakt** und wörtlich die von packetevents
+  (`name: packetevents`, `version: 2.11.2`, `main: io.github.retrooper…PacketEventsPlugin` — eine
+  Klasse, die im JAR gar nicht mehr unter diesem Namen liegt).
+
+⇒ Der Report „packetevents 2.11.2 → 2.13.0 [GeyserModelEngine-1.0.3.jar]" war **ein Bug in
+`server-tools/plugin-update-check.sh`**, kein Serverbefund. **Gefixt:** das Skript liest jetzt
+`paper-plugin.yml` mit Vorrang und fällt nur ohne diese auf `plugin.yml` zurück. (Die Server-Kopie
+unter `~/plugin-update-check.sh` muss noch per scp nachgezogen werden.)
+
+⚠️ **Gelernt:** GMEs `paper-plugin.yml` deklariert `GeyserUtils: required: true`. Das Backend-Plugin
+`geyserutils-spigot-1.0-SNAPSHOT.jar` muss liegen bleiben, solange GME drin ist — am 08.08.
+deaktiviert wurde nur die **Proxy-Extension**, nicht das Spigot-Plugin.
 
 ### Weiteres
 
