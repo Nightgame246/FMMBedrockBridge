@@ -19,6 +19,35 @@
 Fabi hatte über **PluginPortal Premium** eine Update-Runde gefahren und um eine Bestandsaufnahme
 gebeten. Read-only per SSH geprüft (keine Restarts, keine Änderungen).
 
+### ✅ TestServer01 läuft auf Java 25 — verifiziert (09.08., 15:43)
+
+Fabi hat direkt umgestellt. **Boot sauber, kein einziges Plugin gefallen.**
+
+- `[bootstrap] Running Java 25 (OpenJDK 64-Bit Server VM 25.0.4+7-LTS; Eclipse Adoptium
+  Temurin-25.0.4+7)`, Paper **1.21.10-130**, `Done (49.940s)`.
+- **0** Treffer für `UnsupportedClassVersionError`, `Could not load 'plugins/…'`,
+  `Error occurred while enabling`, `Ambiguous plugin name`.
+- **Plugin-Ladeliste identisch zum Java-21-Boot vom 08.08.** (per `comm` verglichen — die einzige
+  Differenz war die Log-Zeile „Enabling automatic backups" von DriveBackupV2, die erst ~30 min nach
+  Boot feuert, kein Plugin).
+- Alle Wackelkandidaten laden: ProtocolLib 5.4.1, LibsDisguises 11.0.18, FAWE 2.15.4,
+  MythicMobs 5.10.1, Skript, packetevents 2.12.1, GeyserModelEngine 1.0.3, FMM 2.10.2,
+  EM 10.7.3, RPM 2.3.0.
+- **Bridge selbst sauber hochgekommen:** FMMEntityTracker, Sync-Task, PacketInterceptor,
+  „PacketEvents: found", Phase 7.1c, Phase 7.3 (status=true, quest=true), FMM + Floodgate found.
+
+**Die drei Auffälligkeiten im Log sind alle Alt-Befunde, nicht Java 25** — durch Zählvergleich
+gegen den Java-21-Boot vom 08.08. belegt (identische Trefferzahlen):
+
+| Befund | Java 21 | Java 25 | Was es ist |
+|---|---|---|---|
+| `Failed to interpolate animations … em_goblin_premium_farmer`, Animation `fumble` (`ArrayIndexOutOfBoundsException: Index 55 out of bounds for length 55` in FMMs `AnimationBlueprint.interpolateTranslations`) | 1 | 1 | FMM-Datenbug an **einem** Modell |
+| `Script GK_SailorGoblin_*.lua contains unsupported key 'name'` | 2 | 2 | EM-Content-Fehler im Goblin-King-Pack |
+| Paper-Watchdog „server has not responded for 10 seconds" | 2 | 2 | EMs `CustomItem.regenerateCachedItemStacks` → `EliteItemLore` auf dem Main-Thread; **identischer** Stack im alten Boot. Paper sagt selbst „NOT A BUG OR A CRASH" |
+
+⇒ **Strang B, Schritt 2 ist für TestServer01 erledigt.** Nächster Schritt dort ist PacketEvents
+2.13.0 bzw. Paper 26.2.
+
 ### 🎉 Java 25 ist da — und läuft schon produktiv
 
 Der als „eigentlicher Blocker" geführte Punkt ist **weitgehend erledigt**:
@@ -479,14 +508,16 @@ letzter Boot fehlerfrei (Audit 09.08., Abschnitt 0).
 Bewusst so geschnitten, dass **jeder Schritt einzeln verifizierbar** ist und der JVM-Wechsel
 **nicht** mit dem MC-Versionswechsel zusammenfällt:
 
-1. **PacketEvents 2.12.1 → 2.13.0** über PluginPortal. Geht sofort, 2.13.0 kann 1.8.8–26.2.
-2. **TestServer01 in AMP auf `temurin-25` umstellen — noch auf Paper 1.21.10.** Danach Log auf
-   Plugin-Ladefehler prüfen (Kandidaten: ProtocolLib 5.4.1, LibsDisguises 11.0.18, FAWE 2.15.4,
-   Skript 2.12.2, MythicMobs 5.10.1, ShopGUI+ 1.111.0). **Vorher Vollbackup**
-   (`server-tools/backup-testserver.sh`).
+1. ~~**TestServer01 auf `temurin-25` umstellen — noch auf Paper 1.21.10**~~ ✅ **erledigt 09.08.**,
+   Boot sauber, Plugin-Liste identisch zum Java-21-Boot (Details + Beleg-Tabelle in Abschnitt 0).
+2. **PacketEvents 2.12.1 → 2.13.0** über PluginPortal. Geht sofort, 2.13.0 kann 1.8.8–26.2.
 3. **Erst dann Paper auf 26.2** (final verfügbar). Proxy läuft bereits auf Velocity 4.1.0/Java 25.
+   **Vorher Vollbackup** (`server-tools/backup-testserver.sh`).
 4. **Bridge-JAR aus `feat/mc-26.2-readiness` deployen** — auf dem Server liegt noch der Build vom
-   **10.07.**. Das JAR läuft auch auf 1.21.x, kann also schon in Schritt 1–2 mitlaufen.
+   **10.07.**. Das JAR läuft auch auf 1.21.x, kann also schon vorher mitlaufen.
+5. **Später, getrennt:** die übrigen Backends (hub01, farmwelt01, minigames01, challenges01,
+   Survival01) auf temurin-25 nachziehen. TestServer01 hat die Plugin-Basis abgedeckt, die anderen
+   haben teils eigene Plugins.
 
 > **GME/ModelEngine bleiben drin** (Entscheidung Fabi 09.08.: werden für künftige Projekte noch
 > gebraucht). Das ist unproblematisch — der vermeintliche Classpath-Konflikt existiert nicht,

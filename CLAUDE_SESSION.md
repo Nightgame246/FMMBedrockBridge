@@ -1473,3 +1473,42 @@ deaktiviert wurde nur die **Proxy-Extension**, nicht das Spigot-Plugin.
 `HANDOFF.md` umstrukturiert: neuer Abschnitt **0** (dieser Audit) an den Anfang, alter Abschnitt 0
 (Versionsschema/Abhängigkeitskette) → **0c** mit aktualisierter Tabelle, Abschnitt 3 in **Strang A
 (Bridge-Rest-Scope)** und **Strang B (26.2-Vorbereitung)** geteilt.
+
+### ✅ Java-25-Umstellung TestServer01 verifiziert (09.08., 15:43)
+
+Fabi hat TestServer01 in AMP auf `temurin-25` umgestellt und gestartet, noch auf Paper 1.21.10 —
+genau die Trennung von JVM- und MC-Versionswechsel, die in Strang B vorgesehen war.
+
+**Ergebnis: Boot sauber, kein Plugin gefallen.**
+
+- `[bootstrap] Running Java 25 (… Temurin-25.0.4+7)`, Paper 1.21.10-130, `Done (49.940s)`.
+- **0** Treffer für `UnsupportedClassVersionError` / `Could not load 'plugins/…'` /
+  `Error occurred while enabling` / `Ambiguous plugin name`.
+- Plugin-Ladeliste per `comm` gegen den Java-21-Boot vom 08.08. verglichen ⇒ **identisch**. Die
+  einzige Differenz war DriveBackupV2s Log-Zeile „Enabling automatic backups", die erst ~30 min
+  nach Boot feuert — kein Plugin, sondern ein Artefakt meines `grep "Enabling "`-Zählens.
+- Alle Wackelkandidaten laden: ProtocolLib 5.4.1, LibsDisguises 11.0.18, FAWE 2.15.4,
+  MythicMobs 5.10.1, Skript, packetevents 2.12.1, GME 1.0.3, FMM 2.10.2, EM 10.7.3, RPM 2.3.0.
+- Bridge sauber hoch: FMMEntityTracker, Sync-Task, PacketInterceptor, „PacketEvents: found",
+  Phase 7.1c, Phase 7.3 (status=true, quest=true), FMM + Floodgate found.
+
+**Drei Log-Auffälligkeiten geprüft — alle Alt-Befunde, keine davon Java-25-bedingt.** Methodik:
+Trefferzahlen im neuen Boot gegen `logs/2026-08-08-2.log.gz` (Java 21) gezählt, jeweils identisch:
+
+| Befund | J21 | J25 | Einordnung |
+|---|---|---|---|
+| `Failed to interpolate animations … em_goblin_premium_farmer` / Animation `fumble`, `ArrayIndexOutOfBoundsException: Index 55 out of bounds for length 55` in `AnimationBlueprint.interpolateTranslations:312` | 1 | 1 | FMM-Datenbug an einem Modell |
+| `Script GK_SailorGoblin_{anchor_throw,overboard}.lua contains unsupported key 'name'` | 2 | 2 | EM-Content-Fehler im Goblin-King-Pack |
+| Paper-Watchdog „server has not responded for 10 seconds" | 2 | 2 | EMs `CustomItem.regenerateCachedItemStacks` → `EliteItemLore.writeNewLore` auf dem Main-Thread; identischer Stack im alten Boot |
+
+Der Watchdog-Stack lohnt eine Randnotiz: der Server-Thread hängt in
+`EliteItemLore.writeNewLore` → `EliteItemManager.getDPS` → `ItemTagger.getEliteDamageAttribute` →
+`ItemStack.getItemMeta` → `CraftMetaItem.buildEnchantments` → `NamespacedKey.validate`. Also EM,
+das beim Start alle CustomItem-Lores samt DPS neu berechnet und dabei pro Item ItemMeta baut.
+Startkosten, kein Java-Thema.
+
+⇒ **Strang B Schritt 1 (Backend auf Java 25) ist für TestServer01 abgehakt.** Offen bleiben
+PacketEvents 2.13.0, dann Paper 26.2, und später die übrigen Backends.
+
+`server-tools/plugin-update-check.sh` wurde per scp auf den Server nachgezogen
+(`~/plugin-update-check.sh`, md5 verifiziert identisch).
