@@ -108,10 +108,14 @@ Bevor die Session endet bzw. wenn der User signalisiert, dass er aufhört / den 
 
 ## 1. Wo wir gerade stehen (Git)
 
-- **Aktiver Branch:** `feat/mc-26.2-readiness` (Stand 09.08.) — enthält alles aus `main` plus den
-  26.2-Build-Umbau, den `McVersions`-Bugfix und die Doku-Sessions vom 02.08., 08.08. und 09.08.
+- **Aktiver Branch:** `feat/mc-26.2-readiness`, HEAD **`e3374d9`** (09.08., mit origin sync,
+  working tree sauber) — enthält alles aus `main` plus den 26.2-Build-Umbau, den
+  `McVersions`-Bugfix und die Doku-Sessions vom 02.08., 08.08. und 09.08.
   `main` (`020aed4`) trägt nur einen Zeiger hierher. **Plugin-Code seit dem 02.08. unverändert** —
-  die Sessions vom 08.08. und 09.08. waren reine Live-Diagnose/Server-Audit + Doku.
+  die Sessions vom 08.08. und 09.08. waren Live-Diagnose, Server-Audit und Doku.
+- **Session 09.08. kurz:** Server-Audit (Java-25-Blocker aufgelöst), drei Server-Fixes auf Fabis
+  Anweisung (packetevents 2.13.0, 2 EM-Lua-Skripte, 1 FMM-Modell-Keyframe), und die **Trennung
+  von Server- und Entwicklungs-Doku** — Details in `server-tools/SERVER-STATE.md`.
 - **Auf dem Server liegt noch das JAR vom 10.07.** (`FMMBedrockBridge.jar`, TestServer01) — der
   26.2-ready-Build vom Branch ist **nicht deployt**.
 - (historisch) Vor dem 26.2-Branch war `main` bei `f1dd00c` (`tooling(server)`: `server-tools/`),
