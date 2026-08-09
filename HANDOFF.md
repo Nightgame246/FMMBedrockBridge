@@ -1,18 +1,96 @@
 # HANDOFF — FMMBedrockBridge
 
-> Übergabe-Datei für Weiterarbeit an einem anderen PC. Stand: **2026-08-08 (abends)**
+> Übergabe-Datei für Weiterarbeit an einem anderen PC. Stand: **2026-08-09**
 > Branch: **`feat/mc-26.2-readiness`** — gepusht, **bewusst nicht gemerged**.
 > `main` trägt nur einen Zeiger hierher (Commit `020aed4`).
 >
-> ⚠️ **Beim Wiedereinstieg zuerst Abschnitt 0a lesen** (Vorfall + aktueller Server-Stand),
-> danach 0 + 0b für den 26.2-Kontext.
+> ⚠️ **Beim Wiedereinstieg zuerst Abschnitt 0 lesen** (aktueller Server-Stand, 26.2-Restliste),
+> danach 0a (Vorfall 08.08.) + 0c (26.2-Kontext/Versionsschema).
 >
-> 🔎 **Nächster konkreter Schritt: In-Game-Test auf Bedrock von 7.1a/7.1b** (Combat-BossBar +
-> HP-Nametag). Mob-Rendering ist bestätigt, die Props sind als Fremdbaustelle abgehakt.
+> 🔎 **Zwei offene Stränge:**
+> 1. **In-Game-Test auf Bedrock von 7.1a/7.1b** (Combat-BossBar + HP-Nametag) — Bridge-Scope.
+> 2. **26.2-Vorbereitung:** PacketEvents 2.13.0 → GME-Altlast raus → Backends auf Java 25
+>    (noch auf 1.21.10!) → dann erst Paper 26.2.
 
 ---
 
-## 0a. 🆕 Session 2026-08-08 — Netzwerk-Ausfall gefixt, Props-Bug lokalisiert
+## 0. 🆕 Session 2026-08-09 — Server-Audit: Java-25-Blocker aufgelöst
+
+Fabi hatte über **PluginPortal Premium** eine Update-Runde gefahren und um eine Bestandsaufnahme
+gebeten. Read-only per SSH geprüft (keine Restarts, keine Änderungen).
+
+### 🎉 Java 25 ist da — und läuft schon produktiv
+
+Der als „eigentlicher Blocker" geführte Punkt ist **weitgehend erledigt**:
+
+- **`/usr/lib/jvm/temurin-25-jdk-amd64` ist auf dem Host installiert.**
+- **Proxy01 läuft bereits darauf** — `Java.JavaVersion=/usr/lib/jvm/temurin-25-jdk-amd64/bin/java`,
+  Velocity 4.1.0-SNAPSHOT-14, seit dem 08.08. stabil. Java 25 ist damit **im Produktivbetrieb
+  bewiesen**, nicht bloß installiert.
+- **Alle Paper-Backends stehen weiter auf `jdk-21.0.5-oracle-x64`** (TestServer01, Survival01,
+  hub01, farmwelt01, minigames01, challenges01). Umstellen = **ein Feld in AMP**
+  (`Java.JavaVersion` in `<instanz>/MinecraftModule.kvp`), keine Installation mehr nötig.
+
+⇒ Offen ist nur noch der **Plugin-Test unter Java 25 auf der Backend-Seite** — und der geht
+**jetzt schon auf 1.21.10**, ohne Paper-Wechsel. Damit sind „Java 25" und „Paper 26.2" als
+Risiken sauber getrennt.
+
+### Bedrock-Kette: vollständig, letzter Boot sauber
+
+| Komponente | Stand 09.08. | |
+|---|---|---|
+| Geyser | 2.11.1-b1210 (git-master-6e70ba2) | ✅ |
+| RPM Backend / Proxy / GeyserBridge-Extension | **2.3.0** überall | ✅ |
+| FMM / EM / BetterStructures | 2.10.2 / 10.7.3 / 2.6.3 | ✅ |
+| Floodgate | b138 | ▲ b140 verfügbar (minor) |
+| Symlink `ResourcePackManager → resourcepackmanager` | vorhanden (07.07.) | ✅ |
+| Paper TestServer01 | 1.21.10-**130** | aktuell für 1.21.10 |
+
+Letzter Proxy-Boot (08.08. 14:50, `logs/2026-08-08-4.log.gz`): **2** Extensions geladen
+(GeyserModelEngineExtension + ResourcePackManagerGeyserBridge, GeyserUtils korrekt weg),
+`bridge ready with 316 custom entity definitions`, **kein** `NoSuchFieldError` mehr.
+Zum Vergleich im Boot davor (14:07, mit GeyserUtils): der Fehler ist da noch drin — der Fix
+vom 08.08. ist damit im Log zweifelsfrei belegt.
+
+**Die 40 ERROR-Zeilen im aktuellen Proxy-Log sind harmlos:** ausschließlich
+`[initial connection] /23.176.184.152:<port>: read timed out` — ein scannender Host, kein
+Serverproblem. TestServer01: **0 Fehler** im Log.
+
+### Was PluginPortal aktualisiert hat (07./08.08.)
+
+LuckPerms 5.5.71, EssentialsX + Spawn 2.22.0, FaweSchematicCloud, PluginPortal selbst (3.8.6);
+manuell dazu Floodgate (Backend + Proxy), Geyser, ViaVersion/ViaBackwards 5.12.0.
+
+### ⚠️ PacketEvents wurde NICHT mitgezogen
+
+Steht weiter auf **2.12.1** (JAR vom 02.05.). Das ist der **letzte echte offene Punkt aus der
+26.2-Kette**. Wichtig: **2.13.0 kann sofort rauf**, es braucht kein Paper 26.2 —
+Modrinth-Abfrage vom 09.08. zeigt für `2.13.0+spigot` die Game-Versions **1.8.8 … 26.2**
+(inkl. 1.21.10). PluginPortal verwaltet das JAR ⇒ muss **dort** angestoßen werden;
+`plugin-update-check.sh` fasst PP-Plugins bewusst nicht an und meldet sie nur als
+„fremdverwaltet".
+
+### Altlast bestätigt: GeyserModelEngine
+
+`GeyserModelEngine-1.0.3.jar` (13.02.) shaded **packetevents 2.11.2** neben dem separat
+installierten 2.12.1 — zwei Versionen derselben Lib auf einem Classpath. Der Update-Check meldet
+deshalb „packetevents 2.11.2 → 2.13.0" und zeigt auf die **GME-JAR**, nicht auf das PP-Plugin.
+GME hookt nur ModelEngine, **nicht FMM** ⇒ für uns funktionslos. **Vor** der Java-25-/26.2-Runde
+rauswerfen, sonst produziert genau das später einen unklaren Fehler.
+
+### Paper 26.2 ist final verfügbar
+
+`fill.papermc.io/v3` listet unter `26.2` die Builds **`26.2`** und `26.2-rc-2` — also kein RC
+mehr. (Nebenbefund: der 1.21-Zweig ist inzwischen bei **1.21.11**, TestServer01 läuft auf 1.21.10.)
+
+### Survival01 — erwartungsgemäß unangetastet
+
+Dez-2025-Stand (EM 9.6.0, Paper 1.21.10-117, packetevents 2.10.0), nur Floodgate mitgezogen.
+**Staging-Workflow, kein Fund** — siehe 0a.
+
+---
+
+## 0a. Session 2026-08-08 — Netzwerk-Ausfall gefixt, Props-Bug lokalisiert
 
 ### Vorfall: Bedrock sah netzwerkweit KEINE Entities (behoben)
 
@@ -88,7 +166,7 @@ Builds kommen.
 
 ---
 
-## 0. 🆕 NEU 2026-08-02: Minecraft ist auf jahresbasierte Versionen umgestellt
+## 0c. NEU 2026-08-02: Minecraft ist auf jahresbasierte Versionen umgestellt
 
 **Das ändert die Update-Planung grundlegend.** Mojang hat das `1.x`-Schema abgeschafft:
 es gibt **kein 1.22**, sondern **26.1** („Tiny Takeover", März 2026) und **26.2**
@@ -97,26 +175,30 @@ Paper-Artefakt `26.2.build.87-stable` (das `-R0.1-SNAPSHOT`-Namensschema ist weg
 
 ### Die Abhängigkeitskette für MC 26.2
 
-Stand **nach** der Update-Runde vom Abend des 02.08. (siehe Abschnitt 0b):
+Stand **nach** dem Server-Audit vom 09.08. (siehe Abschnitt 0):
 
-| Komponente | Für 26.2 nötig | Auf dem Server (02.08. abends) | |
+| Komponente | Für 26.2 nötig | Auf dem Server (09.08.) | |
 |---|---|---|---|
-| **Java** | **25** (Paper 26.2 = Class-File 69) | 21 | ⚠️ **letzter echter Blocker** |
-| Paper | 26.2.build.87-stable | 1.21.x | offen |
-| Geyser | 2.11.0 (26.2 gemerged 10.07.) | **2.11.1-b1210** (Stand 08.08.) | ✅ erledigt |
+| **Java-Laufzeit** | **25** (Paper 26.2 = Class-File 69) | **temurin-25 installiert**, Proxy01 läuft drauf | ✅ vorhanden |
+| **Backends auf Java 25** | alle Paper-Instanzen | noch `jdk-21.0.5-oracle` | ⚠️ **umstellen + Plugins testen** |
+| Paper | 26.2 (final, kein RC mehr) | 1.21.10-130 | offen |
+| Geyser | 2.11.0 (26.2 gemerged 10.07.) | **2.11.1-b1210** | ✅ erledigt |
 | RPM | 2.3.0 (wegen Geyser 2.11) | **2.3.0** (Backend **und** Proxy) | ✅ erledigt |
 | FMM / EM | bauen schon gegen spigot-api 26.2 | **2.10.2 / 10.7.3** | ✅ ok |
-| **PacketEvents** | **2.13.0** (26.2-Support, 22.06.) | 2.12.1 | ⚠️ Bump offen |
-| Velocity | ungeprüft | **4.1.0-SNAPSHOT** (Stand 08.08.) | ❓ 26.2-Eignung weiter ungeprüft |
-| Floodgate, ProtocolLib, LibsDisguises, FAWE, Essentials, Skript | unter **Java 25** ungeprüft | — | ❓ offen |
+| **PacketEvents** | **2.13.0** (deckt 1.8.8–26.2 ab) | 2.12.1 | ⚠️ **Bump offen** |
+| Velocity | — | **4.1.0-SNAPSHOT-14 unter Java 25** | ✅ läuft produktiv |
+| ProtocolLib, LibsDisguises, FAWE, Essentials, Skript, MythicMobs | unter **Java 25** ungeprüft | — | ❓ offen (auf 1.21.10 testbar) |
 
-**Die Geyser-Sperre ist aufgelöst.** Geyser 2.11 + RPM 2.3.0 laufen seit dem 02.08. produktiv
-(`bridge ready with 316`). Damit bleiben für MC 26.2 nur noch **Java 25** (der eigentliche
-Blocker), der PacketEvents-Bump und die ungeprüfte Velocity-Kompatibilität.
+**Die Geyser-Sperre ist aufgelöst** (seit 02.08., `bridge ready with 316`), **und die Java-Sperre
+ebenfalls** (09.08.): die JVM 25 liegt auf dem Host und trägt bereits den Proxy.
 
-**Java 25 war bisher auf niemandes Zettel.** Der Server läuft auf Java 21; Paper 26.2 lässt
-sich damit nicht einmal laden. Das muss vor der Paper-Umstellung geklärt werden (AMP-JVM-Auswahl,
-und ob alle anderen Plugins unter Java 25 laufen).
+**Damit bleiben für MC 26.2 genau zwei Arbeitspakete:**
+1. **PacketEvents 2.13.0** (über PluginPortal, geht sofort — kein Paper-Wechsel nötig)
+2. **Backends von Java 21 auf temurin-25 umstellen und die Plugins darunter verifizieren** —
+   bewusst **noch auf Paper 1.21.10**, damit JVM-Wechsel und MC-Versionswechsel nicht
+   gleichzeitig passieren.
+
+Erst danach Paper 26.2.
 
 ### Was der Branch `feat/mc-26.2-readiness` schon macht
 
@@ -244,10 +326,12 @@ Bevor die Session endet bzw. wenn der User signalisiert, dass er aufhört / den 
 
 ## 1. Wo wir gerade stehen (Git)
 
-- **Aktiver Branch:** `feat/mc-26.2-readiness` (Stand 08.08.) — enthält alles aus `main` plus den
-  26.2-Build-Umbau, den `McVersions`-Bugfix und die Doku-Sessions vom 02.08. und 08.08.
+- **Aktiver Branch:** `feat/mc-26.2-readiness` (Stand 09.08.) — enthält alles aus `main` plus den
+  26.2-Build-Umbau, den `McVersions`-Bugfix und die Doku-Sessions vom 02.08., 08.08. und 09.08.
   `main` (`020aed4`) trägt nur einen Zeiger hierher. **Plugin-Code seit dem 02.08. unverändert** —
-  die Session vom 08.08. war reine Live-Diagnose + Doku.
+  die Sessions vom 08.08. und 09.08. waren reine Live-Diagnose/Server-Audit + Doku.
+- **Auf dem Server liegt noch das JAR vom 10.07.** (`FMMBedrockBridge.jar`, TestServer01) — der
+  26.2-ready-Build vom Branch ist **nicht deployt**.
 - (historisch) Vor dem 26.2-Branch war `main` bei `f1dd00c` (`tooling(server)`: `server-tools/`),
   darunter die Doku-Commits vom 10.07. und Merge-Commit `be08a2f`
 - **Phase-7.2b-Removal ist nach `main` gemerged** (2026-07-10, `--no-ff`, bewusst als revertierbare Einheit). Der Feature-Branch `refactor/remove-phase72b` existiert weiter (auf `origin`), ist aber jetzt in main enthalten.
@@ -353,10 +437,13 @@ Was von der Bridge **vielleicht** noch übrig bleibt (zu prüfen!):
 
 ## 3. Nächste Schritte (Priorität)
 
-Die Update-Runde auf TestServer01 ist **durch** (02.08. + 08.08.): FMM 2.10.2 + EM 10.7.3 +
-RPM 2.3.0 + Geyser 2.11.1 laufen, Mob-Rendering auf Bedrock bestätigt.
+Die Update-Runde auf TestServer01 ist **durch** (02.08. + 08.08. + PP-Runde 07./08.08.):
+FMM 2.10.2 + EM 10.7.3 + RPM 2.3.0 + Geyser 2.11.1 laufen, Mob-Rendering auf Bedrock bestätigt,
+letzter Boot fehlerfrei (Audit 09.08., Abschnitt 0).
 
-**Nächster Block: Rest-Scope der Bridge in-game verifizieren.**
+**Zwei Stränge, laufen unabhängig voneinander.**
+
+### Strang A — Bridge-Rest-Scope (unverändert)
 
 1. **Combat-BossBar (7.1a) + HP-Nametag (7.1b) auf Bedrock prüfen** — nur in-game möglich, Logs
    reichen nicht. Bei EM 10.7.3 auf **Doppelung** mit den neuen NPC-Rollen-Tags achten.
@@ -368,29 +455,38 @@ RPM 2.3.0 + Geyser 2.11.1 laufen, Mob-Rendering auf Bedrock bestätigt.
    der Bug gefixt → Report zurückziehen.
 4. **Danach:** Plugin-Stand von TestServer01 auf Survival01 übertragen (Staging-Workflow, 0a).
 
+### Strang B — 26.2-Vorbereitung (empfohlene Reihenfolge, Stand 09.08.)
+
+Bewusst so geschnitten, dass **jeder Schritt einzeln verifizierbar** ist und der JVM-Wechsel
+**nicht** mit dem MC-Versionswechsel zusammenfällt:
+
+1. **PacketEvents 2.12.1 → 2.13.0** über PluginPortal. Geht sofort, 2.13.0 kann 1.8.8–26.2.
+2. **`GeyserModelEngine-1.0.3.jar` entfernen** (Backend TestServer01). Shaded packetevents 2.11.2,
+   hookt nur ModelEngine — für uns funktionslos, aber ein Classpath-Konflikt in Wartestellung.
+   Kurz mit Fabi gegenchecken, ob ModelEngine-Modelle auf dem Testserver noch gebraucht werden.
+3. **TestServer01 in AMP auf `temurin-25` umstellen — noch auf Paper 1.21.10.** Danach Log auf
+   Plugin-Ladefehler prüfen (Kandidaten: ProtocolLib 5.4.1, LibsDisguises 11.0.18, FAWE 2.15.4,
+   Skript 2.12.2, MythicMobs 5.10.1, ShopGUI+ 1.111.0). **Vorher Vollbackup**
+   (`server-tools/backup-testserver.sh`).
+4. **Erst dann Paper auf 26.2** (final verfügbar). Proxy läuft bereits auf Velocity 4.1.0/Java 25.
+5. **Bridge-JAR aus `feat/mc-26.2-readiness` deployen** — auf dem Server liegt noch der Build vom
+   **10.07.**. Das JAR läuft auch auf 1.21.x, kann also schon in Schritt 1–3 mitlaufen.
+
+Optional nebenher: **Floodgate b138 → b140** (minor, Backend + Proxy im Gleichschritt).
+
 > **Kein Dep-Bump im pom auf FMM 2.10.2 / EM 10.7.3** (Entscheidung Fabi, 02.08.). Die Bridge baut
 > weiter gegen 2.10.1 / 10.7.2 — beide APIs sind stabil, und die neuen JARs liegen ohnehin nicht im
 > Maven-Repo (müssten einzeln per `install:install-file` eingespielt werden). Erst nachziehen, wenn
 > ein konkreter API-Bedarf auftaucht.
 
-### Wenn danach auf MC 26.2 umgestellt werden soll (siehe Abschnitt 0)
-
-Reihenfolge, **nicht** beliebig — jeder Schritt ist Voraussetzung des nächsten:
-
-8. **Java 25 auf dem Server klären.** Paper 26.2 ist Class-File 69 und lädt unter Java 21
-   gar nicht. Prüfen: stellt AMP eine JVM 25 bereit, und laufen ProtocolLib / LibsDisguises /
-   FAWE / Skript / packetevents darunter? **Das ist der eigentliche Blocker, nicht Paper selbst.**
-9. **PacketEvents auf 2.13.0** (erste Version mit 26.2-Support) — kann schon vorher passieren,
-   2.13.0 kann auch 1.21.x.
-10. **Geyser 2.11.0 + RPM 2.3.0** müssen zu diesem Zeitpunkt bereits stehen (Schritte 2/6).
-11. **Paper auf 26.2** — Proxy (Velocity-Kompatibilität mit 26.2 ist noch **ungeprüft**) und
-    Backends. Vorher Vollbackup, vgl. `server-tools/backup-testserver.sh`.
-12. **Bridge-JAR** aus `feat/mc-26.2-readiness` deployen (läuft auch vorher schon auf 1.21.x —
-    kann also früh mitgetestet werden, das war der Sinn der Doppel-Kompatibilität).
+> ~~**Wenn danach auf MC 26.2 umgestellt werden soll**~~ — die alte 5-Schritt-Liste (Java 25
+> klären → PacketEvents → Geyser/RPM → Paper → Bridge-JAR) ist durch **Strang B oben** ersetzt.
+> Grund: Geyser/RPM stehen seit 02.08., und das Audit vom 09.08. hat gezeigt, dass Java 25
+> längst installiert ist und den Proxy trägt. Übrig sind PacketEvents + der Backend-JVM-Wechsel.
 
 **Danach / unabhängig:**
 - **Waffen-Offset (KEIN Bridge-Feature):** legacy pre-1.21.4 `custom_model_data`-Item-Format re-exportieren ins 1.21.4+-Format (`assets/<namespace>/items/*.json`) — RPM-Backend-Warnung Z. 2594.
-- **Altlast aufräumen:** `GeyserModelEngine-1.0.3.jar` shaded packetevents **2.11.2**, während separat **2.12.1** installiert ist — zwei Versionen derselben Lib auf einem Classpath. Hookt nur ModelEngine, nicht FMM → vermutlich überflüssig, mit Fabi klären.
+- ~~**Altlast aufräumen:** `GeyserModelEngine-1.0.3.jar`~~ → **hochgezogen zu Strang B, Schritt 2** (09.08. bestätigt: shaded packetevents 2.11.2 neben separatem 2.12.1; der Update-Check zeigt deshalb auf die GME-JAR, nicht auf das PP-Plugin).
 - **Server-Claude:** Login steht noch aus (`ssh amp@mc.crazypandas.de` → `claude`). Notiz liegt unter `~/.claude/CLAUDE.md`; bei Änderungen an den Deploy-Regeln aus `server-tools/server-CLAUDE.md` per scp nachziehen.
 - **Update-Check jederzeit:** `ssh amp@mc.crazypandas.de '~/plugin-update-check.sh TestServer01'`
 
