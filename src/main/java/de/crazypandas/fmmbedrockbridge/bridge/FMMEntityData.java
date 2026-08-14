@@ -95,6 +95,14 @@ public class FMMEntityData {
 
     private BedrockNametagController createNametagControllerIfNamed() {
         if (!FMMBedrockBridge.getInstance().isFloodgateAvailable()) return null;
+        // Phase 7.1b — EliteMobs renders an equivalent overhead display itself
+        // (EliteOverheadHealthDisplay, MobCombatSettings.yml: displayVisualHealthBars +
+        // displayNumericHealth). Set nametag-enabled: false to drop our overlay and check
+        // whether EM's reaches Bedrock; if it does, this whole scope is redundant.
+        if (!FMMBedrockBridge.getInstance().getConfig()
+                .getBoolean("phase71b.nametag-enabled", true)) {
+            return null;
+        }
 
         // Gate on name-source (not on initial text — initial is empty by design out-of-combat).
         // Mobs without a displayable name get no Bridge nametag overlay at all.

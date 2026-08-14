@@ -27,10 +27,12 @@ import java.util.function.Supplier;
  *   <li>cleanup() → bossBar.removeAll(), viewers cleared</li>
  * </ul>
  *
- * <p>Self-suppression avoidance: the PacketInterceptor uses a first-match heuristic
- * ({@link #hasOwnUuid()} / {@link #registerOwnUuid(UUID)}) to distinguish our own
- * BOSS_EVENT(ADD) packets from EM's duplicate-title packets. The first matching ADD
- * per controller is claimed as ours; subsequent matches are EM's.
+ * <p>Self-suppression avoidance: our own BOSS_EVENT packets must not be mistaken for the
+ * EliteMobs bar we are replacing. The bar's wire UUID is resolved up front via
+ * {@link BossBarUuidResolver}; {@link #isOwnUuidResolved()} then reports that the identity is
+ * authoritative and the PacketInterceptor stops guessing. Only if resolution fails does it fall
+ * back to the legacy first-match heuristic ({@link #hasOwnUuid()} / {@link #registerOwnUuid(UUID)}),
+ * which assumes the first title-matching ADD per controller is ours.
  */
 public final class BedrockBossBarController {
 
@@ -46,11 +48,19 @@ public final class BedrockBossBarController {
     private final Set<Player> viewers = ConcurrentHashMap.newKeySet();
 
     /**
-     * UUIDs of Bukkit BossBar packets the PacketInterceptor has identified as our own
-     * (first-match heuristic). Held here so the interceptor can short-circuit subsequent
-     * non-ADD packets for these UUIDs without re-running the title-match check.
+     * UUIDs of Bukkit BossBar packets identified as our own. Normally holds exactly one entry,
+     * resolved from the Bukkit BossBar itself at construction time ({@link BossBarUuidResolver}).
+     * Only when that resolution is unavailable does the PacketInterceptor fall back to filling
+     * this set via the legacy first-match heuristic.
      */
     private final Set<UUID> ownUuids = ConcurrentHashMap.newKeySet();
+
+    /**
+     * True when {@link #ownUuids} was established authoritatively rather than guessed. In that
+     * case the interceptor must never re-claim a different UUID as ours — EliteMobs' pooled bars
+     * carry our boss's title too, and claiming one of those would suppress our own bar instead.
+     */
+    private final boolean ownUuidResolved;
 
     private double lastProgress = -1.0;
     private BarColor lastColor = null;
@@ -82,6 +92,28 @@ public final class BedrockBossBarController {
         this.isInCombat = !combatEnabled;
         this.lastColor = BarColor.GREEN;
         this.lastProgress = 1.0;
+
+        UUID resolved = isUuidResolutionEnabled() ? BossBarUuidResolver.resolve(this.bossBar) : null;
+        this.ownUuidResolved = resolved != null;
+        if (resolved != null) {
+            this.ownUuids.add(resolved);
+            FMMBedrockBridge.debugLog("[BRIDGE] Resolved own BossBar UUID " + resolved
+                    + " for " + realEntityUuid + " (no heuristic needed)");
+        }
+    }
+
+    /**
+     * Escape hatch for {@code phase71a.resolve-own-bossbar-uuid}. Defaults to true; set to false
+     * if a server update ever makes the reflective lookup return the wrong UUID, which would show
+     * up as Bedrock players seeing no boss bar at all.
+     */
+    private static boolean isUuidResolutionEnabled() {
+        try {
+            return FMMBedrockBridge.getInstance().getConfig()
+                    .getBoolean("phase71a.resolve-own-bossbar-uuid", true);
+        } catch (Throwable t) {
+            return true;
+        }
     }
 
     public UUID getRealEntityUuid() {
@@ -116,8 +148,20 @@ public final class BedrockBossBarController {
         return !ownUuids.isEmpty();
     }
 
-    /** Called by PacketInterceptor when it claims a BOSS_EVENT(ADD) UUID as ours. */
+    /**
+     * True when our own UUID came from {@link BossBarUuidResolver} rather than the heuristic.
+     * The interceptor uses this to refuse any further own-UUID claims.
+     */
+    public boolean isOwnUuidResolved() {
+        return ownUuidResolved;
+    }
+
+    /**
+     * Called by PacketInterceptor when the legacy heuristic claims a BOSS_EVENT(ADD) UUID as
+     * ours. Ignored once the UUID is known authoritatively.
+     */
     public void registerOwnUuid(UUID uuid) {
+        if (ownUuidResolved) return;
         ownUuids.add(uuid);
     }
 
@@ -206,15 +250,19 @@ public final class BedrockBossBarController {
 
     /**
      * Phase 7.1c — called from {@code BedrockCombatTrigger.onExitCombat}. Hides the
-     * BossBar from all viewers and clears captured own-UUIDs (so the first-match
-     * heuristic claims a fresh own-UUID at the next combat-enter). Idempotent.
+     * BossBar from all viewers. Idempotent.
+     *
+     * <p>Own-UUIDs are deliberately <b>not</b> cleared here. {@link #bossBar} is created once in
+     * the constructor and reused for the controller's whole life, so its wire UUID never changes
+     * between combats — dropping the claim only forced the heuristic to re-race EliteMobs at every
+     * combat-enter, and since EM 10.8.0 pools and re-titles its bars, that race is one EM can win.
+     * The claim is released in {@link #cleanup()} together with the bar itself.
      */
     public void exitCombat() {
         if (!isInCombat) return;
         isInCombat = false;
         bossBar.removeAll();
         bossBar.setVisible(false);
-        ownUuids.clear();
     }
 
     /** Phase 7.1c — used by {@code /fmmbridge debug} and the lazy-add gate in addViewer. */
@@ -226,5 +274,11 @@ public final class BedrockBossBarController {
         bossBar.removeAll();
         viewers.clear();
         isInCombat = false;
+        if (!ownUuidResolved) {
+            // Heuristic claims are per-lifetime guesses; drop them with the controller.
+            // A resolved UUID stays — it identifies this exact bar object, which the
+            // interceptor may still see packets for while cleanup propagates.
+            ownUuids.clear();
+        }
     }
 }

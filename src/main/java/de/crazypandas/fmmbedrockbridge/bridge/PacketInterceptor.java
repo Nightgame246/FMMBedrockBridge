@@ -108,14 +108,24 @@ public class PacketInterceptor {
     }
 
     /**
-     * Phase 7.1a — heuristic capture + suppress for EliteMobs BossBar packets to Bedrock players.
+     * Phase 7.1a — identify + suppress EliteMobs BossBar packets to Bedrock players so only our
+     * styled bridge bar remains.
      *
-     * <p>The BOSS_EVENT packet leaves the server on a Netty IO thread (not the Bukkit main
-     * thread that calls {@code bossBar.addPlayer()}), so ThreadLocal-based identification of
-     * "our own" packets doesn't survive the hand-off. We use a timing heuristic instead: the
-     * FIRST title-matching ADD per controller is ours (we always {@code addPlayer} at boss
-     * spawn, well before EM's own BossBar appears at combat-enter). Subsequent matching ADDs
-     * are EM's duplicates and get suppressed.
+     * <p><b>Identifying our own packets.</b> The BOSS_EVENT packet leaves the server on a Netty
+     * IO thread rather than the Bukkit main thread that called {@code bossBar.addPlayer()}, so a
+     * ThreadLocal marker does not survive the hand-off. Each controller therefore resolves its
+     * bar's wire UUID up front ({@link BossBarUuidResolver}); everything else with a matching
+     * title is EliteMobs'. Where that resolution is unavailable we fall back to the original
+     * heuristic — first title-matching ADD per controller is ours.
+     *
+     * <p><b>EliteMobs 10.8.0 pooling.</b> {@code BossHealthBarManager} keeps up to four reusable
+     * bars per player and re-titles them for whichever boss holds a slot, while
+     * {@code BossBarOrderManager} re-sends bars (removePlayer + addPlayer) just to enforce order.
+     * A suppressed UUID is therefore <b>not</b> a permanent property of a boss: the same UUID
+     * later carries a different boss, possibly one we do not draw at all. Suppression entries are
+     * consequently evicted as soon as a slot is released (REMOVE) or re-used for a title we do not
+     * own — otherwise we would keep swallowing that slot's updates and leave Bedrock players with
+     * a frozen or undismissable bar.
      */
     private void handleBossEvent(PacketSendEvent event, Player playerObj) {
         if (bridge == null) return;
@@ -137,48 +147,62 @@ public class PacketInterceptor {
             if (ctrl.isOwnUuid(uuid)) return;
         }
 
-        if (action != WrapperPlayServerBossBar.Action.ADD && bridge.getBossBarRegistry().contains(uuid)) {
+        if (action != WrapperPlayServerBossBar.Action.ADD) {
+            if (!bridge.getBossBarRegistry().contains(uuid)) return;
             event.setCancelled(true);
+            if (action == WrapperPlayServerBossBar.Action.REMOVE) {
+                // The slot is being released. Keeping the entry would make us swallow the
+                // packets of whichever boss EliteMobs assigns to this pooled bar next.
+                bridge.getBossBarRegistry().remove(uuid);
+                FMMBedrockBridge.debugLog("[BRIDGE] Released suppressed BossBar UUID " + uuid
+                        + " on REMOVE for " + playerObj.getName());
+            }
             return;
         }
 
-        if (action == WrapperPlayServerBossBar.Action.ADD) {
-            String packetTitle = extractTitleString(wrapper);
-            if (packetTitle == null) return;
+        String packetTitle = extractTitleString(wrapper);
+        if (packetTitle == null) return;
 
-            for (BedrockBossBarController ctrl : bridge.getActiveControllers().values()) {
-                if (!ctrl.hasViewer(playerObj)) continue;
+        for (BedrockBossBarController ctrl : bridge.getActiveControllers().values()) {
+            if (!ctrl.hasViewer(playerObj)) continue;
 
-                boolean currentTitleMatch = titlesMatch(ctrl.getTitle(), packetTitle);
-                boolean knownTitleMatch = currentTitleMatch || ctrl.getTitleAliases().stream()
-                        .anyMatch(alias -> titlesMatch(alias, packetTitle));
+            boolean currentTitleMatch = titlesMatch(ctrl.getTitle(), packetTitle);
+            boolean knownTitleMatch = currentTitleMatch || ctrl.getTitleAliases().stream()
+                    .anyMatch(alias -> titlesMatch(alias, packetTitle));
 
-                if (currentTitleMatch) {
-                    if (!ctrl.hasOwnUuid()) {
-                        ctrl.registerOwnUuid(uuid);
-                        FMMBedrockBridge.debugLog("[BRIDGE] Claimed own BossBar UUID " + uuid
-                                + " (title='" + packetTitle + "') for " + playerObj.getName());
-                    } else {
-                        bridge.getBossBarRegistry().add(uuid);
-                        event.setCancelled(true);
-                        FMMBedrockBridge.debugLog("[BRIDGE] Suppressed EM BossBar UUID " + uuid
-                                + " (title='" + packetTitle + "') for " + playerObj.getName());
-                    }
-                    return;
-                }
-
-                if (knownTitleMatch) {
+            if (currentTitleMatch) {
+                if (!ctrl.hasOwnUuid()) {
+                    ctrl.registerOwnUuid(uuid);
+                    FMMBedrockBridge.debugLog("[BRIDGE] Claimed own BossBar UUID " + uuid
+                            + " (title='" + packetTitle + "') for " + playerObj.getName()
+                            + " via legacy heuristic");
+                } else {
                     bridge.getBossBarRegistry().add(uuid);
                     event.setCancelled(true);
-                    FMMBedrockBridge.debugLog("[BRIDGE] Suppressed stale-title EM BossBar UUID " + uuid
-                            + " (title='" + packetTitle + "', current='" + ctrl.getTitle()
-                            + "') for " + playerObj.getName());
-                    return;
+                    FMMBedrockBridge.debugLog("[BRIDGE] Suppressed EM BossBar UUID " + uuid
+                            + " (title='" + packetTitle + "') for " + playerObj.getName());
                 }
+                return;
             }
-            FMMBedrockBridge.debugLog("[BRIDGE] Unmatched BOSS_EVENT(ADD) uuid=" + uuid
-                    + " title='" + packetTitle + "' for " + playerObj.getName() + " (pass-through)");
+
+            if (knownTitleMatch) {
+                bridge.getBossBarRegistry().add(uuid);
+                event.setCancelled(true);
+                FMMBedrockBridge.debugLog("[BRIDGE] Suppressed stale-title EM BossBar UUID " + uuid
+                        + " (title='" + packetTitle + "', current='" + ctrl.getTitle()
+                        + "') for " + playerObj.getName());
+                return;
+            }
         }
+
+        // No controller owns this title. If the UUID is still marked as suppressed it is a pooled
+        // EliteMobs bar that has been recycled for an unrelated boss — let it through and forget it.
+        if (bridge.getBossBarRegistry().remove(uuid)) {
+            FMMBedrockBridge.debugLog("[BRIDGE] Released recycled BossBar UUID " + uuid
+                    + " (now title='" + packetTitle + "') for " + playerObj.getName());
+        }
+        FMMBedrockBridge.debugLog("[BRIDGE] Unmatched BOSS_EVENT(ADD) uuid=" + uuid
+                + " title='" + packetTitle + "' for " + playerObj.getName() + " (pass-through)");
     }
 
     private String extractTitleString(WrapperPlayServerBossBar wrapper) {
