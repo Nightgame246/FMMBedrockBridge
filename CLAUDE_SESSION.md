@@ -1512,3 +1512,97 @@ PacketEvents 2.13.0, dann Paper 26.2, und später die übrigen Backends.
 
 `server-tools/plugin-update-check.sh` wurde per scp auf den Server nachgezogen
 (`~/plugin-update-check.sh`, md5 verifiziert identisch).
+
+---
+
+## Session: 2026-08-14 — Paper 26.2 live, MagmaGuy-Welle, 7.1a auf EMs BossBar-Pooling umgebaut
+
+**Der Tag hat zwei Hälften:** vormittags Server-Stand nachziehen und die neuen Changelogs
+auswerten, abends — während Fabi und der Server-Claude das Netz auf **Paper 26.2** hoben —
+der erste Plugin-Code-Change seit dem 02.08.
+
+### 1. SERVER-STATE.md nachgezogen (Repo hing auf 09.08.)
+
+Repo-Kopie war 31 KB (Stand 09.08. 17:45), Server-Kopie 164 KB (14.08. 23:17). Nachgezogen,
+md5 beidseitig geprüft, dazu `check-invsee.sh`, `paper-update-plan.md` und das aktualisierte
+`backup-testserver.sh` neu ins Repo geholt.
+
+### 2. MagmaGuy-Welle vom 13.08. — gegen den Quellcode geprüft, nicht gegen die Changelogs
+
+`references/` gepullt (FMM, EM, RPM, BS, MagmaCore) und die Behauptungen verifiziert:
+
+- **🔴 EM 10.8.0 bricht die Annahme hinter Phase 7.1a.** Neu ist
+  `combatsystem/displays/BossHealthBarManager`: ein Pool von **max. 4 wiederverwendeten**
+  Bukkit-BossBars pro Spieler (`MAX_VISIBLE_BARS_PER_PLAYER = 4`), die per `setTitle(...)` für
+  **wechselnde Bosse** weiterbenutzt werden; `BossBarOrderManager.show()` erzwingt die
+  Reihenfolge mit `tailBar.removePlayer(p); tailBar.addPlayer(p);`. Damit fällt „der erste
+  titel-passende ADD ist unserer", und einmal unterdrückte UUIDs hätten fremde Bosse
+  eingefroren. EM bringt weiterhin **keinen** Bedrock-Pfad für BossBars ⇒ die Bridge bleibt nötig.
+- **✅ RPM 2.3.1 fixt unseren gemeldeten Case-Bug.** `RspmGeyserBridgeCore.BEDROCK_PACK_PATHS`
+  probiert beide Schreibweisen durch, mit Kommentar *„Velocity's default data directory is
+  lowercase"*. Report-Entwurf als erledigt markiert.
+- **❌ Props-als-Schwein bleibt offen** — `BedrockModeledEntity.java:64` führt in 2.11.1 weiter
+  `.carrierEntityType(EntityType.PIG)` im Fake-Entity-Pfad. Entwurf gilt weiter.
+- **Keine API-Brüche.** Alle importierten FMM/EM-Typen existieren; auch **sämtliche
+  Reflection-Ziele von Phase 7.3** überleben EMs Menü-Redesign (`PlayerStatusScreenDialog`,
+  `QuestInventoryMenu` inkl. `questDirectories`/`questInventories` und der Inner-Class-Felder).
+- FMM **2.11.0 hatte eine Animations-Regression**, gefixt erst in **2.11.1** → nie 2.11.0 nehmen.
+
+### 3. Phase 7.1a umgebaut (`BossBarUuidResolver`, Registry-Eviction)
+
+- **Neu `BossBarUuidResolver`** — liest die Wire-UUID der eigenen Bukkit-BossBar per Reflection
+  (CraftBossBar → NMS-Handle → einziges `UUID`-Feld, **ohne** Feldnamen zu verdrahten, damit
+  Mapping-Wechsel es nicht brechen). Fehlschlag → `null` → alte Heuristik + einmalige Log-Zeile.
+  Notausstieg `phase71a.resolve-own-bossbar-uuid` (default true).
+- **`BossBarRegistry` ist nicht mehr write-only:** Eviction bei REMOVE und bei einem ADD, dessen
+  Titel keinem aktiven Controller gehört (recycelter Pool-Slot).
+- **`exitCombat()` löscht die Eigen-UUID nicht mehr** — das BossBar-Objekt lebt so lange wie der
+  Controller, seine UUID ist stabil; das Löschen erzwang bei jedem Combat ein neues Rennen gegen EM.
+- **+5 Tests** (`BossBarRegistryTest`) ⇒ **21/21 grün**, `verify-both-apis.sh` beide Generationen grün.
+
+### 4. Rebuild gegen den neuen Stack + Deploy
+
+pom auf **FMM 2.11.1 / EM 10.8.0** (JARs vom Server via `install:install-file` — sie liegen nicht
+im magmaguy-Maven-Repo). Deployt nach TestServer01, sha256 beidseitig geprüft, alter Build gesichert.
+
+### 5. Live verifiziert (22:33–22:44, Bedrock `.Nightgame2272`, zwei EM-Bosse)
+
+| | |
+|---|---|
+| `Resolved own BossBar UUID` | **9×** |
+| `Could not read BossBar` / alte Heuristik | **0×** |
+| `Suppressed stale-title` | 3×, an verschiedenen Pool-Slots |
+| **`Released suppressed … on REMOVE`** | **2×** ⇒ Eviction greift |
+| fremde Bars (Plugin-Ladebalken) | 3× korrekt durchgelassen |
+
+Fabi in-game: „sah alles gut aus, eine Leiste pro Boss." `Suppressed EM BossBar` (exakter
+Titel-Match) bleibt 0, weil EMs Leiste bei EVOKER-Bossen immer `Evoker | 2` heisst — es läuft
+immer der Alias-Zweig. `Released recycled` blieb 0: EM gibt Slots sauber per REMOVE frei und legt
+danach eine **neue** UUID an; der Recycle-Zweig ist Sicherheitsnetz.
+
+### 6. Nebenfunde
+
+- **`getBukkitVersion()` liefert auf Paper 26.2 `26.2.build.112-stable`.** Der alte 10.07.-Build
+  konnte das nicht ordnen und hat den Dialog-Reroute **still abgeschaltet**
+  (`Phase 7.3: reroute NOT registered … mc>=1.21.6=false`). Auf diesem Branch längst gefixt und in
+  `McVersionsTest` abgedeckt — nach dem Deploy steht dort `registered`.
+- **Bauen braucht zwingend JDK 25**, sonst *„Ungültige Klassendatei … paper-api"* (Class-File 69).
+  Bytecode-Target bleibt 21. `verify-both-apis.sh` fand kein Maven, weil IntelliJ den Plugin-Ordner
+  je nach Version `maven` **oder** `maven-plugin` nennt → Kandidatenliste statt festem Pfad.
+- **CLAUDE.md zweimal korrigiert**, die zweite Korrektur war eine Korrektur meiner eigenen:
+  Beim RPM-Update auf dem Proxy darf ab 2.3.1 die `…GeyserBridge.jar` **nicht** mehr mitkopiert
+  werden (es gibt keine neue). Nur die Universal-JAR tauschen, **zweimal** neu starten;
+  `loadedDefinitions=0` nach dem ersten Boot ist normal. Beleg: Proxy-Log des Server-Claude.
+
+### 7. Offen: A/B-Test zum HP-Nametag
+
+EM hat `EliteOverheadHealthDisplay` — Balken **und** numerische HP über dem Mob, funktional
+identisch zu unserem 7.1b/7.1c-Overlay. Die Config-Keys (`displayVisualHealthBars`,
+`displayNumericHealth`) gibt es **seit EM 9.6.0**; neu ist nur der Umbau in 10.8.0, der die
+Anzeige zuverlässig macht — deshalb fällt die Dopplung erst jetzt auf. Fabi meldete entsprechend
+„nicht dass jetzt zu viel gezeigt wird".
+
+Dafür **neuer Schalter `phase71b.nametag-enabled`** (bewusst *nicht* `phase71c.combat-enabled`
+zweckentfremdet — das hätte die BossBar auf „immer sichtbar" gestellt und den Test verfälscht).
+Auf TestServer01 steht `false` + `debug: true`, wartet auf einen Neustart. Ergebnis entscheidet,
+ob 7.1b/7.1c ausgebaut wird oder EMs Anzeige abgeschaltet gehört.

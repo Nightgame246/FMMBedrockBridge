@@ -1,6 +1,6 @@
 # HANDOFF — FMMBedrockBridge
 
-> Übergabe-Datei für Weiterarbeit an einem anderen PC. Stand: **2026-08-09**
+> Übergabe-Datei für Weiterarbeit an einem anderen PC. Stand: **2026-08-14**
 > Branch: **`feat/mc-26.2-readiness`** — gepusht, **bewusst nicht gemerged**.
 > `main` trägt nur einen Zeiger hierher (Commit `020aed4`).
 >
@@ -8,11 +8,18 @@
 > (Arbeitskopie `~/SERVER-STATE.md` auf dem Host), weil dort eine zweite Claude-Instanz mitarbeitet.
 > Diese Datei hier ist **nur noch Entwicklung**. Details in Abschnitt 0.
 >
-> 🔎 **Offen auf der Entwicklungs-Seite:**
-> 1. **In-Game-Test auf Bedrock von 7.1a/7.1b** (Combat-BossBar + HP-Nametag) — der letzte
->    offene Punkt am eigentlichen Bridge-Scope.
-> 2. **Bridge-JAR neu bauen/deployen** — auf dem Server liegt der Build vom 10.07. (gegen
->    packetevents 2.12.x), auf TestServer01 läuft seit 09.08. packetevents 2.13.0.
+> 🔎 **Offen auf der Entwicklungs-Seite — GENAU EIN PUNKT:**
+> **Der A/B-Test zum HP-Nametag steht deployt und wartet auf einen Server-Neustart.**
+> Auf TestServer01 ist `phase71b.nametag-enabled: false` gesetzt und `debug: true`.
+> Frage: **Erreicht EliteMobs' eigene Overhead-HP-Anzeige die Bedrock-Clients?**
+> - **Ja** → unser 7.1b/7.1c-Overlay ist redundant ⇒ ausbauen, Bridge-Scope schrumpft auf die BossBar.
+> - **Nein** → unser Overlay bleibt ⇒ stattdessen EMs Anzeige aus
+>   (`plugins/EliteMobs/MobCombatSettings.yml`: `displayVisualHealthBars`, `displayNumericHealth`).
+>
+> Danach `debug` wieder auf `false` — das Log ist damit sehr gesprächig.
+>
+> ✅ **Erledigt am 14.08.:** 7.1a gegen EMs neues BossBar-Pooling umgebaut **und live verifiziert**;
+> Rebuild gegen FMM 2.11.1 / EM 10.8.0 auf Paper 26.2; JAR deployt.
 
 ---
 
@@ -107,6 +114,57 @@ Bevor die Session endet bzw. wenn der User signalisiert, dass er aufhört / den 
 ---
 
 ## 1. Wo wir gerade stehen (Git)
+
+### Session 2026-08-14 — 26.2 ist live, 7.1a umgebaut und verifiziert
+
+**Der Stack hat sich an einem Tag komplett gedreht.** Fabi und der Server-Claude haben das
+Netz auf **Paper 26.2** gehoben und danach die MagmaGuy-Kette gezogen. Ziel-Stack jetzt:
+
+| | |
+|---|---|
+| TestServer01 | **paper-26.2-112**, Java 25 |
+| MagmaGuy | FMM **2.11.1** · EM **10.8.0** · RPM **2.3.1** · BS **2.7.0** |
+| Proxy01 | Geyser 2.11.1 · RPM **2.3.1**, `loadedDefinitions=314` |
+| packetevents | 2.13.0 |
+
+**Was am Plugin passiert ist (erster Code-Change seit 02.08.):**
+
+- **7.1a auf EMs neues BossBar-Pooling umgebaut.** EM 10.8.0 hat `BossHealthBarManager`:
+  ein Pool von **max. 4 wiederverwendeten** Bars pro Spieler, die für wechselnde Bosse
+  um-betitelt werden, plus Reordering per removePlayer+addPlayer. Damit fiel die alte
+  Annahme „der erste titel-passende ADD ist unserer".
+  - **Neu `BossBarUuidResolver`** — liest die Wire-UUID der eigenen Bukkit-BossBar per
+    Reflection (CraftBossBar → NMS-Handle → einziges `UUID`-Feld, **ohne** Feldnamen zu
+    verdrahten). Schlägt sie fehl → `null` → alte Heuristik + einmalige Log-Zeile.
+  - **`BossBarRegistry` ist nicht mehr write-only:** Eviction bei REMOVE und bei einem ADD,
+    dessen Titel keinem aktiven Controller gehört (recycelter Slot). Ohne das würden fremde
+    Bosse auf Bedrock einfrieren.
+  - **`exitCombat()` löscht die Eigen-UUID nicht mehr** — das BossBar-Objekt lebt so lange
+    wie der Controller, die UUID ist stabil.
+  - Notausstieg `phase71a.resolve-own-bossbar-uuid` (default true).
+    **Symptom einer falsch aufgelösten UUID: Bedrock sieht GAR KEINE Bar.**
+- **Neuer Schalter `phase71b.nametag-enabled`** für den offenen A/B-Test (s. Kopf).
+- **pom auf FMM 2.11.1 / EM 10.8.0** — die frühere Entscheidung „kein Dep-Bump" ist damit
+  überholt. Beide JARs liegen **nicht** im magmaguy-Maven-Repo → vom Server ziehen und
+  `mvn install:install-file` (Rezept in Abschnitt „Build & Deploy").
+- **21/21 Tests grün** (5 neue in `BossBarRegistryTest`), `verify-both-apis.sh` beide
+  Generationen grün, Bytecode-Target 21.
+
+**Live verifiziert am 14.08. 22:33–22:44** (Bedrock `.Nightgame2272`, zwei EM-Bosse):
+`Resolved own BossBar UUID` **9×**, `Could not read` **0×**, alte Heuristik **0×**;
+`Suppressed stale-title` 3× an verschiedenen Pool-Slots; **`Released suppressed … on REMOVE` 2×**
+⇒ die Eviction greift. Fremde Bars (Plugin-Ladebalken) 3× korrekt durchgelassen.
+Fabi in-game: „sah alles gut aus, eine Leiste pro Boss."
+
+**Zwei Nebenfunde, beide dokumentiert:**
+- **`getBukkitVersion()` liefert auf 26.2 `26.2.build.112-stable`.** Der alte 10.07.-Build
+  konnte das nicht ordnen und hat den **Dialog-Reroute still abgeschaltet**
+  (`Phase 7.3: reroute NOT registered … mc>=1.21.6=false`). Auf diesem Branch längst gefixt
+  und in `McVersionsTest` abgedeckt — nach dem Deploy steht dort `registered`.
+- **Bauen braucht zwingend JDK 25** (`JAVA_HOME=/usr/lib/jvm/java-25-openjdk`), sonst
+  *„Ungültige Klassendatei … paper-api"* — Paper 26.2 liefert Class-File-Version 69.
+  Bytecode-Target bleibt 21. `verify-both-apis.sh` findet Maven jetzt auch unter
+  `plugins/maven-plugin/` (IntelliJ benennt den Ordner je nach Version um).
 
 - **Aktiver Branch:** `feat/mc-26.2-readiness`, HEAD **`e3374d9`** (09.08., mit origin sync,
   working tree sauber) — enthält alles aus `main` plus den 26.2-Build-Umbau, den
@@ -229,30 +287,50 @@ Was von der Bridge **vielleicht** noch übrig bleibt (zu prüfen!):
 
 ### Bridge-Rest-Scope
 
-1. **Combat-BossBar (7.1a) + HP-Nametag (7.1b) auf Bedrock prüfen** — nur in-game möglich, Logs
-   reichen nicht. Bei EM 10.7.3 auf **Doppelung** mit den neuen NPC-Rollen-Tags achten.
-   Das ist der letzte offene Punkt am eigentlichen Bridge-Scope.
-2. **Upstream-Reports einreichen** (nur Fabi — Zugang zu GitHub-Issues/Discord). Zwei Entwürfe
-   liegen fertig unter `docs/upstream-bugs/`: Props-als-Schwein (FMM) und
-   Case-Sensitivity im RPM-Geyser-Bridge-Pfad.
-3. **Symlink-Test** (optional, nach einem künftigen RPM-Update): `plugins/ResourcePackManager →
-   resourcepackmanager` auf dem Proxy probeweise entfernen, Proxy neu. Bleibt `bridge ready with
-   <n>` ≠ 0, ist der Upstream-Bug gefixt → Report zurückziehen.
+1. **🔴 A/B-Test HP-Nametag auswerten** — der einzige echt offene Punkt. Deployt und wartet
+   auf einen Neustart: `phase71b.nametag-enabled: false`, `debug: true`.
+   Auswertung + Konsequenz stehen im Kopf dieser Datei.
+   **Hintergrund:** EM hat `EliteOverheadHealthDisplay` — Balken **und** numerische HP über dem
+   Mob, funktional identisch zu unserem Overlay. Die Config-Keys dafür
+   (`displayVisualHealthBars`, `displayNumericHealth`) gibt es **seit EM 9.6.0**; neu ist nur der
+   Umbau in 10.8.0, der die Anzeige zuverlässig macht — deshalb fällt die Dopplung erst jetzt auf.
+2. ~~**Combat-BossBar (7.1a) auf Bedrock prüfen**~~ ✅ **erledigt 14.08.**, s. Abschnitt 1.
+3. **Upstream-Reports einreichen** (nur Fabi — Zugang zu GitHub-Issues/Discord). Noch offen:
+   **Props-als-Schwein (FMM)** — in 2.11.1 unverändert, `BedrockModeledEntity.java:64` führt
+   weiter `.carrierEntityType(EntityType.PIG)` im Fake-Entity-Pfad.
+   ~~Case-Sensitivity im RPM-Geyser-Bridge-Pfad~~ ✅ **von MagmaGuy in RPM 2.3.1 gefixt**
+   (`BEDROCK_PACK_PATHS` probiert beide Schreibweisen, Kommentar *„Velocity's default data
+   directory is lowercase"*) — Entwurf als erledigt markiert, nicht mehr einreichen.
+4. **Symlink-Test** — jetzt sinnvoll, weil 2.3.1 drauf ist: `plugins/ResourcePackManager →
+   resourcepackmanager` auf dem Proxy probeweise entfernen, Proxy neu. Bleibt
+   `loadedDefinitions` ≠ 0, kann der Workaround dauerhaft weg. **Nicht vor dem Update entfernen.**
 
 ### Build & Deploy
 
-4. **Bridge gegen packetevents 2.13.0 neu bauen und deployen.** Auf TestServer01 liegt der Build
-   vom **10.07.** (gegen 2.12.x), dort läuft seit 09.08. **2.13.0**. Der Branch-`pom` zeigt bereits
-   auf 2.13.0 — `bash verify-both-apis.sh` deckt beide MC-Generationen ab. Nach dem nächsten
-   Server-Neustart zuerst im Log prüfen, ob die alte JAR überhaupt stolpert:
-   `[FMMBedrockBridge] PacketEvents: found — packet interception active`.
-5. **Branch-Entscheidung:** `feat/mc-26.2-readiness` ist weiterhin **nicht gemerged**. Sinnvoller
-   Zeitpunkt: wenn der 26.2-Build einmal real auf einem 26.2-Server gelaufen ist.
+5. ~~**Bridge gegen packetevents 2.13.0 neu bauen und deployen**~~ ✅ **erledigt 14.08.**
+   Deployt ist `…-20260814-2101.jar` (sha `57753139…`, beidseitig geprüft). Backups auf dem
+   Server: `FMMBedrockBridge.jar.bak-20260814-2150` (alter 10.07.-Build) und `.bak-20260814-2300`.
+6. **Branch-Entscheidung:** `feat/mc-26.2-readiness` ist weiterhin **nicht gemerged**. Die
+   Bedingung dafür ist jetzt **erfüllt** — der Build läuft real auf einem 26.2-Server und ist
+   in-game verifiziert. Sinnvoll: nach der Auswertung des A/B-Tests mergen, damit 7.1b nicht
+   zweimal angefasst wird.
 
-> **Kein Dep-Bump im pom auf FMM 2.10.2 / EM 10.7.3** (Entscheidung Fabi, 02.08.). Die Bridge baut
-> weiter gegen 2.10.1 / 10.7.2 — beide APIs sind stabil, und die neuen JARs liegen ohnehin nicht im
-> Maven-Repo (müssten einzeln per `install:install-file` eingespielt werden). Erst nachziehen, wenn
-> ein konkreter API-Bedarf auftaucht.
+> **Build-Rezept auf einem frischen PC** (der frühere Merker „kein Dep-Bump" ist **überholt** —
+> seit 14.08. baut die Bridge gegen FMM 2.11.1 / EM 10.8.0):
+> ```bash
+> export JAVA_HOME=/usr/lib/jvm/java-25-openjdk    # PFLICHT, sonst "Ungültige Klassendatei"
+> # FMM/EM liegen NICHT im magmaguy-Maven-Repo → vom Server holen:
+> scp 'amp@mc.crazypandas.de:.ampdata/instances/TestServer01/Minecraft/plugins/[PP] Free Minecraft Models (MODRINTH).jar' /tmp/fmm.jar
+> scp 'amp@mc.crazypandas.de:.ampdata/instances/TestServer01/Minecraft/plugins/[PP] EliteMobs (MODRINTH).jar' /tmp/em.jar
+> mvn install:install-file -Dfile=/tmp/fmm.jar -DgroupId=com.magmaguy -DartifactId=FreeMinecraftModels -Dversion=2.11.1 -Dpackaging=jar
+> mvn install:install-file -Dfile=/tmp/em.jar  -DgroupId=com.magmaguy -DartifactId=EliteMobs           -Dversion=10.8.0 -Dpackaging=jar
+> bash verify-both-apis.sh
+> ```
+> ⚠️ Die Plugin-JARs heissen auf dem Server **`[PP] …`** (PluginPortal benennt um) — nie über den
+> Dateinamen auf ein Plugin schliessen, immer `unzip -p <jar> plugin.yml` lesen.
+> `mvn` liegt evtl. nicht im PATH; IntelliJ bündelt eins unter
+> `/usr/share/idea/plugins/maven-plugin/lib/maven3/bin/mvn` (Ordnername je nach Version
+> `maven` **oder** `maven-plugin` — `verify-both-apis.sh` probiert beide).
 
 **Danach / unabhängig:**
 - **Waffen-Offset (KEIN Bridge-Feature):** legacy pre-1.21.4 `custom_model_data`-Item-Format
@@ -269,7 +347,12 @@ Was von der Bridge **vielleicht** noch übrig bleibt (zu prüfen!):
 - ~~Branch nach main mergen~~ ✓ (`--no-ff`, Backup-Tag `backup/pre-72b-merge-main` gesetzt, Docs nachgezogen, gepusht).
 **Erledigt 2026-07-08:** ~~Rebuild gegen FMM 2.10.x API~~ ✓ (BUILD SUCCESS, 13 grün) · ~~In-Game-Animation~~ ✓ nativ · ~~BossBar/Nametag-Frage~~ ✓ geklärt (Feature-Gap) · ~~Lag-Verdacht~~ ✓ lokales Internet · ~~Grundsatzentscheidung~~ ✓ Bridge bleibt.
 
-**⚠️ Deploy-Merker (siehe Memory `native-bedrock-deploy-gotchas`):** Nach jedem RPM-Update den **Proxy zweimal neustarten** (Extension wird erst im ersten Boot geschrieben). Der Symlink `plugins/ResourcePackManager → resourcepackmanager` auf dem Proxy ist Pflicht, solange der Upstream-Bug offen ist.
+**⚠️ Deploy-Merker:** Nach jedem RPM-Update den **Proxy zweimal neustarten** — das gilt weiter.
+**Ab RPM 2.3.1 aber NUR noch `plugins/ResourcePackManager.jar` tauschen**; die
+`…GeyserBridge.jar` NICHT mitkopieren (es gibt keine neue — RPM installiert die Bridge selbst
+über Geysers `extensions/update/`-Queue). `loadedDefinitions=0` nach dem **ersten** der beiden
+Neustarts ist **normal**. Details in `CLAUDE.md`. Der Symlink auf dem Proxy ist ab 2.3.1
+technisch nicht mehr nötig (Fix verifiziert), steht aber noch — Entfernen ist Aufgabe 4 oben.
 
 ---
 

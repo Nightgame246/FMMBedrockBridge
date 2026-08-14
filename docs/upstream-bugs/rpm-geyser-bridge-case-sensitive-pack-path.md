@@ -1,5 +1,25 @@
 # [RPM] Geyser bridge looks for the merged pack under `ResourcePackManager/`, the plugin writes it to `resourcepackmanager/` — breaks on case-sensitive filesystems
 
+> ## ✅ ERLEDIGT — NICHT MEHR EINREICHEN
+> **Gefixt in RPM 2.3.1** (2026-08-13). Verifiziert am Quellcode:
+> `resourcepackmanager-geyser-bridge/…/RspmGeyserBridgeCore.java` führt jetzt eine
+> Kandidatenliste `BEDROCK_PACK_PATHS`, die beide Schreibweisen durchprobiert — mit
+> genau der Begründung, die dieser Entwurf beschreibt:
+>
+> ```java
+> // Velocity's default data directory is lowercase.
+> Path.of("plugins", "resourcepackmanager", "work", "merged", "Bedrock.zip"),
+> // Bungee's default data directory preserves the plugin name.
+> Path.of("plugins", "ResourcePackManager", "work", "merged", "Bedrock.zip"),
+> // Bukkit conversion output.
+> Path.of("plugins", "ResourcePackManager", "output", "ResourcePackManager_Bedrock.zip")
+> ```
+>
+> Der Entwurf wurde nie eingereicht und bleibt nur als Beleg erhalten.
+> **Betriebshinweis:** Der Workaround-Symlink auf dem Proxy
+> (`ln -s resourcepackmanager ResourcePackManager`) darf erst **nach** dem Update auf
+> 2.3.1 entfernt werden.
+
 **Repo:** MagmaGuy/ResourcePackManager
 **Version:** 2.3.0 (still present; first observed in 2.2.2)
 **Impact:** on Linux, Bedrock clients get custom models with **no animations and no entity
