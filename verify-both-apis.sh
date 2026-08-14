@@ -42,13 +42,26 @@ fi
 echo "JDK: $("$JAVA_HOME/bin/javac" -version 2>&1)  ($JAVA_HOME)"
 
 # --- Maven finden (IntelliJ bündelt eins, falls keins im PATH) ---------------
+# Der Plugin-Ordner heisst je nach IDEA-Version "maven" oder "maven-plugin", und auf
+# manchen PCs liegt IDEA unter /opt statt /usr/share — deshalb mehrere Kandidaten
+# durchprobieren statt einen festen Pfad anzunehmen.
+MVN=""
 if command -v mvn >/dev/null 2>&1; then
   MVN=mvn
-elif [ -x /usr/share/idea/plugins/maven/lib/maven3/bin/mvn ]; then
-  MVN=/usr/share/idea/plugins/maven/lib/maven3/bin/mvn
 else
+  for candidate in \
+    /usr/share/idea/plugins/maven/lib/maven3/bin/mvn \
+    /usr/share/idea/plugins/maven-plugin/lib/maven3/bin/mvn \
+    /opt/idea/plugins/maven/lib/maven3/bin/mvn \
+    /opt/idea/plugins/maven-plugin/lib/maven3/bin/mvn
+  do
+    if [ -x "$candidate" ]; then MVN="$candidate"; break; fi
+  done
+fi
+if [ -z "$MVN" ]; then
   echo "FEHLER: kein mvn gefunden." >&2; exit 1
 fi
+echo "Maven: $MVN"
 
 echo
 echo "════ Durchlauf 1/2: Minecraft 26.2 (primäres Ziel) ════"
