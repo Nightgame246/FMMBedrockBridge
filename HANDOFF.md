@@ -341,9 +341,17 @@ Was von der Bridge **vielleicht** noch übrig bleibt (zu prüfen!):
    ~~Case-Sensitivity im RPM-Geyser-Bridge-Pfad~~ ✅ **von MagmaGuy in RPM 2.3.1 gefixt**
    (`BEDROCK_PACK_PATHS` probiert beide Schreibweisen, Kommentar *„Velocity's default data
    directory is lowercase"*) — Entwurf als erledigt markiert, nicht mehr einreichen.
-4. **Symlink-Test** — jetzt sinnvoll, weil 2.3.1 drauf ist: `plugins/ResourcePackManager →
-   resourcepackmanager` auf dem Proxy probeweise entfernen, Proxy neu. Bleibt
-   `loadedDefinitions` ≠ 0, kann der Workaround dauerhaft weg. **Nicht vor dem Update entfernen.**
+4. ~~**Symlink-Test**~~ ✅ **erledigt 16.08. — der Workaround ist weg und bleibt weg.**
+   Symlink deaktiviert, Proxy-Boot 17:51 ohne ihn:
+   `Preloaded 316 … from …/plugins/`**`resourcepackmanager`**`/work/merged/Bedrock.zip`,
+   `Registered 316 …`, `loadedDefinitions=316` (statt 0 — und zwei mehr als die 314 vom 14.08.).
+   Der Log nennt den **kleingeschriebenen** Pfad, also greift MagmaGuys Fix real.
+   - **Vorher am Artefakt belegt statt am GitHub-Master** (eure „Commit ≠ Artefakt"-Lehre):
+     `javap` auf die laufende `RspmGeyserBridgeCore.class` (10.08.) zeigt `BEDROCK_PACK_PATHS`
+     als `List.of` dreier Pfade — Kleinschreibung **an erster Stelle**. Zusätzlich abgesichert:
+     im ganzen `geyserbridge`-Package enthält **nur diese eine Klasse** das Literal `plugins`,
+     es kann also keine zweite Stelle geben, die weiter auf Großschreibung besteht.
+   - **Nur bei einem Downgrade auf RPM ≤ 2.3.0 muss der Symlink zurück.**
 
 ### Build & Deploy
 
@@ -394,8 +402,9 @@ Was von der Bridge **vielleicht** noch übrig bleibt (zu prüfen!):
 **Ab RPM 2.3.1 aber NUR noch `plugins/ResourcePackManager.jar` tauschen**; die
 `…GeyserBridge.jar` NICHT mitkopieren (es gibt keine neue — RPM installiert die Bridge selbst
 über Geysers `extensions/update/`-Queue). `loadedDefinitions=0` nach dem **ersten** der beiden
-Neustarts ist **normal**. Details in `CLAUDE.md`. Der Symlink auf dem Proxy ist ab 2.3.1
-technisch nicht mehr nötig (Fix verifiziert), steht aber noch — Entfernen ist Aufgabe 4 oben.
+Neustarts ist **normal**. Details in `CLAUDE.md`. **Der Symlink auf dem Proxy ist seit 16.08.
+entfernt** und der Wegfall live verifiziert (Aufgabe 4 oben) — nur bei einem Downgrade auf
+RPM ≤ 2.3.0 muss er zurück.
 
 ---
 
