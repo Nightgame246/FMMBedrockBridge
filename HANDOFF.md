@@ -1,18 +1,17 @@
 # HANDOFF — FMMBedrockBridge
 
 > Übergabe-Datei für Weiterarbeit an einem anderen PC. Stand: **2026-08-16**
-> Branch: **`feat/mc-26.2-readiness`** — gepusht, **bewusst nicht gemerged**.
-> `main` trägt nur einen Zeiger hierher (Commit `020aed4`).
+> Branch: **`main`** — `feat/mc-26.2-readiness` ist am 16.08. gemerged (`--no-ff`).
+> **Wieder ganz normal auf `main` weiterarbeiten.**
 >
 > ⚠️ **Seit 09.08. getrennt:** Server-/Betriebswissen steht in **`server-tools/SERVER-STATE.md`**
 > (Arbeitskopie `~/SERVER-STATE.md` auf dem Host), weil dort eine zweite Claude-Instanz mitarbeitet.
 > Diese Datei hier ist **nur noch Entwicklung**. Details in Abschnitt 0.
 >
-> ✅ **Der A/B-Test zum HP-Nametag ist am 16.08. entschieden — der Rest-Scope steht endgültig.**
-> **Auf der Entwicklungs-Seite ist damit nichts mehr offen außer dem Merge** (Abschnitt 3).
->
-> ✅ **Erledigt am 14.08.:** 7.1a gegen EMs neues BossBar-Pooling umgebaut **und live verifiziert**;
-> Rebuild gegen FMM 2.11.1 / EM 10.8.0 auf Paper 26.2; JAR deployt.
+> ✅ **Auf der Entwicklungs-Seite ist nichts mehr offen.** Der Rest-Scope der Bridge
+> (Combat-BossBar + HP-Nametag) ist auf dem 26.2-Stack **vollständig live verifiziert**:
+> 7.1a am 14.08., 7.1b/7.1c am 16.08. per A/B-Test. Was übrig ist, liegt bei Fabi
+> (Upstream-Reports) oder auf der Server-Seite — Abschnitt 3.
 
 ---
 
@@ -204,16 +203,23 @@ Fabi in-game: „sah alles gut aus, eine Leiste pro Boss."
   Bytecode-Target bleibt 21. `verify-both-apis.sh` findet Maven jetzt auch unter
   `plugins/maven-plugin/` (IntelliJ benennt den Ordner je nach Version um).
 
-- **Aktiver Branch:** `feat/mc-26.2-readiness`, HEAD **`e3374d9`** (09.08., mit origin sync,
-  working tree sauber) — enthält alles aus `main` plus den 26.2-Build-Umbau, den
-  `McVersions`-Bugfix und die Doku-Sessions vom 02.08., 08.08. und 09.08.
-  `main` (`020aed4`) trägt nur einen Zeiger hierher. **Plugin-Code seit dem 02.08. unverändert** —
-  die Sessions vom 08.08. und 09.08. waren Live-Diagnose, Server-Audit und Doku.
+- **Aktiver Branch: `main`.** `feat/mc-26.2-readiness` wurde am **16.08.** mit `--no-ff` gemerged
+  (Merge-Commit `e191039`) — bewusst als revertierbare Einheit, wie beim 7.2b-Merge.
+  Der Feature-Branch bleibt auf `origin` stehen.
+  - **Backup vor dem Merge:** Branch **`backup/main-pre-26.2-merge`** → alter main-Stand
+    (`020aed4`), auf `origin` gepusht. Dient als Rückweg **und** als Nachschlage-Quelle für den
+    Stand vor 26.2. Notfall: `git reset --hard backup/main-pre-26.2-merge` oder
+    `git revert -m 1 e191039`.
+  - **Konflikt beim Merge:** nur `HANDOFF.md` — `main` trug seit 02.08. den
+    „Datei veraltet"-Zeigerkasten, der Branch die gepflegte Fassung. Zugunsten des Branches
+    aufgelöst; der Zeiger war durch den Merge ohnehin erledigt.
+  - Verifiziert nach dem Merge: `main` ist **inhaltlich identisch** mit dem Branch
+    (`git diff` leer), 21/21 Tests grün, beide API-Generationen bauen.
 - **Session 09.08. kurz:** Server-Audit (Java-25-Blocker aufgelöst), drei Server-Fixes auf Fabis
   Anweisung (packetevents 2.13.0, 2 EM-Lua-Skripte, 1 FMM-Modell-Keyframe), und die **Trennung
   von Server- und Entwicklungs-Doku** — Details in `server-tools/SERVER-STATE.md`.
-- **Auf dem Server liegt noch das JAR vom 10.07.** (`FMMBedrockBridge.jar`, TestServer01) — der
-  26.2-ready-Build vom Branch ist **nicht deployt**.
+- ~~Auf dem Server liegt noch das JAR vom 10.07.~~ **überholt** — seit 14.08. läuft dort
+  `…-20260814-2101.jar` (sha `57753139…`, beidseitig geprüft).
 - (historisch) Vor dem 26.2-Branch war `main` bei `f1dd00c` (`tooling(server)`: `server-tools/`),
   darunter die Doku-Commits vom 10.07. und Merge-Commit `be08a2f`
 - **Phase-7.2b-Removal ist nach `main` gemerged** (2026-07-10, `--no-ff`, bewusst als revertierbare Einheit). Der Feature-Branch `refactor/remove-phase72b` existiert weiter (auf `origin`), ist aber jetzt in main enthalten.
@@ -344,11 +350,13 @@ Was von der Bridge **vielleicht** noch übrig bleibt (zu prüfen!):
 5. ~~**Bridge gegen packetevents 2.13.0 neu bauen und deployen**~~ ✅ **erledigt 14.08.**
    Deployt ist `…-20260814-2101.jar` (sha `57753139…`, beidseitig geprüft). Backups auf dem
    Server: `FMMBedrockBridge.jar.bak-20260814-2150` (alter 10.07.-Build) und `.bak-20260814-2300`.
-6. **🔴 Branch mergen — der einzige offene Entwicklungs-Punkt.** `feat/mc-26.2-readiness` ist
-   **nicht gemerged**. Beide Bedingungen sind jetzt erfüllt: der Build läuft real auf einem
-   26.2-Server und ist in-game verifiziert (14.08.), und der A/B-Test ist entschieden (16.08.) —
-   7.1b wird **nicht** mehr angefasst, es gibt also nichts mehr, was zweimal Code kosten würde.
-   Vorgehen wie beim 7.2b-Merge: Backup-Tag setzen, `git merge --no-ff`, Docs nachziehen, pushen.
+6. ~~**Branch mergen**~~ ✅ **erledigt 16.08.** — `--no-ff` nach `main` (`e191039`),
+   Backup-Branch `backup/main-pre-26.2-merge`. Details in Abschnitt 1.
+7. **Deploy-Stand vs. `main`:** Auf TestServer01 läuft der Build vom **14.08.**; seither kam
+   **kein Plugin-Code** dazu (16.08. war Test + Doku). Ein Redeploy ist also **nicht nötig** —
+   erst wieder, wenn tatsächlich Code geändert wird. Die Server-Config wurde am 16.08. nach dem
+   A/B-Test zurückgestellt (`debug: false`, `phase71b.nametag-enabled: true`,
+   Backup `config.yml.bak-20260816-abtest`) und **wirkt erst ab dem nächsten Neustart**.
 
 > **Build-Rezept auf einem frischen PC** (der frühere Merker „kein Dep-Bump" ist **überholt** —
 > seit 14.08. baut die Bridge gegen FMM 2.11.1 / EM 10.8.0):

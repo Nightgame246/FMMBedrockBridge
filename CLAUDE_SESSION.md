@@ -1594,7 +1594,10 @@ danach eine **neue** UUID an; der Recycle-Zweig ist Sicherheitsnetz.
   werden (es gibt keine neue). Nur die Universal-JAR tauschen, **zweimal** neu starten;
   `loadedDefinitions=0` nach dem ersten Boot ist normal. Beleg: Proxy-Log des Server-Claude.
 
-### 7. Offen: A/B-Test zum HP-Nametag
+### 7. ~~Offen:~~ A/B-Test zum HP-Nametag → **entschieden am 16.08., siehe unten**
+
+> ⚠️ Die Prämisse dieses Abschnitts („Dopplung") **war falsch** — es gab nie eine. Auflösung in
+> der Session 2026-08-16 am Ende dieser Datei. Der Text bleibt als Beleg stehen.
 
 EM hat `EliteOverheadHealthDisplay` — Balken **und** numerische HP über dem Mob, funktional
 identisch zu unserem 7.1b/7.1c-Overlay. Die Config-Keys (`displayVisualHealthBars`,
@@ -1606,3 +1609,76 @@ Dafür **neuer Schalter `phase71b.nametag-enabled`** (bewusst *nicht* `phase71c.
 zweckentfremdet — das hätte die BossBar auf „immer sichtbar" gestellt und den Test verfälscht).
 Auf TestServer01 steht `false` + `debug: true`, wartet auf einen Neustart. Ergebnis entscheidet,
 ob 7.1b/7.1c ausgebaut wird oder EMs Anzeige abgeschaltet gehört.
+
+---
+
+## Session: 2026-08-16 — A/B-Test entschieden, Branch nach `main` gemerged
+
+**Kein Plugin-Code.** Auswertung des offenen Tests, Doku, Merge.
+
+### 1. Der A/B-Test — die Frage war falsch gestellt
+
+Vorbedingungen vor der Auswertung **beidseitig** geprüft, sonst hätte der Test nichts gemessen:
+unser Overlay aus (`phase71b.nametag-enabled: false` ⇒ `createNametagControllerIfNamed()` gibt
+`null` zurück), EMs Anzeige an (`displayVisualHealthBars: true`, `displayNumericHealth: true`).
+
+**Fabis Beobachtung in-game:** Java = Balken + Zahl über dem Mob **plus** Schaden-Popup je Treffer.
+Bedrock = **nur** Popup und BossBar, **kein Overhead-HP**.
+
+| | Java | Bedrock |
+|---|---|---|
+| EMs `EliteOverheadHealthDisplay` | ✅ | ❌ kommt nicht an |
+| Bridge-Overlay 7.1b/7.1c | **nie sichtbar** | ✅ |
+
+**Es gab nie eine Dopplung.** `BedrockNametagController` ist Bedrock-only —
+`PacketInterceptor.hideFromJava()` unterdrückt die TextDisplay-Pakete für alle
+Nicht-Floodgate-Spieler (Klassen-Doc Z. 13–18). Java-Spieler haben unser Overlay nie gesehen; die
+beiden bedienen disjunkte Client-Gruppen.
+
+> **Was ich am 14.08. falsch gemacht habe:** Ich habe geprüft, *was* EM rendert (inhaltlich
+> dasselbe: HP-Zahl + Balken, gleiche Farbschwellen) und daraus auf eine Doppelanzeige
+> geschlossen — ohne zu prüfen, **wen** die jeweilige Anzeige erreicht. Beide daraus abgeleiteten
+> Konsequenzen wären schädlich gewesen: 7.1b/7.1c ausbauen hätte Bedrock die HP-Anzeige genommen,
+> EMs Keys abschalten den Java-Spielern. **Merker: bei „X macht dasselbe wie unser Feature" immer
+> zuerst die Zielgruppe prüfen, nicht nur den Inhalt.**
+
+⇒ **7.1b/7.1c bleiben unverändert, EM-Config nicht angefasst.** Rest-Scope endgültig:
+Combat-BossBar + HP-Nametag.
+
+**Offene Beobachtung (kein Auftrag):** EMs Overhead-Balken und EMs Combat-Popups laufen beide über
+`VisualDisplay.createStyledFakeText` → `FakeText` (EasyMinecraftGoals, paketbasierte
+Fake-Entities). Trotzdem kommt auf Bedrock nur das Popup an. DamageIndicator 2.0.5 scheidet als
+Quelle aus (läuft laut Fabi ohnehin nicht) ⇒ Unterschied vermutlich durch die **Bindung an den
+Mob**, nicht durch den Render-Mechanismus.
+
+### 2. Zwei Nebenbefunde aus dem Boot-Log (Paper 26.2, 16:38/16:39)
+
+- `PacketEvents: found — packet interception active` ⇒ der Verdacht aus dem HANDOFF
+  (packetevents 2.13.0 bricht die Erkennung) ist **ausgeräumt**.
+- `Phase 7.3: … reroute registered (status=true, quest=true)` ⇒ der `McVersions`-Fix ordnet
+  `26.2.build.112-stable` korrekt ein. Der alte 10.07.-Build stand hier auf `NOT registered`,
+  womit **7.3b nebenbei live-verifiziert** ist.
+
+### 3. Server-Config zurückgestellt
+
+`debug: false`, `phase71b.nametag-enabled: true`; Backup `config.yml.bak-20260816-abtest`.
+**Wirkt erst ab dem nächsten Neustart.**
+
+### 4. Merge nach `main`
+
+- **Backup-Branch `backup/main-pre-26.2-merge`** auf den alten main-Stand (`020aed4`), gepusht —
+  auf Fabis Wunsch ein Branch statt eines Tags, damit er auch als Nachschlage-Quelle taugt.
+- `git merge --no-ff feat/mc-26.2-readiness` → Merge-Commit `e191039`, revertierbare Einheit.
+- **Ein Konflikt, nur `HANDOFF.md`:** `main` trug seit 02.08. den „Datei veraltet"-Zeigerkasten,
+  der Branch die gepflegte Fassung → zugunsten des Branches aufgelöst, der Zeiger war durch den
+  Merge ohnehin erledigt.
+- Verifiziert: `git diff feat/mc-26.2-readiness main` **leer**, `verify-both-apis.sh` grün
+  (21/21 Tests, beide API-Generationen, Class-File 65).
+- **Kein Redeploy nötig** — auf dem Server läuft der Build vom 14.08., seither kam kein
+  Plugin-Code dazu.
+
+### 5. Nebenbei aufgefallen
+
+`install-skills.sh` musste neu laufen: das Superpowers-Update auf 6.3.0 (14.08.) hat den
+`skills/`-Ordner im Plugin-Cache ersetzt und damit die 7 Minecraft-Custom-Skills entfernt.
+**Nach jedem Superpowers-Update erneut ausführen.**
