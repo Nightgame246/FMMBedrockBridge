@@ -13,11 +13,25 @@
     <description>Bridge between FreeMinecraftModels and Geyser/Bedrock for custom model display</description>
 
     <properties>
+        <!-- Bytecode target stays 21 so the jar keeps loading on the Java 21 servers
+             that run 1.21.x. Compiling however REQUIRES a JDK >= 25: Paper's 26.2 API
+             ships class file version 69 (Java 25) and javac 21 cannot read it at all.
+             So: build with JDK 25, emit Java 21 bytecode. -->
         <java.version>21</java.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <maven.compiler.source>${java.version}</maven.compiler.source>
-        <maven.compiler.target>${java.version}</maven.compiler.target>
+        <maven.compiler.release>${java.version}</maven.compiler.release>
         <maven.build.timestamp.format>yyyyMMdd-HHmm</maven.build.timestamp.format>
+
+        <!-- Primary compile target: Minecraft 26.2 ("Chaos Cubed", Mojang's new
+             year-based versioning; there is no 1.22). Paper's API artifact moved
+             from "<mc>-R0.1-SNAPSHOT" to "<mc>.build.<n>-<channel>" releases.
+
+             The plugin must ALSO keep running on 1.21.x, which is what the servers
+             still run. That is not something the primary build can prove, so the
+             `legacy-1.21` profile recompiles the exact same sources against the old
+             API. Both must pass — see verify-both-apis.sh. Only API present in BOTH
+             may be used; anything 26.2-only needs a reflective guard. -->
+        <paper.api.version>26.2.build.87-stable</paper.api.version>
     </properties>
 
     <repositories>
@@ -48,7 +62,7 @@
         <dependency>
             <groupId>io.papermc.paper</groupId>
             <artifactId>paper-api</artifactId>
-            <version>1.21.10-R0.1-SNAPSHOT</version>
+            <version>${paper.api.version}</version>
             <scope>provided</scope>
         </dependency>
 
@@ -56,7 +70,7 @@
         <dependency>
             <groupId>com.magmaguy</groupId>
             <artifactId>FreeMinecraftModels</artifactId>
-            <version>2.10.1</version>
+            <version>2.11.1</version>
             <scope>provided</scope>
             <exclusions>
                 <!-- These are shaded into the FMM jar at build time but still
@@ -113,7 +127,7 @@
         <dependency>
             <groupId>com.magmaguy</groupId>
             <artifactId>EliteMobs</artifactId>
-            <version>10.7.2</version>
+            <version>10.8.0</version>
             <scope>provided</scope>
         </dependency>
 
@@ -133,11 +147,14 @@
             <scope>provided</scope>
         </dependency>
 
-        <!-- PacketEvents -->
+        <!-- PacketEvents — 2.13.0 is the first release with Minecraft 26.2 support.
+             Still ships the older protocol versions, so it stays usable on 1.21.x.
+             NOTE: the server must run >= 2.13.0 too before moving to 26.2; the
+             deployed build is 2.12.1 (see HANDOFF). -->
         <dependency>
             <groupId>com.github.retrooper</groupId>
             <artifactId>packetevents-spigot</artifactId>
-            <version>2.12.1</version>
+            <version>2.13.0</version>
             <scope>provided</scope>
         </dependency>
 
@@ -149,6 +166,18 @@
             <scope>test</scope>
         </dependency>
     </dependencies>
+
+    <profiles>
+        <!-- Recompiles the same sources against the last 1.21.x API. Guards against
+             using 26.2-only API in code that still has to run on the live 1.21.x
+             servers. Run via: mvn -Plegacy-1.21 clean test -->
+        <profile>
+            <id>legacy-1.21</id>
+            <properties>
+                <paper.api.version>1.21.10-R0.1-SNAPSHOT</paper.api.version>
+            </properties>
+        </profile>
+    </profiles>
 
     <build>
         <defaultGoal>clean package</defaultGoal>
@@ -165,8 +194,7 @@
                 <artifactId>maven-compiler-plugin</artifactId>
                 <version>3.13.0</version>
                 <configuration>
-                    <source>${java.version}</source>
-                    <target>${java.version}</target>
+                    <release>${java.version}</release>
                 </configuration>
             </plugin>
             <plugin>

@@ -1,6 +1,11 @@
 name: FMMBedrockBridge
 version: ${project.version}
 main: de.crazypandas.fmmbedrockbridge.FMMBedrockBridge
+# Bleibt bewusst auf '1.21', obwohl gegen die 26.2-API kompiliert wird:
+# api-version ist eine MINDEST-Angabe. Ein 1.21.x-Server wuerde '26.2' als
+# unbekannt ablehnen, waehrend ein 26.2-Server '1.21' weiterhin akzeptiert.
+# Nur so laedt dasselbe JAR auf beiden. FMM/EliteMobs machen es genauso
+# (deklarieren 1.21.4, kompilieren gegen spigot-api 26.2).
 api-version: '1.21'
 description: Bridge between FreeMinecraftModels and Geyser/Bedrock for custom model display
 author: Fabi

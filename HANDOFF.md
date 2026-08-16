@@ -1,29 +1,55 @@
 # HANDOFF — FMMBedrockBridge
 
-> # 🚨 DIESE DATEI IST VERALTET (Stand 2026-07-29)
+> Übergabe-Datei für Weiterarbeit an einem anderen PC. Stand: **2026-08-16**
+> Branch: **`feat/mc-26.2-readiness`** — gepusht, **bewusst nicht gemerged**.
+> `main` trägt nur einen Zeiger hierher (Commit `020aed4`).
 >
-> **Der aktuelle Arbeitsstand liegt auf dem Branch `feat/mc-26.2-readiness`** (gepusht,
-> bewusst NICHT gemerged). Dort steht die gepflegte HANDOFF.md. Zum Weiterarbeiten:
+> ⚠️ **Seit 09.08. getrennt:** Server-/Betriebswissen steht in **`server-tools/SERVER-STATE.md`**
+> (Arbeitskopie `~/SERVER-STATE.md` auf dem Host), weil dort eine zweite Claude-Instanz mitarbeitet.
+> Diese Datei hier ist **nur noch Entwicklung**. Details in Abschnitt 0.
 >
-> ```bash
-> git fetch origin
-> git checkout feat/mc-26.2-readiness
-> ```
+> ✅ **Der A/B-Test zum HP-Nametag ist am 16.08. entschieden — der Rest-Scope steht endgültig.**
+> **Auf der Entwicklungs-Seite ist damit nichts mehr offen außer dem Merge** (Abschnitt 3).
 >
-> Alles unterhalb dieses Kastens ist der Stand vom 29.07. und kennt weder die
-> Minecraft-Versionsumstellung (26.1/26.2 statt 1.22) noch die Server-Update-Runde
-> vom 02.08. Insbesondere ist die Warnung „Geyser nicht hochziehen" **überholt** —
-> Geyser 2.11 + RPM 2.3.0 laufen seit dem 02.08. produktiv.
->
-> *(Zeiger gesetzt 2026-08-02 beim Session-Ende, damit der PC-Wechsel funktioniert.)*
+> ✅ **Erledigt am 14.08.:** 7.1a gegen EMs neues BossBar-Pooling umgebaut **und live verifiziert**;
+> Rebuild gegen FMM 2.11.1 / EM 10.8.0 auf Paper 26.2; JAR deployt.
 
 ---
 
-> Übergabe-Datei für Weiterarbeit an einem anderen PC. Stand: **2026-07-29**
-> Branch: `main` (Phase-7.2b-Removal **gemerged**, gepusht). Backup-Tag: `backup/pre-72b-merge-main`.
->
-> ⚠️ **Beim Wiedereinstieg zuerst Abschnitt 3 lesen** — es liegen neue Upstream-Releases vor
-> (FMM 2.10.2, EM 10.7.3, RPM 2.3.0) und **Geyser darf nicht vor RPM 2.3.0 hochgezogen werden.**
+## 0. Server-Kontext — steht NICHT mehr hier
+
+**Der Server-Stand hat eine eigene Datei bekommen: `server-tools/SERVER-STATE.md`**
+(Arbeitskopie auf dem Host unter `~/SERVER-STATE.md`).
+
+Grund: Auf dem Server läuft eine **zweite Claude-Instanz** als User `amp`, die Update-System,
+Log-Analyse und Fehlersuche macht. Beide Seiten brauchen denselben Server-Stand, aber die
+Server-Seite hat mit Branches, Builds und Plugin-Quellcode nichts zu tun. Also getrennt:
+
+| | |
+|---|---|
+| **`HANDOFF.md`** (diese Datei) | Entwicklung: Branch, Build, Phasen, Bridge-Scope, Upstream-Drafts. **Nur Dev-Claude schreibt hier.** |
+| **`SERVER-STATE.md`** | Betrieb: Instanzen, Plugin-Versionen, JVM-Zuordnung, offene Log-Fehler, Upgrade-Fortschritt, Änderungs-Log. **Beide Claudes schreiben dort.** |
+| **`server-tools/server-CLAUDE.md`** (→ `~/.claude/CLAUDE.md`) | Dauerregeln für die Server-Seite. |
+
+Die Server-Abschnitte, die früher hier standen (Audit 09.08., Netzwerk-Ausfall 08.08.,
+Update-Runde 02.08., Abhängigkeitskette 26.2), sind vollständig nach `SERVER-STATE.md`
+gewandert. Historie steckt in der Git-Historie dieser Datei.
+
+### Was davon für die Entwicklung relevant bleibt
+
+- **MC ist auf Jahresversionen umgestellt.** Kein 1.22 — die Linie läuft `1.21.11` → **26.1** →
+  **26.2**, Format `YY.Drop.Hotfix`. Das Namensschema `-R0.1-SNAPSHOT` ist bei den 26.x-Artefakten
+  weg (`26.2.build.87-stable`). Betrifft direkt `pom.xml` und `McVersions`.
+- **`api-version` in `plugin.yml` bleibt bewusst `'1.21'`** — Mindestangabe, keine Zielangabe.
+  Ein 1.21.x-Server würde `'26.2'` ablehnen; Paper 26.2 lädt `'1.21'` problemlos. FMM und
+  EliteMobs machen es genauso. **Nicht "korrigieren".**
+- **Der Ziel-Stack, gegen den die Bridge laufen muss** (Stand 09.08.): Paper 1.21.10 bzw. 26.2,
+  Java 25, Geyser 2.11.1, RPM 2.3.0, FMM 2.10.2, EM 10.7.3, packetevents 2.13.0.
+- **Auf TestServer01 liegt noch die Bridge-JAR vom 10.07.**, gebaut gegen packetevents 2.12.x.
+  Seit 09.08. läuft dort packetevents **2.13.0** → nach dem nächsten Neustart im Log prüfen, ob
+  `[FMMBedrockBridge] PacketEvents: found — packet interception active` noch kommt. Wenn nicht:
+  den 26.2-Branch-Build deployen, der baut bereits gegen 2.13.0.
+- **Bedrock-Rendering ist nie im Log verifizierbar**, nur in-game.
 
 ---
 
@@ -32,7 +58,8 @@
 Wenn der User sagt „lies die HANDOFF.md", dann:
 
 0. **Rolle bewusst machen:** Du bist Minecraft-Java-Entwickler (Plugins + Mods). Bei jeder Aufgabe die passenden **Superpowers-Minecraft-Skills** laden (Einstieg: `superpowers:getting-started`) — siehe „Rolle & Arbeitsweise" in `CLAUDE.md`.
-1. **Diese Datei komplett lesen** — Abschnitte 1–6 geben den vollständigen Stand.
+1. **Diese Datei komplett lesen** — Abschnitte 1–5 geben den Entwicklungs-Stand.
+   Für den **Server**-Stand zusätzlich `server-tools/SERVER-STATE.md` lesen.
 2. **Git-Stand prüfen & richtigen Branch sicherstellen:**
    ```bash
    git status -sb
@@ -81,7 +108,114 @@ Bevor die Session endet bzw. wenn der User signalisiert, dass er aufhört / den 
 
 ## 1. Wo wir gerade stehen (Git)
 
-- **Aktiver Branch:** `main` — HEAD = `f1dd00c` (`tooling(server)`: neues `server-tools/`), darunter die Doku-Commits vom 10.07. und Merge-Commit `be08a2f`
+### Session 2026-08-16 — A/B-Test entschieden: 7.1b/7.1c bleiben (KEIN Plugin-Code)
+
+**Die Frage war falsch gestellt — es gab nie eine Dopplung.** Der Test lief sauber: Bridge-Overlay
+aus (`phase71b.nametag-enabled: false`), EMs eigene Anzeige an (`displayVisualHealthBars: true`,
+`displayNumericHealth: true` — beidseitig verifiziert, sonst hätte der Test nichts gemessen).
+
+**Fabis Beobachtung in-game:** Auf **Java** Balken + Zahl über dem Mob **plus** ein
+Schaden-Popup je Treffer. Auf **Bedrock** nur das Popup und die BossBar — **kein Overhead-HP**.
+
+| | Java | Bedrock |
+|---|---|---|
+| EMs Overhead-HP (`EliteOverheadHealthDisplay`) | ✅ | ❌ **kommt nicht an** |
+| Bridge-Overlay 7.1b/7.1c | **nie sichtbar** (weggefiltert) | ✅ |
+
+Der entscheidende Punkt steht im Code: `BedrockNametagController` ist **Bedrock-only** —
+`PacketInterceptor.hideFromJava()` unterdrückt die TextDisplay-Pakete für alle
+Nicht-Floodgate-Spieler (Klassen-Doc Z. 13–18). **Java-Spieler haben unser Overlay nie gesehen.**
+Die beiden Anzeigen bedienen disjunkte Client-Gruppen; das ist genau die Arbeitsteilung, für die
+7.1b gebaut wurde.
+
+> ⚠️ **Die früher hier notierte Konsequenz „Nein → dann EMs Anzeige abschalten" war falsch** und
+> wurde **nicht** ausgeführt. Sie setzte eine Dopplung voraus, die es nicht gibt. EMs Anzeige
+> abzuschalten hätte nur den **Java**-Spielern etwas weggenommen, ohne auf Bedrock irgendetwas zu
+> gewinnen. Gleiches gilt für die Memory-Notiz `em_overhead_health_duplicates_bridge` — korrigiert.
+
+**⇒ 7.1b/7.1c bleiben unverändert. Rest-Scope der Bridge endgültig: Combat-BossBar + HP-Nametag.**
+
+**Nebenbefunde aus dem Boot-Log (16:38/16:39, Paper 26.2):**
+- `PacketEvents: found — packet interception active` ⇒ der Verdacht aus Abschnitt 0 (2.13.0
+  bricht die alte Erkennung) ist **ausgeräumt**.
+- `Phase 7.3: Bedrock menu dialog-reroute registered (status=true, quest=true)` ⇒ der
+  `McVersions`-Fix greift auf `26.2.build.112-stable`; der 10.07.-Build stand hier noch auf
+  `NOT registered`. **Damit ist 7.3b nebenbei live-verifiziert.**
+
+**Offene Beobachtung, kein Auftrag:** EMs Overhead-Balken **und** die Combat-Popups laufen beide
+über `VisualDisplay.createStyledFakeText` → `FakeText` (EasyMinecraftGoals, paket-basierte
+Fake-Entities). Trotzdem kommt nur das Popup auf Bedrock an. Da DamageIndicator 2.0.5 laut Fabi
+„nie wirklich funktioniert hat", stammt das Popup von EM selbst ⇒ der Unterschied liegt
+vermutlich an der **Bindung an den Mob** (der Overhead-Text hängt am Mob und kollidiert mit FMMs
+Bedrock-Custom-Entity), nicht am Render-Mechanismus. Nur relevant, falls das Overhead-Display
+jemals doch auf Bedrock gebraucht wird.
+
+**Server-Config nach dem Test zurückgestellt** (`debug: false`, `nametag-enabled: true`,
+Backup `config.yml.bak-20260816-abtest`) — **wirkt erst nach dem nächsten Neustart.**
+
+### Session 2026-08-14 — 26.2 ist live, 7.1a umgebaut und verifiziert
+
+**Der Stack hat sich an einem Tag komplett gedreht.** Fabi und der Server-Claude haben das
+Netz auf **Paper 26.2** gehoben und danach die MagmaGuy-Kette gezogen. Ziel-Stack jetzt:
+
+| | |
+|---|---|
+| TestServer01 | **paper-26.2-112**, Java 25 |
+| MagmaGuy | FMM **2.11.1** · EM **10.8.0** · RPM **2.3.1** · BS **2.7.0** |
+| Proxy01 | Geyser 2.11.1 · RPM **2.3.1**, `loadedDefinitions=314` |
+| packetevents | 2.13.0 |
+
+**Was am Plugin passiert ist (erster Code-Change seit 02.08.):**
+
+- **7.1a auf EMs neues BossBar-Pooling umgebaut.** EM 10.8.0 hat `BossHealthBarManager`:
+  ein Pool von **max. 4 wiederverwendeten** Bars pro Spieler, die für wechselnde Bosse
+  um-betitelt werden, plus Reordering per removePlayer+addPlayer. Damit fiel die alte
+  Annahme „der erste titel-passende ADD ist unserer".
+  - **Neu `BossBarUuidResolver`** — liest die Wire-UUID der eigenen Bukkit-BossBar per
+    Reflection (CraftBossBar → NMS-Handle → einziges `UUID`-Feld, **ohne** Feldnamen zu
+    verdrahten). Schlägt sie fehl → `null` → alte Heuristik + einmalige Log-Zeile.
+  - **`BossBarRegistry` ist nicht mehr write-only:** Eviction bei REMOVE und bei einem ADD,
+    dessen Titel keinem aktiven Controller gehört (recycelter Slot). Ohne das würden fremde
+    Bosse auf Bedrock einfrieren.
+  - **`exitCombat()` löscht die Eigen-UUID nicht mehr** — das BossBar-Objekt lebt so lange
+    wie der Controller, die UUID ist stabil.
+  - Notausstieg `phase71a.resolve-own-bossbar-uuid` (default true).
+    **Symptom einer falsch aufgelösten UUID: Bedrock sieht GAR KEINE Bar.**
+- **Neuer Schalter `phase71b.nametag-enabled`** für den offenen A/B-Test (s. Kopf).
+- **pom auf FMM 2.11.1 / EM 10.8.0** — die frühere Entscheidung „kein Dep-Bump" ist damit
+  überholt. Beide JARs liegen **nicht** im magmaguy-Maven-Repo → vom Server ziehen und
+  `mvn install:install-file` (Rezept in Abschnitt „Build & Deploy").
+- **21/21 Tests grün** (5 neue in `BossBarRegistryTest`), `verify-both-apis.sh` beide
+  Generationen grün, Bytecode-Target 21.
+
+**Live verifiziert am 14.08. 22:33–22:44** (Bedrock `.Nightgame2272`, zwei EM-Bosse):
+`Resolved own BossBar UUID` **9×**, `Could not read` **0×**, alte Heuristik **0×**;
+`Suppressed stale-title` 3× an verschiedenen Pool-Slots; **`Released suppressed … on REMOVE` 2×**
+⇒ die Eviction greift. Fremde Bars (Plugin-Ladebalken) 3× korrekt durchgelassen.
+Fabi in-game: „sah alles gut aus, eine Leiste pro Boss."
+
+**Zwei Nebenfunde, beide dokumentiert:**
+- **`getBukkitVersion()` liefert auf 26.2 `26.2.build.112-stable`.** Der alte 10.07.-Build
+  konnte das nicht ordnen und hat den **Dialog-Reroute still abgeschaltet**
+  (`Phase 7.3: reroute NOT registered … mc>=1.21.6=false`). Auf diesem Branch längst gefixt
+  und in `McVersionsTest` abgedeckt — nach dem Deploy steht dort `registered`.
+- **Bauen braucht zwingend JDK 25** (`JAVA_HOME=/usr/lib/jvm/java-25-openjdk`), sonst
+  *„Ungültige Klassendatei … paper-api"* — Paper 26.2 liefert Class-File-Version 69.
+  Bytecode-Target bleibt 21. `verify-both-apis.sh` findet Maven jetzt auch unter
+  `plugins/maven-plugin/` (IntelliJ benennt den Ordner je nach Version um).
+
+- **Aktiver Branch:** `feat/mc-26.2-readiness`, HEAD **`e3374d9`** (09.08., mit origin sync,
+  working tree sauber) — enthält alles aus `main` plus den 26.2-Build-Umbau, den
+  `McVersions`-Bugfix und die Doku-Sessions vom 02.08., 08.08. und 09.08.
+  `main` (`020aed4`) trägt nur einen Zeiger hierher. **Plugin-Code seit dem 02.08. unverändert** —
+  die Sessions vom 08.08. und 09.08. waren Live-Diagnose, Server-Audit und Doku.
+- **Session 09.08. kurz:** Server-Audit (Java-25-Blocker aufgelöst), drei Server-Fixes auf Fabis
+  Anweisung (packetevents 2.13.0, 2 EM-Lua-Skripte, 1 FMM-Modell-Keyframe), und die **Trennung
+  von Server- und Entwicklungs-Doku** — Details in `server-tools/SERVER-STATE.md`.
+- **Auf dem Server liegt noch das JAR vom 10.07.** (`FMMBedrockBridge.jar`, TestServer01) — der
+  26.2-ready-Build vom Branch ist **nicht deployt**.
+- (historisch) Vor dem 26.2-Branch war `main` bei `f1dd00c` (`tooling(server)`: `server-tools/`),
+  darunter die Doku-Commits vom 10.07. und Merge-Commit `be08a2f`
 - **Phase-7.2b-Removal ist nach `main` gemerged** (2026-07-10, `--no-ff`, bewusst als revertierbare Einheit). Der Feature-Branch `refactor/remove-phase72b` existiert weiter (auf `origin`), ist aber jetzt in main enthalten.
 - **Backup vor dem Merge:** Tag `backup/pre-72b-merge-main` → alter main-Stand (`4a277d8`), auf `origin` gepusht. Notfall-Rückweg: `git reset --hard backup/pre-72b-merge-main` oder `git revert -m 1 be08a2f`. (Zusätzlich weiter vorhanden: `archive/2026-05-24-pre-rpm18-pivot`.)
 - Working tree **sauber**
@@ -185,26 +319,60 @@ Was von der Bridge **vielleicht** noch übrig bleibt (zu prüfen!):
 
 ## 3. Nächste Schritte (Priorität)
 
-Die Grundsatzentscheidung ist **getroffen**, der Refactor ist **nach `main` gemerged** (2026-07-10) und der **Rest-Scope ist live verifiziert**. Bridge bleibt, reduziert auf 7.1a/7.1b.
+> **Alles, was Server-Betrieb ist** — Paper-26.2-Umstellung, Plugin-Beschaffung, JVM-Wechsel der
+> übrigen Instanzen, Survival↔Test-Abgleich — steht ab 09.08. in **`SERVER-STATE.md`** und wird
+> dort mit dem Server-Claude gemeinsam gepflegt. Hier nur noch, was am Plugin selbst zu tun ist.
 
-**Nächster großer Block: Update-Runde auf TestServer01.** Reihenfolge ist nicht beliebig — die Plugins sind gekoppelt.
+### Bridge-Rest-Scope
 
-1. **JARs besorgen (nur Fabi).** FMM 2.10.2, EM 10.7.3, RPM 2.3.0 liegen hinter Discord/nightbreak — nicht automatisch holbar. Ohne sie geht Schritt 2 nicht.
-2. **RPM 2.3.0 zuerst, Geyser bleibt auf 2.10.1.** RPM „probt" laut Changelog die laufende Geyser-Version, sollte also auf 2.10.1 weiterlaufen — **unverifiziert**, deshalb Log-Check Pflicht:
-   `Erweiterung ResourcePackManagerGeyserBridge aktiviert` **und** `bridge ready with <n>` (nicht `0`).
-   Proxy **zweimal** neu starten.
-3. **EM 10.7.3 + FMM 2.10.2** aufs Backend.
-4. **Bedrock-Verify in dieser Reihenfolge** (nur in-game möglich, Logs reichen NICHT):
-   Mob rendert (kein Schwein) → Animation → Combat-BossBar (7.1a) → HP-Nametag (7.1b, **auf Doppelung mit EMs neuen NPC-Rollen-Tags achten**).
-5. **Symlink-Test:** `plugins/ResourcePackManager → resourcepackmanager` probeweise entfernen, Proxy neu. Bleibt `bridge ready with <n>` ≠ 0, ist der Upstream-Bug gefixt → **Punkt „Upstream-Report" entfällt**, sonst melden.
-6. **Erst danach** optional Geyser auf 2.11 (mit RPM 2.3.0 als Netz).
-7. **Dep-Bump im pom** (FMM 2.10.1→2.10.2, EM 10.7.2→10.7.3) + Rebuild. Nicht im Maven-Repo → JARs vom Server holen und `mvn install:install-file` (siehe Bootstrap Punkt 4).
+1. ~~**A/B-Test HP-Nametag auswerten**~~ ✅ **erledigt 16.08.** — EMs Overhead-Anzeige erreicht
+   Bedrock **nicht**, und eine Dopplung gab es ohnehin nie (unser Overlay ist Bedrock-only).
+   **7.1b/7.1c bleiben unverändert**, EM-Config **nicht** angefasst. Details in Abschnitt 1.
+2. ~~**Combat-BossBar (7.1a) auf Bedrock prüfen**~~ ✅ **erledigt 14.08.**, s. Abschnitt 1.
+3. **Upstream-Reports einreichen** (nur Fabi — Zugang zu GitHub-Issues/Discord). Noch offen:
+   **Props-als-Schwein (FMM)** — in 2.11.1 unverändert, `BedrockModeledEntity.java:64` führt
+   weiter `.carrierEntityType(EntityType.PIG)` im Fake-Entity-Pfad.
+   ~~Case-Sensitivity im RPM-Geyser-Bridge-Pfad~~ ✅ **von MagmaGuy in RPM 2.3.1 gefixt**
+   (`BEDROCK_PACK_PATHS` probiert beide Schreibweisen, Kommentar *„Velocity's default data
+   directory is lowercase"*) — Entwurf als erledigt markiert, nicht mehr einreichen.
+4. **Symlink-Test** — jetzt sinnvoll, weil 2.3.1 drauf ist: `plugins/ResourcePackManager →
+   resourcepackmanager` auf dem Proxy probeweise entfernen, Proxy neu. Bleibt
+   `loadedDefinitions` ≠ 0, kann der Workaround dauerhaft weg. **Nicht vor dem Update entfernen.**
+
+### Build & Deploy
+
+5. ~~**Bridge gegen packetevents 2.13.0 neu bauen und deployen**~~ ✅ **erledigt 14.08.**
+   Deployt ist `…-20260814-2101.jar` (sha `57753139…`, beidseitig geprüft). Backups auf dem
+   Server: `FMMBedrockBridge.jar.bak-20260814-2150` (alter 10.07.-Build) und `.bak-20260814-2300`.
+6. **🔴 Branch mergen — der einzige offene Entwicklungs-Punkt.** `feat/mc-26.2-readiness` ist
+   **nicht gemerged**. Beide Bedingungen sind jetzt erfüllt: der Build läuft real auf einem
+   26.2-Server und ist in-game verifiziert (14.08.), und der A/B-Test ist entschieden (16.08.) —
+   7.1b wird **nicht** mehr angefasst, es gibt also nichts mehr, was zweimal Code kosten würde.
+   Vorgehen wie beim 7.2b-Merge: Backup-Tag setzen, `git merge --no-ff`, Docs nachziehen, pushen.
+
+> **Build-Rezept auf einem frischen PC** (der frühere Merker „kein Dep-Bump" ist **überholt** —
+> seit 14.08. baut die Bridge gegen FMM 2.11.1 / EM 10.8.0):
+> ```bash
+> export JAVA_HOME=/usr/lib/jvm/java-25-openjdk    # PFLICHT, sonst "Ungültige Klassendatei"
+> # FMM/EM liegen NICHT im magmaguy-Maven-Repo → vom Server holen:
+> scp 'amp@mc.crazypandas.de:.ampdata/instances/TestServer01/Minecraft/plugins/[PP] Free Minecraft Models (MODRINTH).jar' /tmp/fmm.jar
+> scp 'amp@mc.crazypandas.de:.ampdata/instances/TestServer01/Minecraft/plugins/[PP] EliteMobs (MODRINTH).jar' /tmp/em.jar
+> mvn install:install-file -Dfile=/tmp/fmm.jar -DgroupId=com.magmaguy -DartifactId=FreeMinecraftModels -Dversion=2.11.1 -Dpackaging=jar
+> mvn install:install-file -Dfile=/tmp/em.jar  -DgroupId=com.magmaguy -DartifactId=EliteMobs           -Dversion=10.8.0 -Dpackaging=jar
+> bash verify-both-apis.sh
+> ```
+> ⚠️ Die Plugin-JARs heissen auf dem Server **`[PP] …`** (PluginPortal benennt um) — nie über den
+> Dateinamen auf ein Plugin schliessen, immer `unzip -p <jar> plugin.yml` lesen.
+> `mvn` liegt evtl. nicht im PATH; IntelliJ bündelt eins unter
+> `/usr/share/idea/plugins/maven-plugin/lib/maven3/bin/mvn` (Ordnername je nach Version
+> `maven` **oder** `maven-plugin` — `verify-both-apis.sh` probiert beide).
 
 **Danach / unabhängig:**
-- **Waffen-Offset (KEIN Bridge-Feature):** legacy pre-1.21.4 `custom_model_data`-Item-Format re-exportieren ins 1.21.4+-Format (`assets/<namespace>/items/*.json`) — RPM-Backend-Warnung Z. 2594.
-- **Altlast aufräumen:** `GeyserModelEngine-1.0.3.jar` shaded packetevents **2.11.2**, während separat **2.12.1** installiert ist — zwei Versionen derselben Lib auf einem Classpath. Hookt nur ModelEngine, nicht FMM → vermutlich überflüssig, mit Fabi klären.
-- **Server-Claude:** Login steht noch aus (`ssh amp@mc.crazypandas.de` → `claude`). Notiz liegt unter `~/.claude/CLAUDE.md`; bei Änderungen an den Deploy-Regeln aus `server-tools/server-CLAUDE.md` per scp nachziehen.
-- **Update-Check jederzeit:** `ssh amp@mc.crazypandas.de '~/plugin-update-check.sh TestServer01'`
+- **Waffen-Offset (KEIN Bridge-Feature):** legacy pre-1.21.4 `custom_model_data`-Item-Format
+  re-exportieren ins 1.21.4+-Format (`assets/<namespace>/items/*.json`) — RPM-Backend-Warnung.
+- **Follow-up (kein Blocker):** 4 deprecated Aufrufe ablösen — `getDescription`,
+  `Damageable.getMaxHealth`, `InventoryView.getTitle`, `Nameable.getCustomName`. Bei
+  `getCustomName` Vorsicht: hängt an der EM-Namenslogik (EVOKER-Boss-Fall).
 
 **Erledigt 2026-07-10 (Deploy + Live-Verify):**
 - ~~JAR (`…-20260710-1454.jar`) auf TestServer01 deployt~~ ✓ (SHA-verifiziert)
@@ -214,19 +382,40 @@ Die Grundsatzentscheidung ist **getroffen**, der Refactor ist **nach `main` geme
 - ~~Branch nach main mergen~~ ✓ (`--no-ff`, Backup-Tag `backup/pre-72b-merge-main` gesetzt, Docs nachgezogen, gepusht).
 **Erledigt 2026-07-08:** ~~Rebuild gegen FMM 2.10.x API~~ ✓ (BUILD SUCCESS, 13 grün) · ~~In-Game-Animation~~ ✓ nativ · ~~BossBar/Nametag-Frage~~ ✓ geklärt (Feature-Gap) · ~~Lag-Verdacht~~ ✓ lokales Internet · ~~Grundsatzentscheidung~~ ✓ Bridge bleibt.
 
-**⚠️ Deploy-Merker (siehe Memory `native-bedrock-deploy-gotchas`):** Nach jedem RPM-Update den **Proxy zweimal neustarten** (Extension wird erst im ersten Boot geschrieben). Der Symlink `plugins/ResourcePackManager → resourcepackmanager` auf dem Proxy ist Pflicht, solange der Upstream-Bug offen ist.
+**⚠️ Deploy-Merker:** Nach jedem RPM-Update den **Proxy zweimal neustarten** — das gilt weiter.
+**Ab RPM 2.3.1 aber NUR noch `plugins/ResourcePackManager.jar` tauschen**; die
+`…GeyserBridge.jar` NICHT mitkopieren (es gibt keine neue — RPM installiert die Bridge selbst
+über Geysers `extensions/update/`-Queue). `loadedDefinitions=0` nach dem **ersten** der beiden
+Neustarts ist **normal**. Details in `CLAUDE.md`. Der Symlink auf dem Proxy ist ab 2.3.1
+technisch nicht mehr nötig (Fix verifiziert), steht aber noch — Entfernen ist Aufgabe 4 oben.
 
 ---
 
 ## 4. Server / Deploy-Kontext (Erinnerung)
 
-- Proxy: Velocity (Hetzner) · Backend: Paper über AMP · Geyser+Floodgate auf Proxy, Floodgate auch Backend
 - SSH: `amp@mc.crazypandas.de` (`~/.ssh/id_ed25519`)
-- **Vor jeder Remote-Aktion erst fragen.** Server-Restarts/Console macht Fabi selbst über AMP. JAR-Deploy via SCP ist ok.
-- Deploy-Pfade siehe CLAUDE.md + Memory `deployment_paths.md`
+- **Vor jeder Remote-Aktion erst fragen.** Server-Restarts/Console macht Fabi selbst über AMP.
+  JAR-Deploy via SCP ist ok. Deploy-Pfade: Memory `deployment_paths.md`.
+- **Der Server-Stand selbst steht in `server-tools/SERVER-STATE.md`** — Instanzen, Versionen,
+  JVM-Zuordnung, offene Log-Fehler, Änderungs-Log. Vor Server-Arbeit dort reinschauen.
+- **Auf dem Server arbeitet eine zweite Claude-Instanz** (als `amp`, zuständig für Update-System
+  und Fehlersuche). Analysieren dürfen beide parallel, **schreiben nur einer** — und wer schreibt,
+  trägt es in `SERVER-STATE.md` ein.
 
-## 5. Wichtige Doku-Dateien im Repo
-- `CLAUDE.md` — Projektüberblick + Server-Setup + Erkenntnisse
-- `CLAUDE_SESSION.md` — detaillierter Session-Verlauf (zuletzt 14. Juni)
-- `README.md` — Status-Tabelle + Deploy-Schritte
+## 5. Wichtige Doku-Dateien
+
+**Im Repo (Entwicklung):**
+- `CLAUDE.md` — Projektüberblick + Konventionen + Erkenntnisse
+- `CLAUDE_SESSION.md` — detaillierter Session-Verlauf
+- `README.md` — Status-Tabelle + Build/Deploy-Schritte
+- `docs/upstream-bugs/` — Report-Entwürfe an MagmaGuy
 - Memory-Index: `~/.claude/projects/.../memory/MEMORY.md`
+
+**Server-Seite (in `server-tools/` versioniert, Arbeitskopien auf dem Host):**
+- `SERVER-STATE.md` → `~/SERVER-STATE.md` — lebender Server-Stand, **beide Claudes**
+- `server-CLAUDE.md` → `~/.claude/CLAUDE.md` — Dauerregeln für den Server-Claude
+- `plugin-update-check.sh` → `~/plugin-update-check.sh`
+- `backup-testserver.sh` → `~/backup-testserver.sh`
+
+> Änderungen an den Server-Dateien im Repo **und** per `scp` auf den Host nachziehen, sonst
+> driften die zwei Kopien.

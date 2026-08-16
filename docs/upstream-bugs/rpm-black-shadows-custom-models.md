@@ -1,5 +1,11 @@
 # [RPM] Black shadow artifacts on custom models rendered for Bedrock clients
 
+> ## ✅ ERLEDIGT — NICHT MEHR EINREICHEN
+> MagmaGuy hat den Bug inzwischen gefixt (Info von Fabi, 2026-08-08). Der Entwurf wurde nie
+> eingereicht — er bleibt nur als Beleg erhalten, dass wir das Problem beobachtet und
+> analysiert hatten. Der offene TODO („Screenshots + Modellname nachliefern") ist damit
+> hinfällig.
+
 **Repo:** MagmaGuy/ResourcePackManager
 **Version:** 2.0.1 (still present; not fixed since first observed in 2.0.0)
 **Related:** FreeMinecraftModels 2.7.0, Geyser-Velocity 2.10.0

@@ -1215,3 +1215,394 @@ Paper **113 → 130**; Floodgate **b132 → b138**; EssentialsX 2.21.2 → 2.22.
 
 ### Altlast entdeckt
 `GeyserModelEngine-1.0.3.jar` bringt ein geshadetes **packetevents 2.11.2** mit, während separat **2.12.1** installiert ist — zwei Versionen derselben Library auf einem Classpath. GeyserModelEngine hookt nur ModelEngine (Ticxo), nicht FMM ⇒ seit dem nativen Rendering vermutlich überflüssig. Wegwerf-Kandidat, vorher mit Fabi klären.
+
+---
+
+## Session: 2026-08-02 — Minecraft 26.x: Branch `feat/mc-26.2-readiness`
+
+### Upstream-Check (Auftrag: „schau ob die Updates jetzt auf GitHub sind")
+**Nein.** FMM/RPM/EM hängen weiter auf dem Stand vom **28.06.** (`dfd7aed3` 2.10.1 / `b2c36b7` 2.2.2 / `4c9bba73` 10.7.2) — die Discord-Builds 2.10.2 / 2.3.0 / 10.7.3 sind nicht gepusht. GitHub-Releases helfen nicht (letzte Tags uralt: FMM 05/2025, RPM 07/2024, EM 03/2023). Bewegt hat sich nur: **BetterStructures 2.6.3** (22.07., für uns irrelevant), **GeyserModelEngine** (31.07., nur Bukkit→Folia-Scheduler), GeyserUtils unverändert (loadSkin-Bug offen).
+
+### Der eigentliche Fund: Minecraft hat die Versionierung umgestellt
+Beim Auflösen der Frage „was ist die höchstmögliche MC-Version" kam heraus, dass Mojang das `1.x`-Schema abgeschafft hat: **kein 1.22**, sondern **26.1** („Tiny Takeover", 24.03.2026) und **26.2** („Chaos Cubed", Juni 2026), Format `YY.Drop.Hotfix`. Paper-Artefakt heißt jetzt `26.2.build.87-stable` statt `<mc>-R0.1-SNAPSHOT`.
+
+**Der MagmaGuy-Stack ist da längst:** FMM 2.10.1, RPM 2.2.2 **und** EM 10.7.2 kompilieren alle bereits gegen `spigot-api:26.2` (in den `references/`-Poms nachgeprüft). Die Bridge war das hinterherhinkende Teil.
+
+**Abhängigkeitskette für MC 26.2** — Java 25 war neu und stand auf keinem Zettel:
+
+| Komponente | Nötig | Server (02.08.) |
+|---|---|---|
+| Java | **25** (Paper 26.2 = Class-File 69) | 21 ⚠️ |
+| Geyser | 2.11.0 (26.2 gemerged 10.07., PR #6452) | 2.10.1-b1175 ⚠️ |
+| RPM | 2.3.0 (wegen Geyser 2.11) | 2.2.2 ⚠️ |
+| PacketEvents | 2.13.0 (26.2-Support, 22.06.) | 2.12.1 ⚠️ |
+| FMM / EM | bauen schon gegen 26.2 | ok |
+
+Damit ist die **Geyser-Sperre aus der Vorsession genau der Knoten**: MC 26.2 → Geyser 2.11 → RPM 2.3.0. Die geplante Reihenfolge (RPM zuerst) bleibt richtig.
+
+### Branch `feat/mc-26.2-readiness`
+Entscheidung mit Fabi: **ein JAR für beide Generationen**, damit sofort deploy- und testbar statt bis zur Server-Umstellung blind.
+
+- `pom.xml`: `paper-api` → `${paper.api.version}` = `26.2.build.87-stable`; PacketEvents `2.12.1` → **`2.13.0`**; `maven.compiler.source/target` → **`maven.compiler.release=21`**
+- **Maven-Profil `legacy-1.21`** kompiliert dieselben Quellen gegen `1.21.10-R0.1-SNAPSHOT`
+- **`verify-both-apis.sh`** — beide Durchläufe + Assertion auf Bytecode-Version 65. Findet auch das JDK selbst (JRE 25 reicht **nicht**, die hat kein `javac`).
+- `plugin.yml`: `api-version` bleibt **bewusst** `'1.21'` — Mindest-Angabe; ein 1.21.x-Server würde `'26.2'` ablehnen, ein 26.2-Server akzeptiert `'1.21'`. FMM/EM machen es genauso (deklarieren `1.21.4`, kompilieren gegen 26.2).
+
+### Bugfix `McVersions` (hätte 7.3 still abgeschaltet)
+Der Parser brach bei einem nicht-numerischen Segment mit `NumberFormatException` ab und lieferte `false`. Bei `26.2.build.87-stable` hätte der `>= 1.21.6`-Gate damit **den Phase-7.3-Reroute auf einem 26.x-Server lautlos deaktiviert** — kein Log, kein Fehler, das Feature einfach weg. Jetzt werden führende numerische Segmente geparst und Trailing-Junk ignoriert; ein nicht-numerisches *erstes* Segment bleibt `false` (fail-closed, da nicht ordenbar). Regressionstests: der neue Test fällt mit dem alten Parser (gegengeprüft), hält mit dem neuen.
+
+### Verifikation
+`bash verify-both-apis.sh`: **beide Durchläufe BUILD SUCCESS, je 16/16 Tests grün**, Bytecode-Version 65. Artefakt `FMMBedrockBridge-0.1.0-SNAPSHOT-20260802-1505.jar`.
+
+Zusätzlich geprüft: alle 25 Bukkit/Paper-Imports existieren in 26.2; die riskanten Member (`Attribute.MAX_HEALTH`, `BarColor`/`BarStyle`, `Bukkit.createBossBar`, `getCustomName`, `getAttribute`, `getMaxHealth`) existieren in **beiden** Generationen. Deprecation-Diff 1.21.10 ↔ 26.2: **identisch, 4 Stück** (`getDescription`, `getMaxHealth`, `InventoryView.getTitle`, `getCustomName`) — Altlasten, **nichts neu durch 26.2**, kein Handlungsdruck.
+
+### Offen
+- Velocity-Kompatibilität mit 26.2 ungeprüft (3.5.1 und 4.0.0 sind draußen, Proxy auf 3.5.0-SNAPSHOT)
+- Floodgate/ProtocolLib/LibsDisguises/FAWE/Skript unter Java 25 ungeprüft
+
+### Nachtrag 2026-08-02 (abends): Update-Runde live — Geyser-2.11-Bruch gefixt
+
+Fabi hat FMM **2.10.2**, EM **10.7.3**, RPM **2.3.0** aufs Backend deployt (17:24–17:25, Boot 17:28) und danach **Geyser auf 2.11.0-b1205** hochgezogen. Ergebnis: **die RPM-Geyser-Bridge war tot.**
+
+```
+Couldn't pass ProxyInitializeEvent to geyser 2.11.0-b1205 (git-master-3aeedfa)
+java.lang.NoClassDefFoundError: org/geysermc/geyser/entity/EntityDefinition
+    at GeyserExtensionManager.enableExtension(GeyserExtensionManager.java:85)
+```
+`bridge ready with …` kam gar nicht mehr (vorher 316), 89 Exceptions im Log, nur GME + GeyserUtils aktiviert.
+
+**Ursache:** Backend auf 2.3.0, **Proxy-Seite noch 2.2.2 vom 07.07.** — deren Bridge-Extension referenziert eine Klasse, die Geyser 2.11 entfernt hat. Exakt die dokumentierte Kopplung.
+
+**Warum das Backend-Update den Proxy nicht mitzog** (Fabis Erwartung): RPM schreibt nie in fremde Server-Verzeichnisse. Das Backend legt die Extension nur unter `plugins/ResourcePackManager/geyser-extension/` bereit und loggt es explizit („copy it into your Geyser's 'extensions' folder … you must ALSO install ResourcePackManager on the proxy"). Der Auto-Install läuft auf der **Proxy**-Seite — belegt durch die mtimes: Proxy-RPM-JAR 07.07. 21:56, Extension 07.07. 22:13 (17 Min später, also vom Proxy-Plugin geschrieben). Ein veraltetes Proxy-RPM installiert folglich weiter die alte Extension.
+
+**Fix:** beide Proxy-Dateien ersetzt (Backups als `.bak-20260802-1826`), SHA-256-gleich zum Backend:
+- `plugins/ResourcePackManager.jar` → 2.2.2 → **2.3.0**
+- `plugins/Geyser-Velocity/extensions/ResourcePackManager-GeyserBridge.jar` → 377588 B (07.07.) → **375482 B (15.07.)**
+
+**Nach einem** Neustart (nicht zwei) grün:
+```
+Erweiterung ResourcePackManagerGeyserBridge aktiviert
+Preloaded 316 custom Bedrock entity identifiers and 281 property definition(s)
+Registered 316 RSPM custom Bedrock entity definitions with Geyser
+ResourcePackManager Geyser bridge ready with 316 custom entity definitions.
+Geyser auf UDP-Port 25565 gestartet — Fertig (19,907s)!
+```
+0 NoClassDefFoundError, 0 Exceptions. **Stack jetzt: FMM 2.10.2 + EM 10.7.3 + RPM 2.3.0 + Geyser 2.11.0-b1205.** Die Geyser-Sperre ist damit aufgelöst.
+
+**RPM 2.3.0 ist eine Universal-JAR** — enthält `plugin.yml` *und* `velocity-plugin.json` (beide 2.3.0); den Ordner `proxy-extension/` gibt es nicht mehr. Die alte Prozedur (`unzip -j … proxy-extension/ResourcePackManager-Velocity.jar`) ist hinfällig; `CLAUDE.md` entsprechend korrigiert.
+
+**Offen:** Bedrock-Rendering in-game noch nicht verifiziert (Logs beweisen nur die Pipeline). Symlink `ResourcePackManager -> resourcepackmanager` weiterhin nötig — die Bridge liest aus dem großgeschriebenen Pfad, RPM schreibt in den kleingeschriebenen ⇒ Upstream-Report bleibt fällig. `NetworkSync: previous poll is still running` erscheint pro Boot 3–4× über 8 Backends (auch nach dem Merge) — laut eigener Meldung ein Hinweis auf ein hängendes Backend-Fetch; unkritisch, aber einen Blick wert.
+
+## Session: 2026-08-08 — Netzwerk-Ausfall (GeyserUtils × Geyser 2.11.1) + Props-Diagnose
+
+### Vorfall: Bedrock sah netzwerkweit KEINE Entities mehr
+
+Fabi hatte Geyser aktualisiert (JAR-Tausch 07.08. 21:18, wirksam mit dem Proxy-Boot heute 14:07).
+Danach sahen Bedrock-Spieler auf dem gesamten Netzwerk **gar keine Entities** — nicht nur keine
+Custom Models.
+
+**Root Cause:** die GeyserUtils-**Geyser-Extension** (Build 01.02.2026, `extension.yml: api: 2.4.1`)
+**ersetzt** Geysers eigenen AddEntity-Translator und greift dabei auf `Registries.ENTITY_DEFINITIONS`
+zu — ein Feld, das **Geyser 2.11.1-b1210** nicht mehr hat:
+
+```
+[geyser]: Konnte Paket ClientboundAddEntityPacket nicht übersetzen
+java.lang.NoSuchFieldError: Class org.geysermc.geyser.registry.Registries
+  does not have member field 'org.geysermc.geyser.registry.SimpleMappedRegistry ENTITY_DEFINITIONS'
+	at me.zimzaza4.geyserutils.geyser.replace.JavaAddEntityTranslatorReplace.translate(...:57)
+```
+
+Damit starb **jedes** Entity-Spawn, bevor irgendetwas gerendert wurde. Kausalität sauber belegt:
+
+| Log | Vorkommen |
+|---|---|
+| 01.08.–07.08. (alle Rotationen) | **0** |
+| 2026-08-08-2.log.gz | 29.316 |
+| latest.log (Boot 14:07) | 4.086 |
+
+**Fix:** Extension deaktiviert (umbenannt, nicht gelöscht) →
+`geyserutils-geyser-1.0-SNAPSHOT.jar.disabled-20260808-geyser2111`. Die Bridge nutzt GeyserUtils
+post-Pivot nicht mehr (`grep` über `src/` leer), FMM/RPM rendern nativ. **Nach Restart verifiziert:**
+0 AddEntity-Fehler, `bridge ready with 316`, GeyserModelEngineExtension lädt auch ohne GeyserUtils
+sauber. Übrig nur die 3 bekannten `battlepass_*`-Item-Konflikte (kosmetisch).
+
+Upstream hätte Commit `9dc686a` (12.07.2026, „Update to Geyser API 2.11.0") — Neubau nur nötig,
+falls GeyserUtils je wieder gebraucht wird.
+
+### Diagnose: Props erscheinen auf Bedrock als Schwein
+
+Danach der eigentliche Rest-Befund von Fabi: Mobs rendern korrekt, **Props sind Schweine**.
+
+Das Schwein ist FMMs **Träger-Entity** — `BedrockModeledEntity` nutzt für den Fake-Entity-Pfad
+`carrierEntityType(EntityType.PIG)`, während DynamicEntity über `bindToUnderlyingEntity` den echten
+Mob bindet. Schwein heißt also: die Custom-Entity-Zuordnung hat nicht gegriffen.
+
+**Systematisch ausgeschlossen:**
+1. *Java-Seite falsch?* Nein. `/fmm debug bedrock on` zeigt nur die `displayTo entry`-Zeile — die
+   Fallback-Zeilen (`wasAlreadyViewing=`, `V2=false fallback`, `FALLBACK to UUID-broadcast`) fehlen
+   alle. Da sie im Code **nach** dem Bedrock-Zweig stehen (der mit `return` endet), beweist ihr
+   Fehlen, dass der Zweig genommen wurde und `isAvailable()` true war.
+2. *Pack unvollständig?* Nein. Diff aller 315 lokalen `.bbmodel` gegen die 316 Entity-Defs im
+   Merged Pack: **kein Prop-Modell fehlt**. (Zwei Fehlalarme im ersten Diff — Groß-/Kleinschreibung
+   und Leerzeichen→Unterstrich; nach Korrektur bleiben nur 10 Item-Modelle übrig, die korrekt keine
+   Entity-Def brauchen.)
+3. *Zuordnung kommt zu spät?* Nein — sie kommt **gar nicht**. `RspmGeyserBridgeCore` führt
+   `CUSTOM_ENTITIES: GeyserConnection → {javaEntityId → identifier}` und hat eigene Warnungen
+   `loggedLateEntityReplacement` und `warnedUnregisteredSpawnDefinition`. **Beide haben nie gefeuert**
+   — im ganzen Proxy-Log stehen nur die vier Boot-Zeilen der Extension.
+
+**Verbleibender Verdacht:** `prepareEntitySpawn` geht im Fake-Entity-Pfad verloren — entweder stumm
+geschluckt in `runBridgeSafely(...)` oder übersprungen im `pluginProvider`-Early-Return von
+`FakeCustomEntityImpl.displayTo` (das ist der einzige Zweig, der `prepareBedrockSpawn` auslässt).
+Der Bukkit-Pfad (Mobs) meldet dagegen und spawnt erst einen Tick später über den Entity-Tracker.
+
+Nicht in der Bridge fixbar → **Upstream**. Caveat im Report vermerkt: Zeilenangaben stammen aus
+FMM 2.10.1 / Magmacore-HEAD (28.06.), deployt ist 2.10.2 (Source nicht auf GitHub).
+
+### Upstream-Report-Entwürfe
+
+- **NEU** `docs/upstream-bugs/fmm-props-render-as-pig-carrier-on-bedrock.md`
+- **NEU** `docs/upstream-bugs/rpm-geyser-bridge-case-sensitive-pack-path.md` — der Symlink-Bug, jetzt
+  hart belegt: zwei Zeilen aus **demselben** Log von heute zeigen, dass das Plugin nach
+  `plugins/resourcepackmanager/…` schreibt und die Extension aus `plugins/ResourcePackManager/…`
+  liest. Damit ist bewiesen, dass er in **2.3.0** noch drin ist.
+- `rpm-black-shadows-custom-models.md` als **✅ erledigt** markiert — MagmaGuy hat den Schatten-Bug
+  gefixt (Info Fabi). Nie eingereicht, bleibt als Beleg liegen.
+
+Fabi weiß noch nicht, wo er die Reports einreicht → bleiben vorerst Entwürfe.
+
+### Weitere Erkenntnisse
+
+- **Staging-Workflow geklärt (wichtig!):** TestServer01 ist Staging, Survival01 Produktion. Survival
+  bleibt **bewusst** auf Dezember-2025-Ständen (FMM 2.3.14, EM 9.6.0, RPM 1.7.0, BS 2.1.0), bis auf
+  Test alles läuft — dann wird der Plugin-Stand rübergezogen. Alte Versionen dort sind **kein Fund**.
+- **`NetworkSync: previous poll is still running` ist damit erklärt und unkritisch:** `merging 1
+  Bedrock zip(s) across 8 backend(s)` — nur TestServer01 liefert überhaupt ein Bedrock-Bundle, die
+  anderen sieben haben planmäßig nichts zu liefern. Kein Timeout-Bug. Punkt kann von der Liste.
+- **Server-Stand weicht von der HANDOFF ab:** Geyser jetzt **2.11.1-b1210** (statt 2.11.0-b1205),
+  Velocity **4.1.0-SNAPSHOT** (statt 3.5.0) — letzteres war in der 26.2-Liste noch „ungeprüft".
+- `references/Magmacore` neu geklont — EasyMinecraftGoals ist seit 19.03.2026 deprecated und in
+  Magmacore aufgegangen; `BedrockCustomEntityBridgeRegistry` & Co. liegen jetzt dort.
+  `setup-references.sh` kennt beides noch nicht.
+- Diagnose-Werkzeug gelernt: `/fmm debug bedrock on|off` → Log-Stream `[FMM-BedrockDebug]`. Sehr
+  gesprächig (~280 Zeilen in 2 Minuten) — danach wieder ausschalten.
+
+### Kein Plugin-Code angefasst
+Diese Session war Live-Diagnose + Doku. Der Branch `feat/mc-26.2-readiness` ist unverändert.
+
+---
+
+## Session: 2026-08-09
+
+**Read-only Server-Audit** nach Fabis PluginPortal-Premium-Update-Runde. Kein Plugin-Code, keine
+Server-Änderung, keine Restarts.
+
+### 🎉 Hauptbefund: Java-25-Blocker ist aufgelöst
+
+Die HANDOFF führte „Java 25" als **den** Blocker für MC 26.2. Tatsächlich:
+
+- `/usr/lib/jvm/temurin-25-jdk-amd64` ist auf dem Host **installiert**.
+- **Proxy01 läuft bereits darauf** — `Java.JavaVersion=/usr/lib/jvm/temurin-25-jdk-amd64/bin/java`,
+  Velocity 4.1.0-SNAPSHOT-14, stabil seit 08.08. Java 25 ist damit **produktiv bewiesen**.
+- Alle Paper-Backends stehen weiter auf `jdk-21.0.5-oracle-x64`. Umstellen ist ein Feld in AMP
+  (`<instanz>/MinecraftModule.kvp`), keine Installation.
+- ⇒ Offen bleibt nur der **Plugin-Test unter Java 25 auf Backend-Seite** — und der geht **jetzt
+  schon auf Paper 1.21.10**, ohne MC-Versionswechsel. Damit lassen sich JVM-Wechsel und
+  26.2-Wechsel als getrennte Risiken abarbeiten.
+
+### Bedrock-Kette verifiziert
+
+Geyser **2.11.1-b1210**, RPM **2.3.0** auf Backend + Proxy + GeyserBridge-Extension, FMM **2.10.2**,
+EM **10.7.3**, BS **2.6.3**, Floodgate b138, Symlink `ResourcePackManager → resourcepackmanager`
+vorhanden.
+
+Letzter Proxy-Boot (08.08. 14:50, `logs/2026-08-08-4.log.gz`): **2** Extensions geladen (GeyserUtils
+korrekt weg), `bridge ready with 316 custom entity definitions`, **kein** `NoSuchFieldError`. Im Boot
+davor (14:07, mit GeyserUtils) steht der Fehler noch drin — der Fix vom 08.08. ist damit im Log
+zweifelsfrei belegt, nicht nur behauptet.
+
+Die 40 ERROR-Zeilen im aktuellen Proxy-Log sind ausschließlich `[initial connection]
+/23.176.184.152:<port>: read timed out` — ein scannender Host, kein Serverproblem.
+TestServer01: 0 Fehler.
+
+### ⚠️ PacketEvents wurde von PluginPortal NICHT mitgezogen
+
+Steht weiter auf **2.12.1** (JAR vom 02.05.) — der letzte echte offene Punkt der 26.2-Kette.
+Modrinth-Abfrage: `2.13.0+spigot` deckt **1.8.8 … 26.2** ab (inkl. 1.21.10) ⇒ **Bump geht sofort**,
+kein Paper 26.2 nötig. PP verwaltet das JAR, muss also dort angestoßen werden;
+`plugin-update-check.sh` fasst PP-Plugins bewusst nicht an.
+
+### GeyserModelEngine: vermutete Altlast → widerlegt, plus Bug im eigenen Tooling
+
+Erster Eindruck war „GME shaded packetevents 2.11.2 neben 2.12.1 ⇒ Classpath-Konflikt, rauswerfen".
+Auf Nachfrage von Fabi (GME + ModelEngine sollen für künftige Projekte drinbleiben) nachgeprüft —
+**die Annahme war falsch:**
+
+- Die gebundelten packetevents-Klassen sind **relociert** nach
+  `re/imc/geysermodelengine/libs/io/github/retrooper/packetevents/…` (1767 Einträge) ⇒ **kein
+  Konflikt** mit dem echten packetevents 2.12.1.
+- GME hat eine **`paper-plugin.yml`** (`name: GeyserModelEngine`, `main:
+  re.imc.geysermodelengine.GeyserModelEngine`, `load: STARTUP`), die Paper bevorzugt. Boot-Log
+  08.08.: `Enabling GeyserModelEngine v1.0.3` **und** `Enabling packetevents v2.12.1` — beide laufen.
+- Die **Root-`plugin.yml` von GME ist ein Shading-Artefakt** und wörtlich die von packetevents
+  (`name: packetevents`, `version: 2.11.2`, `main: io.github.retrooper…PacketEventsPlugin` — eine
+  Klasse, die im JAR gar nicht mehr unter diesem Namen liegt).
+
+⇒ Der Report „packetevents 2.11.2 → 2.13.0 [GeyserModelEngine-1.0.3.jar]" war **ein Bug in
+`server-tools/plugin-update-check.sh`**, kein Serverbefund. **Gefixt:** das Skript liest jetzt
+`paper-plugin.yml` mit Vorrang und fällt nur ohne diese auf `plugin.yml` zurück. (Die Server-Kopie
+unter `~/plugin-update-check.sh` muss noch per scp nachgezogen werden.)
+
+⚠️ **Gelernt:** GMEs `paper-plugin.yml` deklariert `GeyserUtils: required: true`. Das Backend-Plugin
+`geyserutils-spigot-1.0-SNAPSHOT.jar` muss liegen bleiben, solange GME drin ist — am 08.08.
+deaktiviert wurde nur die **Proxy-Extension**, nicht das Spigot-Plugin.
+
+### Weiteres
+
+- **Paper 26.2 ist final** — `fill.papermc.io/v3` listet `26.2` und `26.2-rc-2`. Nebenbefund: der
+  1.21-Zweig steht bei **1.21.11**, TestServer01 auf 1.21.10-130 (für seinen Branch aktuell).
+- **Von PP aktualisiert (07./08.08.):** LuckPerms 5.5.71, EssentialsX + Spawn 2.22.0,
+  FaweSchematicCloud, PluginPortal 3.8.6; manuell Floodgate, Geyser, Via* 5.12.0.
+- **Floodgate b138 → b140** verfügbar (minor).
+- **Survival01** erwartungsgemäß auf Dez-2025-Stand, nur Floodgate mitgezogen — Staging-Workflow,
+  kein Fund.
+- **Bridge-JAR auf dem Server ist der Build vom 10.07.** — der 26.2-ready-Branch ist nicht deployt.
+
+### Doku
+
+`HANDOFF.md` umstrukturiert: neuer Abschnitt **0** (dieser Audit) an den Anfang, alter Abschnitt 0
+(Versionsschema/Abhängigkeitskette) → **0c** mit aktualisierter Tabelle, Abschnitt 3 in **Strang A
+(Bridge-Rest-Scope)** und **Strang B (26.2-Vorbereitung)** geteilt.
+
+### ✅ Java-25-Umstellung TestServer01 verifiziert (09.08., 15:43)
+
+Fabi hat TestServer01 in AMP auf `temurin-25` umgestellt und gestartet, noch auf Paper 1.21.10 —
+genau die Trennung von JVM- und MC-Versionswechsel, die in Strang B vorgesehen war.
+
+**Ergebnis: Boot sauber, kein Plugin gefallen.**
+
+- `[bootstrap] Running Java 25 (… Temurin-25.0.4+7)`, Paper 1.21.10-130, `Done (49.940s)`.
+- **0** Treffer für `UnsupportedClassVersionError` / `Could not load 'plugins/…'` /
+  `Error occurred while enabling` / `Ambiguous plugin name`.
+- Plugin-Ladeliste per `comm` gegen den Java-21-Boot vom 08.08. verglichen ⇒ **identisch**. Die
+  einzige Differenz war DriveBackupV2s Log-Zeile „Enabling automatic backups", die erst ~30 min
+  nach Boot feuert — kein Plugin, sondern ein Artefakt meines `grep "Enabling "`-Zählens.
+- Alle Wackelkandidaten laden: ProtocolLib 5.4.1, LibsDisguises 11.0.18, FAWE 2.15.4,
+  MythicMobs 5.10.1, Skript, packetevents 2.12.1, GME 1.0.3, FMM 2.10.2, EM 10.7.3, RPM 2.3.0.
+- Bridge sauber hoch: FMMEntityTracker, Sync-Task, PacketInterceptor, „PacketEvents: found",
+  Phase 7.1c, Phase 7.3 (status=true, quest=true), FMM + Floodgate found.
+
+**Drei Log-Auffälligkeiten geprüft — alle Alt-Befunde, keine davon Java-25-bedingt.** Methodik:
+Trefferzahlen im neuen Boot gegen `logs/2026-08-08-2.log.gz` (Java 21) gezählt, jeweils identisch:
+
+| Befund | J21 | J25 | Einordnung |
+|---|---|---|---|
+| `Failed to interpolate animations … em_goblin_premium_farmer` / Animation `fumble`, `ArrayIndexOutOfBoundsException: Index 55 out of bounds for length 55` in `AnimationBlueprint.interpolateTranslations:312` | 1 | 1 | FMM-Datenbug an einem Modell |
+| `Script GK_SailorGoblin_{anchor_throw,overboard}.lua contains unsupported key 'name'` | 2 | 2 | EM-Content-Fehler im Goblin-King-Pack |
+| Paper-Watchdog „server has not responded for 10 seconds" | 2 | 2 | EMs `CustomItem.regenerateCachedItemStacks` → `EliteItemLore.writeNewLore` auf dem Main-Thread; identischer Stack im alten Boot |
+
+Der Watchdog-Stack lohnt eine Randnotiz: der Server-Thread hängt in
+`EliteItemLore.writeNewLore` → `EliteItemManager.getDPS` → `ItemTagger.getEliteDamageAttribute` →
+`ItemStack.getItemMeta` → `CraftMetaItem.buildEnchantments` → `NamespacedKey.validate`. Also EM,
+das beim Start alle CustomItem-Lores samt DPS neu berechnet und dabei pro Item ItemMeta baut.
+Startkosten, kein Java-Thema.
+
+⇒ **Strang B Schritt 1 (Backend auf Java 25) ist für TestServer01 abgehakt.** Offen bleiben
+PacketEvents 2.13.0, dann Paper 26.2, und später die übrigen Backends.
+
+`server-tools/plugin-update-check.sh` wurde per scp auf den Server nachgezogen
+(`~/plugin-update-check.sh`, md5 verifiziert identisch).
+
+---
+
+## Session: 2026-08-14 — Paper 26.2 live, MagmaGuy-Welle, 7.1a auf EMs BossBar-Pooling umgebaut
+
+**Der Tag hat zwei Hälften:** vormittags Server-Stand nachziehen und die neuen Changelogs
+auswerten, abends — während Fabi und der Server-Claude das Netz auf **Paper 26.2** hoben —
+der erste Plugin-Code-Change seit dem 02.08.
+
+### 1. SERVER-STATE.md nachgezogen (Repo hing auf 09.08.)
+
+Repo-Kopie war 31 KB (Stand 09.08. 17:45), Server-Kopie 164 KB (14.08. 23:17). Nachgezogen,
+md5 beidseitig geprüft, dazu `check-invsee.sh`, `paper-update-plan.md` und das aktualisierte
+`backup-testserver.sh` neu ins Repo geholt.
+
+### 2. MagmaGuy-Welle vom 13.08. — gegen den Quellcode geprüft, nicht gegen die Changelogs
+
+`references/` gepullt (FMM, EM, RPM, BS, MagmaCore) und die Behauptungen verifiziert:
+
+- **🔴 EM 10.8.0 bricht die Annahme hinter Phase 7.1a.** Neu ist
+  `combatsystem/displays/BossHealthBarManager`: ein Pool von **max. 4 wiederverwendeten**
+  Bukkit-BossBars pro Spieler (`MAX_VISIBLE_BARS_PER_PLAYER = 4`), die per `setTitle(...)` für
+  **wechselnde Bosse** weiterbenutzt werden; `BossBarOrderManager.show()` erzwingt die
+  Reihenfolge mit `tailBar.removePlayer(p); tailBar.addPlayer(p);`. Damit fällt „der erste
+  titel-passende ADD ist unserer", und einmal unterdrückte UUIDs hätten fremde Bosse
+  eingefroren. EM bringt weiterhin **keinen** Bedrock-Pfad für BossBars ⇒ die Bridge bleibt nötig.
+- **✅ RPM 2.3.1 fixt unseren gemeldeten Case-Bug.** `RspmGeyserBridgeCore.BEDROCK_PACK_PATHS`
+  probiert beide Schreibweisen durch, mit Kommentar *„Velocity's default data directory is
+  lowercase"*. Report-Entwurf als erledigt markiert.
+- **❌ Props-als-Schwein bleibt offen** — `BedrockModeledEntity.java:64` führt in 2.11.1 weiter
+  `.carrierEntityType(EntityType.PIG)` im Fake-Entity-Pfad. Entwurf gilt weiter.
+- **Keine API-Brüche.** Alle importierten FMM/EM-Typen existieren; auch **sämtliche
+  Reflection-Ziele von Phase 7.3** überleben EMs Menü-Redesign (`PlayerStatusScreenDialog`,
+  `QuestInventoryMenu` inkl. `questDirectories`/`questInventories` und der Inner-Class-Felder).
+- FMM **2.11.0 hatte eine Animations-Regression**, gefixt erst in **2.11.1** → nie 2.11.0 nehmen.
+
+### 3. Phase 7.1a umgebaut (`BossBarUuidResolver`, Registry-Eviction)
+
+- **Neu `BossBarUuidResolver`** — liest die Wire-UUID der eigenen Bukkit-BossBar per Reflection
+  (CraftBossBar → NMS-Handle → einziges `UUID`-Feld, **ohne** Feldnamen zu verdrahten, damit
+  Mapping-Wechsel es nicht brechen). Fehlschlag → `null` → alte Heuristik + einmalige Log-Zeile.
+  Notausstieg `phase71a.resolve-own-bossbar-uuid` (default true).
+- **`BossBarRegistry` ist nicht mehr write-only:** Eviction bei REMOVE und bei einem ADD, dessen
+  Titel keinem aktiven Controller gehört (recycelter Pool-Slot).
+- **`exitCombat()` löscht die Eigen-UUID nicht mehr** — das BossBar-Objekt lebt so lange wie der
+  Controller, seine UUID ist stabil; das Löschen erzwang bei jedem Combat ein neues Rennen gegen EM.
+- **+5 Tests** (`BossBarRegistryTest`) ⇒ **21/21 grün**, `verify-both-apis.sh` beide Generationen grün.
+
+### 4. Rebuild gegen den neuen Stack + Deploy
+
+pom auf **FMM 2.11.1 / EM 10.8.0** (JARs vom Server via `install:install-file` — sie liegen nicht
+im magmaguy-Maven-Repo). Deployt nach TestServer01, sha256 beidseitig geprüft, alter Build gesichert.
+
+### 5. Live verifiziert (22:33–22:44, Bedrock `.Nightgame2272`, zwei EM-Bosse)
+
+| | |
+|---|---|
+| `Resolved own BossBar UUID` | **9×** |
+| `Could not read BossBar` / alte Heuristik | **0×** |
+| `Suppressed stale-title` | 3×, an verschiedenen Pool-Slots |
+| **`Released suppressed … on REMOVE`** | **2×** ⇒ Eviction greift |
+| fremde Bars (Plugin-Ladebalken) | 3× korrekt durchgelassen |
+
+Fabi in-game: „sah alles gut aus, eine Leiste pro Boss." `Suppressed EM BossBar` (exakter
+Titel-Match) bleibt 0, weil EMs Leiste bei EVOKER-Bossen immer `Evoker | 2` heisst — es läuft
+immer der Alias-Zweig. `Released recycled` blieb 0: EM gibt Slots sauber per REMOVE frei und legt
+danach eine **neue** UUID an; der Recycle-Zweig ist Sicherheitsnetz.
+
+### 6. Nebenfunde
+
+- **`getBukkitVersion()` liefert auf Paper 26.2 `26.2.build.112-stable`.** Der alte 10.07.-Build
+  konnte das nicht ordnen und hat den Dialog-Reroute **still abgeschaltet**
+  (`Phase 7.3: reroute NOT registered … mc>=1.21.6=false`). Auf diesem Branch längst gefixt und in
+  `McVersionsTest` abgedeckt — nach dem Deploy steht dort `registered`.
+- **Bauen braucht zwingend JDK 25**, sonst *„Ungültige Klassendatei … paper-api"* (Class-File 69).
+  Bytecode-Target bleibt 21. `verify-both-apis.sh` fand kein Maven, weil IntelliJ den Plugin-Ordner
+  je nach Version `maven` **oder** `maven-plugin` nennt → Kandidatenliste statt festem Pfad.
+- **CLAUDE.md zweimal korrigiert**, die zweite Korrektur war eine Korrektur meiner eigenen:
+  Beim RPM-Update auf dem Proxy darf ab 2.3.1 die `…GeyserBridge.jar` **nicht** mehr mitkopiert
+  werden (es gibt keine neue). Nur die Universal-JAR tauschen, **zweimal** neu starten;
+  `loadedDefinitions=0` nach dem ersten Boot ist normal. Beleg: Proxy-Log des Server-Claude.
+
+### 7. Offen: A/B-Test zum HP-Nametag
+
+EM hat `EliteOverheadHealthDisplay` — Balken **und** numerische HP über dem Mob, funktional
+identisch zu unserem 7.1b/7.1c-Overlay. Die Config-Keys (`displayVisualHealthBars`,
+`displayNumericHealth`) gibt es **seit EM 9.6.0**; neu ist nur der Umbau in 10.8.0, der die
+Anzeige zuverlässig macht — deshalb fällt die Dopplung erst jetzt auf. Fabi meldete entsprechend
+„nicht dass jetzt zu viel gezeigt wird".
+
+Dafür **neuer Schalter `phase71b.nametag-enabled`** (bewusst *nicht* `phase71c.combat-enabled`
+zweckentfremdet — das hätte die BossBar auf „immer sichtbar" gestellt und den Test verfälscht).
+Auf TestServer01 steht `false` + `debug: true`, wartet auf einen Neustart. Ergebnis entscheidet,
+ob 7.1b/7.1c ausgebaut wird oder EMs Anzeige abgeschaltet gehört.

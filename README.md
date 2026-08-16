@@ -14,7 +14,7 @@ The current plugin is a focused **EM↔Bedrock UX-Bridge**.
 
 | Feature | Why it exists |
 |---------|---------------|
-| **Phase 7.1a/c — Styled Combat BossBar** | EM-managed Bukkit BossBar with the YAML-styled name (e.g. "Tier 13 Eis-Elementar") instead of the Vanilla "Evoker | 2" Geyser would otherwise show on Bedrock. First-match heuristic suppresses EM's BOSS_EVENT for Bedrock players. |
+| **Phase 7.1a/c — Styled Combat BossBar** | EM-managed Bukkit BossBar with the YAML-styled name (e.g. "Tier 13 Eis-Elementar") instead of the Vanilla "Evoker | 2" Geyser would otherwise show on Bedrock. EM's own BOSS_EVENT packets are suppressed for Bedrock players; our bar is identified by its wire UUID, read reflectively, because EliteMobs 10.8.0 pools and re-titles up to four bars per player and an ordering heuristic can no longer tell them apart. |
 | **Phase 7.1b/c — Combat Nametag** | Bukkit TextDisplay above bridged mobs showing HP-number / health-bar (combat-only, 2 lines above FMM's native name). Java players see only FMM's native nametag (packet-suppress for our TextDisplay). |
 | **Phase 7.3 — Bedrock Menu Dialog-Reroute** | EM forces Bedrock players to the `/em` chest menu (a bare container grid on Bedrock) even though it already builds the same menu as a native MC dialog for Java 1.21.6+. Geyser now renders MC dialogs as native Bedrock forms, so the bridge cancels the Bedrock chest and triggers EM's `showPlayerStatusDialog` — Bedrock gets a real form, sub-pages cascade natively. Reroute-only (no form-building); registry-extensible to other EM menus. Requires MC ≥ 1.21.6. |
 | **Phase 7.3b — Bedrock NPC Quest-Menu Dialog-Reroute** | Extends Phase 7.3 to EliteMobs' NPC quest menu — the only other Bedrock-forced-to-chest EM menu with a native dialog path (`QuestMenu.generateDialogMenu`). Detection is holder-based (looks the opened chest up in EM's internal `QuestInventoryMenu` maps via reflection) because quest chest titles are dynamic (single-quest title = quest name, multi-quest = literal `"Quests"`). On a hit the chest is cancelled and EM's quest dialog fires next tick → Geyser renders a native Bedrock form. Status-vs-quest precedence + per-flag gating live in `RerouteDecision`; recovered quest context is carried opaquely in `QuestMenuContext`. Config: `phase73.bedrock-quest-reroute: true`. Requires MC ≥ 1.21.6. |
@@ -23,12 +23,25 @@ That's it. No mob rendering, no animation conversion, no 3D item conversion — 
 
 ## Requirements
 
-**Backend Server (Paper/Spigot 1.21.x):**
+**Backend Server (Paper/Spigot 1.21.x **or** 26.x):**
 - [FreeMinecraftModels](https://github.com/MagmaGuy/FreeMinecraftModels) **2.6.0+** with `sendCustomModelsToBedrockClients: true` in its `config.yml`
 - [ResourcePackManager](https://github.com/MagmaGuy/ResourcePackManager) **2.0.0+** (generates the Bedrock pack, serves it to the proxy via embedded HTTP server)
-- [EliteMobs](https://github.com/MagmaGuy/EliteMobs) (optional — required for BossBar replacement and dialog-reroute)
+- [EliteMobs](https://github.com/MagmaGuy/EliteMobs) (optional — required for BossBar replacement and dialog-reroute). **10.8.0+ recommended:** it pools and re-titles up to four boss bars per player, which the BossBar suppression is built around.
 - [Floodgate](https://github.com/GeyserMC/Floodgate) (required for Bedrock player detection — its `key.pem` also derives the RPM Network-Mode key)
-- [PacketEvents](https://github.com/retrooper/packetevents) **2.12.1+** (required for packet manipulation)
+- [PacketEvents](https://github.com/retrooper/packetevents) **2.12.1+** on 1.21.x, **2.13.0+** on 26.x (required for packet manipulation)
+
+> **Minecraft 26.x:** Mojang replaced the `1.x` scheme with year-based versions in 2026 — there
+> is no 1.22, the line runs 1.21.11 → **26.1** → **26.2**. The plugin supports both generations
+> from a single jar (see Build). Server-side, MC 26.2 additionally requires **Java 25** and, for
+> Bedrock, **Geyser 2.11+** together with **RPM 2.3.0+**.
+>
+> Verified in production on **Paper 26.2 (build 112)** with FMM 2.11.1, EliteMobs 10.8.0,
+> ResourcePackManager 2.3.1, Geyser 2.11.1 and PacketEvents 2.13.0.
+>
+> Note that on 26.x `Bukkit.getBukkitVersion()` returns a build/channel string such as
+> `26.2.build.112-stable`. Version gates must tolerate the non-numeric trailing segments —
+> `McVersions` does, and there are tests for it. A gate that does not will silently disable
+> features rather than fail loudly.
 
 **Proxy (Velocity/BungeeCord):**
 - [Geyser](https://geysermc.org/)
@@ -37,12 +50,24 @@ That's it. No mob rendering, no animation conversion, no 3D item conversion — 
 
 ## Build
 
-Requires Java 21 and Maven.
+Requires **JDK 25** and Maven. The jar itself targets Java 21 bytecode and runs on both Java 21
+and 25 — but *compiling* needs 25, because Paper's 26.2 API ships class file version 69, which
+javac 21 cannot read at all.
 
 ```bash
 mvn clean package
 # Output: target/FMMBedrockBridge-<version>.jar
 ```
+
+One jar serves both Minecraft generations. That is not something a single compile can prove, so
+the same sources are compiled twice — against 26.2 and against 1.21.10:
+
+```bash
+bash verify-both-apis.sh
+```
+
+Both runs must pass, and the script also asserts the emitted bytecode is version 65 (Java 21).
+Only API present in *both* generations may be used; anything 26.x-only needs a reflective guard.
 
 There is no longer a separate Geyser Extension submodule — RPM does that work.
 
@@ -83,6 +108,16 @@ entity-view-distance: 50
 
 phase71a:
   suppress-em-bossbar: true  # false = both bars side-by-side (diagnostic)
+  resolve-own-bossbar-uuid: true  # read our bar's wire UUID reflectively (see below).
+                                  # false = legacy "first title match is ours" heuristic.
+                                  # Symptom of a mis-resolved UUID: Bedrock sees NO bar at all.
+
+phase71b:
+  nametag-enabled: true      # false = drop our combat HP overlay. EliteMobs renders an
+                             # equivalent one itself (MobCombatSettings.yml:
+                             # displayVisualHealthBars / displayNumericHealth), so turn one
+                             # of the two off to avoid showing health twice.
+                             # Does NOT affect the BossBar.
 
 phase71c:
   combat-enabled: true        # false = BossBar always-visible
@@ -106,7 +141,8 @@ phase71c:
 | `bridge/BedrockBossBarController` | Bukkit BossBar lifecycle per boss × Bedrock viewer |
 | `bridge/BedrockNametagController` | TextDisplay lifecycle, combat-state, position/text sync |
 | `bridge/BedrockCombatTrigger` | Bukkit listener: forwards `EliteMobEnterCombatEvent` / `ExitCombatEvent` to controllers |
-| `bridge/BossBarRegistry` | Captured EM BossBar UUIDs for ongoing suppression |
+| `bridge/BossBarRegistry` | EliteMobs BossBar UUIDs currently suppressed. Membership is temporary — since EM 10.8.0 these are pooled bars that get re-titled, so entries are evicted on REMOVE or on reuse for a title we don't own |
+| `bridge/BossBarUuidResolver` | Reads our own bar's wire UUID off the Bukkit BossBar reflectively, so EM's pooled bars can't be mistaken for ours. Returns null on any failure → legacy heuristic |
 | `bridge/NametagTextBuilder` | Pure utility composing the Nametag Component (empty out-of-combat, HP+Bar in-combat) |
 | `bridge/BedrockMenuRerouteListener` | Phase 7.3/7.3b: cancels the Bedrock `/em` chest or NPC quest-chest open and fires EM's native dialog next tick (Geyser → Bedrock form); dispatches status vs quest via `RerouteDecision` |
 | `bridge/MenuRerouteRegistry` | Phase 7.3: title-normalize (strip color codes) + title→dialog-invoker lookup; extensible to more EM menus |
@@ -146,6 +182,13 @@ Polymart manage their own updates, and replacing those jars by hand breaks their
 > move together. Geyser 2.11 breaks the custom-entity bridge in RPM < 2.3.0 (Bedrock players see
 > pigs instead of models). Restart the proxy **twice** after any RPM update — the Geyser extension
 > is only written on the first boot. Bedrock rendering can only be verified in-game, never from logs.
+>
+> ⚠️ **Also audit `Geyser-Velocity/extensions/` on every Geyser update.** Extensions that *replace*
+> a Geyser packet translator fail hard when the internal API moves. On 2026-08-08 a stale
+> **GeyserUtils** build (compiled against Geyser API 2.4.1) hit `NoSuchFieldError` on
+> `Registries.ENTITY_DEFINITIONS` inside its `ClientboundAddEntityPacket` replacement under Geyser
+> 2.11.1 — every entity spawn died and Bedrock clients network-wide saw **no entities at all**. If
+> Bedrock suddenly renders nothing, look in `extensions/` before suspecting RPM or FMM.
 
 ## License
 

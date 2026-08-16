@@ -29,6 +29,30 @@ phase71a:
   # side-by-side as a diagnostic.
   suppress-em-bossbar: true
 
+  # How the bridge recognises its OWN BossBar packets, so it suppresses EliteMobs' bar
+  # instead of its own.
+  #
+  #   true  (default) — read the bar's wire UUID directly off the Bukkit BossBar via
+  #                     reflection. Deterministic, and the only reliable option since
+  #                     EliteMobs 10.8.0 pools and re-titles up to four bars per player.
+  #   false           — use the old heuristic ("the first title-matching bar is ours").
+  #
+  # Only set this to false if Bedrock players see NO boss bar at all after a server or
+  # Paper update: that is what a mis-resolved UUID looks like. The startup log says which
+  # mode is active.
+  resolve-own-bossbar-uuid: true
+
+# Phase 7.1b — combat HP overlay (number + bar) above bridged mobs, Bedrock-only.
+phase71b:
+  # EliteMobs renders an equivalent display itself since 9.6.0 — see
+  # plugins/EliteMobs/MobCombatSettings.yml: displayVisualHealthBars + displayNumericHealth.
+  # Set to false to drop our overlay. Use this to test whether EM's own display reaches
+  # Bedrock clients: if it does, this scope is redundant and can be removed; if it does not,
+  # keep ours and turn EM's off instead so nothing is shown twice.
+  #
+  # Does NOT affect the BossBar — EliteMobs still has no Bedrock path for that.
+  nametag-enabled: true
+
 # Phase 7.1c — Combat-triggered visuals (HP/Bar/BossBar)
 phase71c:
   # When true, BossBar appears only during combat (EnterCombat → ExitCombat). Nametag
