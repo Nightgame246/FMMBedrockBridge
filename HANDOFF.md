@@ -1,6 +1,6 @@
 # HANDOFF — FMMBedrockBridge
 
-> Übergabe-Datei für Weiterarbeit an einem anderen PC. Stand: **2026-08-14**
+> Übergabe-Datei für Weiterarbeit an einem anderen PC. Stand: **2026-08-16**
 > Branch: **`feat/mc-26.2-readiness`** — gepusht, **bewusst nicht gemerged**.
 > `main` trägt nur einen Zeiger hierher (Commit `020aed4`).
 >
@@ -8,15 +8,8 @@
 > (Arbeitskopie `~/SERVER-STATE.md` auf dem Host), weil dort eine zweite Claude-Instanz mitarbeitet.
 > Diese Datei hier ist **nur noch Entwicklung**. Details in Abschnitt 0.
 >
-> 🔎 **Offen auf der Entwicklungs-Seite — GENAU EIN PUNKT:**
-> **Der A/B-Test zum HP-Nametag steht deployt und wartet auf einen Server-Neustart.**
-> Auf TestServer01 ist `phase71b.nametag-enabled: false` gesetzt und `debug: true`.
-> Frage: **Erreicht EliteMobs' eigene Overhead-HP-Anzeige die Bedrock-Clients?**
-> - **Ja** → unser 7.1b/7.1c-Overlay ist redundant ⇒ ausbauen, Bridge-Scope schrumpft auf die BossBar.
-> - **Nein** → unser Overlay bleibt ⇒ stattdessen EMs Anzeige aus
->   (`plugins/EliteMobs/MobCombatSettings.yml`: `displayVisualHealthBars`, `displayNumericHealth`).
->
-> Danach `debug` wieder auf `false` — das Log ist damit sehr gesprächig.
+> ✅ **Der A/B-Test zum HP-Nametag ist am 16.08. entschieden — der Rest-Scope steht endgültig.**
+> **Auf der Entwicklungs-Seite ist damit nichts mehr offen außer dem Merge** (Abschnitt 3).
 >
 > ✅ **Erledigt am 14.08.:** 7.1a gegen EMs neues BossBar-Pooling umgebaut **und live verifiziert**;
 > Rebuild gegen FMM 2.11.1 / EM 10.8.0 auf Paper 26.2; JAR deployt.
@@ -114,6 +107,51 @@ Bevor die Session endet bzw. wenn der User signalisiert, dass er aufhört / den 
 ---
 
 ## 1. Wo wir gerade stehen (Git)
+
+### Session 2026-08-16 — A/B-Test entschieden: 7.1b/7.1c bleiben (KEIN Plugin-Code)
+
+**Die Frage war falsch gestellt — es gab nie eine Dopplung.** Der Test lief sauber: Bridge-Overlay
+aus (`phase71b.nametag-enabled: false`), EMs eigene Anzeige an (`displayVisualHealthBars: true`,
+`displayNumericHealth: true` — beidseitig verifiziert, sonst hätte der Test nichts gemessen).
+
+**Fabis Beobachtung in-game:** Auf **Java** Balken + Zahl über dem Mob **plus** ein
+Schaden-Popup je Treffer. Auf **Bedrock** nur das Popup und die BossBar — **kein Overhead-HP**.
+
+| | Java | Bedrock |
+|---|---|---|
+| EMs Overhead-HP (`EliteOverheadHealthDisplay`) | ✅ | ❌ **kommt nicht an** |
+| Bridge-Overlay 7.1b/7.1c | **nie sichtbar** (weggefiltert) | ✅ |
+
+Der entscheidende Punkt steht im Code: `BedrockNametagController` ist **Bedrock-only** —
+`PacketInterceptor.hideFromJava()` unterdrückt die TextDisplay-Pakete für alle
+Nicht-Floodgate-Spieler (Klassen-Doc Z. 13–18). **Java-Spieler haben unser Overlay nie gesehen.**
+Die beiden Anzeigen bedienen disjunkte Client-Gruppen; das ist genau die Arbeitsteilung, für die
+7.1b gebaut wurde.
+
+> ⚠️ **Die früher hier notierte Konsequenz „Nein → dann EMs Anzeige abschalten" war falsch** und
+> wurde **nicht** ausgeführt. Sie setzte eine Dopplung voraus, die es nicht gibt. EMs Anzeige
+> abzuschalten hätte nur den **Java**-Spielern etwas weggenommen, ohne auf Bedrock irgendetwas zu
+> gewinnen. Gleiches gilt für die Memory-Notiz `em_overhead_health_duplicates_bridge` — korrigiert.
+
+**⇒ 7.1b/7.1c bleiben unverändert. Rest-Scope der Bridge endgültig: Combat-BossBar + HP-Nametag.**
+
+**Nebenbefunde aus dem Boot-Log (16:38/16:39, Paper 26.2):**
+- `PacketEvents: found — packet interception active` ⇒ der Verdacht aus Abschnitt 0 (2.13.0
+  bricht die alte Erkennung) ist **ausgeräumt**.
+- `Phase 7.3: Bedrock menu dialog-reroute registered (status=true, quest=true)` ⇒ der
+  `McVersions`-Fix greift auf `26.2.build.112-stable`; der 10.07.-Build stand hier noch auf
+  `NOT registered`. **Damit ist 7.3b nebenbei live-verifiziert.**
+
+**Offene Beobachtung, kein Auftrag:** EMs Overhead-Balken **und** die Combat-Popups laufen beide
+über `VisualDisplay.createStyledFakeText` → `FakeText` (EasyMinecraftGoals, paket-basierte
+Fake-Entities). Trotzdem kommt nur das Popup auf Bedrock an. Da DamageIndicator 2.0.5 laut Fabi
+„nie wirklich funktioniert hat", stammt das Popup von EM selbst ⇒ der Unterschied liegt
+vermutlich an der **Bindung an den Mob** (der Overhead-Text hängt am Mob und kollidiert mit FMMs
+Bedrock-Custom-Entity), nicht am Render-Mechanismus. Nur relevant, falls das Overhead-Display
+jemals doch auf Bedrock gebraucht wird.
+
+**Server-Config nach dem Test zurückgestellt** (`debug: false`, `nametag-enabled: true`,
+Backup `config.yml.bak-20260816-abtest`) — **wirkt erst nach dem nächsten Neustart.**
 
 ### Session 2026-08-14 — 26.2 ist live, 7.1a umgebaut und verifiziert
 
@@ -287,13 +325,9 @@ Was von der Bridge **vielleicht** noch übrig bleibt (zu prüfen!):
 
 ### Bridge-Rest-Scope
 
-1. **🔴 A/B-Test HP-Nametag auswerten** — der einzige echt offene Punkt. Deployt und wartet
-   auf einen Neustart: `phase71b.nametag-enabled: false`, `debug: true`.
-   Auswertung + Konsequenz stehen im Kopf dieser Datei.
-   **Hintergrund:** EM hat `EliteOverheadHealthDisplay` — Balken **und** numerische HP über dem
-   Mob, funktional identisch zu unserem Overlay. Die Config-Keys dafür
-   (`displayVisualHealthBars`, `displayNumericHealth`) gibt es **seit EM 9.6.0**; neu ist nur der
-   Umbau in 10.8.0, der die Anzeige zuverlässig macht — deshalb fällt die Dopplung erst jetzt auf.
+1. ~~**A/B-Test HP-Nametag auswerten**~~ ✅ **erledigt 16.08.** — EMs Overhead-Anzeige erreicht
+   Bedrock **nicht**, und eine Dopplung gab es ohnehin nie (unser Overlay ist Bedrock-only).
+   **7.1b/7.1c bleiben unverändert**, EM-Config **nicht** angefasst. Details in Abschnitt 1.
 2. ~~**Combat-BossBar (7.1a) auf Bedrock prüfen**~~ ✅ **erledigt 14.08.**, s. Abschnitt 1.
 3. **Upstream-Reports einreichen** (nur Fabi — Zugang zu GitHub-Issues/Discord). Noch offen:
    **Props-als-Schwein (FMM)** — in 2.11.1 unverändert, `BedrockModeledEntity.java:64` führt
@@ -310,10 +344,11 @@ Was von der Bridge **vielleicht** noch übrig bleibt (zu prüfen!):
 5. ~~**Bridge gegen packetevents 2.13.0 neu bauen und deployen**~~ ✅ **erledigt 14.08.**
    Deployt ist `…-20260814-2101.jar` (sha `57753139…`, beidseitig geprüft). Backups auf dem
    Server: `FMMBedrockBridge.jar.bak-20260814-2150` (alter 10.07.-Build) und `.bak-20260814-2300`.
-6. **Branch-Entscheidung:** `feat/mc-26.2-readiness` ist weiterhin **nicht gemerged**. Die
-   Bedingung dafür ist jetzt **erfüllt** — der Build läuft real auf einem 26.2-Server und ist
-   in-game verifiziert. Sinnvoll: nach der Auswertung des A/B-Tests mergen, damit 7.1b nicht
-   zweimal angefasst wird.
+6. **🔴 Branch mergen — der einzige offene Entwicklungs-Punkt.** `feat/mc-26.2-readiness` ist
+   **nicht gemerged**. Beide Bedingungen sind jetzt erfüllt: der Build läuft real auf einem
+   26.2-Server und ist in-game verifiziert (14.08.), und der A/B-Test ist entschieden (16.08.) —
+   7.1b wird **nicht** mehr angefasst, es gibt also nichts mehr, was zweimal Code kosten würde.
+   Vorgehen wie beim 7.2b-Merge: Backup-Tag setzen, `git merge --no-ff`, Docs nachziehen, pushen.
 
 > **Build-Rezept auf einem frischen PC** (der frühere Merker „kein Dep-Bump" ist **überholt** —
 > seit 14.08. baut die Bridge gegen FMM 2.11.1 / EM 10.8.0):
