@@ -13,11 +13,14 @@
     <description>Bridge between FreeMinecraftModels and Geyser/Bedrock for custom model display</description>
 
     <properties>
-        <!-- Bytecode target stays 21 so the jar keeps loading on the Java 21 servers
-             that run 1.21.x. Compiling however REQUIRES a JDK >= 25: Paper's 26.2 API
-             ships class file version 69 (Java 25) and javac 21 cannot read it at all.
-             So: build with JDK 25, emit Java 21 bytecode. -->
-        <java.version>21</java.version>
+        <!-- Bytecode target raised 21 -> 25 on 2026-09-09. Every live instance runs
+             Temurin 25 since 2026-08-16; the only Java 21 holdout (dungeons01) is an
+             empty shell with no server jar and no process. Compiling has required a
+             JDK >= 25 all along anyway: Paper's 26.2 API ships class file version 69
+             and javac 21 cannot read it.
+             NOTE: the jar no longer loads on a Java 21 server. If one ever comes back,
+             drop this to 21 again — the sources stay Java 21 compatible. -->
+        <java.version>25</java.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <maven.compiler.release>${java.version}</maven.compiler.release>
         <maven.build.timestamp.format>yyyyMMdd-HHmm</maven.build.timestamp.format>

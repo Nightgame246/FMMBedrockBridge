@@ -14,7 +14,8 @@
 # Durchlauf kann das grundsätzlich nicht zeigen.
 #
 # JAVA: Paper 26.2 liefert Class-File-Version 69 (Java 25) aus — javac 21 kann die Dateien
-# nicht einmal lesen. Gebaut wird deshalb mit JDK 25, das Bytecode-Target bleibt aber 21,
+# nicht einmal lesen. Gebaut wird deshalb mit JDK 25. Das Bytecode-Target ist seit
+# 2026-09-09 ebenfalls 25 (vorher 21), weil alle Instanzen auf Temurin 25 laufen,
 # damit das JAR auf den Java-21-Servern weiterläuft (siehe maven.compiler.release im pom).
 #
 # Verwendung:  bash verify-both-apis.sh
@@ -80,12 +81,12 @@ JAR=$(ls -t target/FMMBedrockBridge-*.jar | head -1)
 # schlaegt der Stringvergleich fehl.
 CLS=$((10#$(unzip -p "$JAR" de/crazypandas/fmmbedrockbridge/bridge/McVersions.class \
             | od -An -tu1 -j6 -N2 | tr -d ' ')))
-if [ "$CLS" -ne 65 ]; then
-  echo "FEHLER: Bytecode-Version $CLS, erwartet 65 (Java 21)." >&2
-  echo "  Ein höherer Wert lädt auf den Java-21-Servern nicht." >&2
+if [ "$CLS" -ne 69 ]; then
+  echo "FEHLER: Bytecode-Version $CLS, erwartet 69 (Java 25)." >&2
+  echo "  Abweichung heisst: <java.version> im pom passt nicht zum Artefakt." >&2
   exit 1
 fi
-echo "OK — Class-File-Version 65 (Java 21), läuft auf Java 21 und 25."
+echo "OK — Class-File-Version 69 (Java 25). ACHTUNG: laeuft NICHT mehr auf Java 21."
 echo
 echo "Artefakt: $JAR"
 echo "BEIDE API-Generationen grün."
