@@ -1,127 +1,36 @@
 # HANDOFF — FMMBedrockBridge
 
-> Übergabe-Datei für Weiterarbeit an einem anderen PC. Stand: **2026-09-09**
-> Branch: **`main`** — `feat/mc-26.2-readiness` ist am 16.08. gemerged (`--no-ff`).
-> **Wieder ganz normal auf `main` weiterarbeiten.**
+> Arbeitsstand **dieses Plugins**. Stand: **2026-09-09**  ·  Branch: **`main`**
 >
-> ⚠️ **Seit 09.08. getrennt:** Server-/Betriebswissen steht in **`server-tools/SERVER-STATE.md`**
-> (Arbeitskopie `~/SERVER-STATE.md` auf dem Host), weil dort eine zweite Claude-Instanz mitarbeitet.
-> Diese Datei hier ist **nur noch Entwicklung**. Details in Abschnitt 0.
+> ⚠️ **Der Einstieg steht eine Ebene höher: `../HANDOFF.md`.**
+> Dort liegen Bootstrap, Session-Ende-Protokoll, Build-Vorbereitung am neuen PC und die
+> Übersicht über alle Plugins. Diese Datei hier ist nur noch die Bridge-Tiefe.
+> **Claude Code aus `codeing/minecraft/` starten, nicht aus diesem Ordner.**
 >
-> ✅ **Auf der Entwicklungs-Seite ist nichts mehr offen.** Der Rest-Scope der Bridge
-> (Combat-BossBar + HP-Nametag) ist auf dem 26.2-Stack **vollständig live verifiziert**:
-> 7.1a am 14.08., 7.1b/7.1c am 16.08. per A/B-Test. Was übrig ist, liegt bei Fabi
-> (Upstream-Reports) oder auf der Server-Seite — Abschnitt 3.
+> Server-/Betriebswissen: `../server-tools/SERVER-STATE.md` (gemeinsam mit dem Server-Claude).
+>
+> ✅ **Auf der Entwicklungs-Seite ist nichts offen.** Der Rest-Scope (Combat-BossBar +
+> HP-Nametag) ist auf dem 26.2-Stack vollständig live verifiziert: 7.1a am 14.08.,
+> 7.1b/7.1c am 16.08. per A/B-Test, Boot-Gegenprobe am 09.09. Was übrig ist, liegt bei Fabi
+> (Upstream-Report) oder auf der Server-Seite — Abschnitt 3.
 
 ---
 
-## 0. Server-Kontext — steht NICHT mehr hier
+## 0. Randbedingungen für dieses Plugin
 
-**Der Server-Stand hat eine eigene Datei bekommen: `server-tools/SERVER-STATE.md`**
-(Arbeitskopie auf dem Host unter `~/SERVER-STATE.md`).
-
-Grund: Auf dem Server läuft eine **zweite Claude-Instanz** als User `amp`, die Update-System,
-Log-Analyse und Fehlersuche macht. Beide Seiten brauchen denselben Server-Stand, aber die
-Server-Seite hat mit Branches, Builds und Plugin-Quellcode nichts zu tun. Also getrennt:
-
-| | |
-|---|---|
-| **`HANDOFF.md`** (diese Datei) | Entwicklung: Branch, Build, Phasen, Bridge-Scope, Upstream-Drafts. **Nur Dev-Claude schreibt hier.** |
-| **`SERVER-STATE.md`** | Betrieb: Instanzen, Plugin-Versionen, JVM-Zuordnung, offene Log-Fehler, Upgrade-Fortschritt, Änderungs-Log. **Beide Claudes schreiben dort.** |
-| **`server-tools/server-CLAUDE.md`** (→ `~/.claude/CLAUDE.md`) | Dauerregeln für die Server-Seite. |
-
-Die Server-Abschnitte, die früher hier standen (Audit 09.08., Netzwerk-Ausfall 08.08.,
-Update-Runde 02.08., Abhängigkeitskette 26.2), sind vollständig nach `SERVER-STATE.md`
-gewandert. Historie steckt in der Git-Historie dieser Datei.
-
-### Was davon für die Entwicklung relevant bleibt
-
-- **MC ist auf Jahresversionen umgestellt.** Kein 1.22 — die Linie läuft `1.21.11` → **26.1** →
-  **26.2**, Format `YY.Drop.Hotfix`. Das Namensschema `-R0.1-SNAPSHOT` ist bei den 26.x-Artefakten
-  weg (`26.2.build.87-stable`). Betrifft direkt `pom.xml` und `McVersions`.
-- **`api-version` in `plugin.yml` bleibt bewusst `'1.21'`** — Mindestangabe, keine Zielangabe.
-  Ein 1.21.x-Server würde `'26.2'` ablehnen; Paper 26.2 lädt `'1.21'` problemlos. FMM und
-  EliteMobs machen es genauso. **Nicht "korrigieren".**
-- **Der Ziel-Stack, gegen den die Bridge laufen muss** (Stand 09.09., aus `SERVER-STATE.md`):
-  Paper **26.2-112**, Java 25, Geyser **2.11.1**, RPM **2.3.1**, FMM **2.11.2**, EM **10.8.1**,
-  packetevents **2.13.0**.
-  - ⚠️ **Der pom hängt bewusst eine Patch-Version zurück** (FMM 2.11.1 / EM 10.8.0). Beides sind
-    `provided`-Deps und seit dem 14.08.-Build gab es keinen Plugin-Code-Change, also steht kein
-    Redeploy an. **Entscheidung Fabi, 09.09.: nicht bumpen, nur notieren** — beim nächsten
-    echten Build-Anlass mitziehen (Rezept in Abschnitt 3, „Build & Deploy").
-  - ✅ **Am 09.09. 15:33 verifiziert:** TestServer01 ist auf FMM **2.11.2** / EM **10.8.1**
-    gebootet, und die JAR vom 14.08. (gegen 2.11.1 / 10.8.0 gebaut) läuft dagegen **sauber** —
-    null Bridge-WARN/Exception, netzwerkweit **kein** `NoSuchMethodError`/`NoSuchFieldError`/
-    `NoClassDefFoundError`. **Damit ist der Patch-Drift empirisch unkritisch**, nicht nur
-    theoretisch.
-- ⏸️ **Der 26.2-Rollout ist seit 09.09. pausiert** (Fabi: „parke minigames01"). Fabi klärt mit dem
-  Co-Owner einen **Umbau der Instanz-Struktur + Netzwerk-Einstellungen**. Stand: **4 von 6 Backends
-  auf 26.2** (TestServer01, hub01, farmwelt01, Survival01), offen minigames01 + challenges01.
-  **Dev-Claude stößt dafür keine Vorarbeit an.**
-- **Die 14.08.-Bridge-JAR ist deployt** (`…-20260814-2101.jar`, gegen packetevents 2.13.0). Der
-  frühere Merker „auf TestServer01 liegt noch der 10.07.-Build" ist damit erledigt.
+- **Der geprüfte Stack steht in `../CLAUDE.md`** („Geprüfter Stack") — nicht hier, damit es
+  nur eine Quelle gibt.
+- ⚠️ **Der pom hängt bewusst eine Patch-Version zurück:** FMM **2.11.1** / EM **10.8.0**,
+  während live **2.11.2** / **10.8.1** läuft. `provided`-Deps auf Patch-Level, seit dem
+  14.08.-Build kein Code-Change, also kein Redeploy-Anlass — **Fabis Entscheidung vom 09.09.**
+  Am 09.09. 15:33 live gegengeprüft: die 14.08.-JAR läuft gegen 2.11.2 / 10.8.1 **bruchfrei**
+  (null Bridge-WARN/Exception, netzwerkweit kein `NoSuchMethodError`/`NoSuchFieldError`/
+  `NoClassDefFoundError`). Beim nächsten echten Build-Anlass mitziehen.
+- **`api-version` in `plugin.yml` bleibt `'1.21'`** — Mindestangabe, keine Zielangabe.
+  **Nicht „korrigieren".** (Begründung in `../CLAUDE.md`.)
 - **Bedrock-Rendering ist nie im Log verifizierbar**, nur in-game.
-
----
-
-## 🟢 FÜR CLAUDE: BOOTSTRAP (am Anfang JEDER Session zuerst lesen & ausführen)
-
-Wenn der User sagt „lies die HANDOFF.md", dann:
-
-0. **Rolle bewusst machen:** Du bist Minecraft-Java-Entwickler (Plugins + Mods). Bei jeder Aufgabe die passenden **Superpowers-Minecraft-Skills** laden (Einstieg: `superpowers:getting-started`) — siehe „Rolle & Arbeitsweise" in `CLAUDE.md`.
-1. **Diese Datei komplett lesen** — Abschnitte 1–5 geben den Entwicklungs-Stand.
-   Für den **Server**-Stand zusätzlich `server-tools/SERVER-STATE.md` lesen.
-2. **Git-Stand prüfen & richtigen Branch sicherstellen:**
-   ```bash
-   git status -sb
-   git checkout main                       # Refactor ist seit 2026-07-10 nach main gemerged
-   git pull                                # falls am anderen PC schon weitergearbeitet wurde
-   ```
-3. **Reference-Repos vorhanden & aktuell?** (gitignored, eigene Repos — kommen NICHT mit `git clone`):
-   ```bash
-   bash setup-references.sh
-   ```
-   Klont fehlende Refs und zieht Upstream-Updates (FMM/RPM/EliteMobs sind kritisch).
-3b. **Minecraft-Skills installiert?** (einmalig pro PC — die 7 Custom-Skills liegen NUR im Repo, nicht im Marketplace):
-   ```bash
-   bash install-skills.sh   # danach Claude Code neustarten
-   ```
-   Voraussetzung: Superpowers-Plugin per `/plugin` installiert (Marketplace `anthropics/claude-plugins-official`). Ohne diesen Schritt schlagen `superpowers:geyser-bridge-development` & Co. am neuen PC fehl.
-4. **Build verifizieren** (optional, bei Bedarf):
-   ```bash
-   mvn -o clean package -DskipTests
-   ```
-   ⚠️ **Vorher am NEUEN PC einmalig:** Der pom baut gegen **FMM 2.11.1 / EM 10.8.0**, die aber **NICHT im magmaguy-Maven-Repo publiziert** sind (Repo endet bei FMM 2.7.1 / EM 10.5.0). Ohne die JARs im lokalen `.m2` schlägt der Build mit „Could not find artifact" fehl. Einmalig die echten JARs vom Server holen + installieren — **PluginPortal benennt sie dort um, der Dateiname trägt ein `[PP] …`-Präfix**:
-   ```bash
-   export JAVA_HOME=/usr/lib/jvm/java-25-openjdk   # PFLICHT, sonst „Ungültige Klassendatei"
-   scp 'amp@mc.crazypandas.de:.ampdata/instances/TestServer01/Minecraft/plugins/[PP] Free Minecraft Models (MODRINTH).jar' /tmp/fmm.jar
-   scp 'amp@mc.crazypandas.de:.ampdata/instances/TestServer01/Minecraft/plugins/[PP] EliteMobs (MODRINTH).jar'              /tmp/em.jar
-   mvn install:install-file -Dfile=/tmp/fmm.jar -DgroupId=com.magmaguy -DartifactId=FreeMinecraftModels -Dversion=2.11.1 -Dpackaging=jar
-   mvn install:install-file -Dfile=/tmp/em.jar  -DgroupId=com.magmaguy -DartifactId=EliteMobs           -Dversion=10.8.0 -Dpackaging=jar
-   ```
-   ⚠️ **Auf dem Server liegt inzwischen FMM 2.11.2 / EM 10.8.1** — die JARs tragen also eine neuere
-   Version als der `-Dversion=`-Wert oben. Das ist so gewollt (Patch-Drift, s. Abschnitt 0); die
-   `-Dversion=`-Werte müssen zum pom passen, nicht zur JAR. Vor dem `install-file` mit
-   `unzip -p <jar> plugin.yml | grep version` gegenprüfen, welche Version wirklich in der JAR steckt.
-   (Falls kein `mvn` im PATH: IntelliJ bündelt eins unter `/usr/share/idea/plugins/maven/lib/maven3/bin/mvn`
-   — Ordner je nach Version `maven` **oder** `maven-plugin`; `verify-both-apis.sh` probiert beide.)
-   Danach läuft auch `-o` durch.
-5. Dann dem User den aktuellen Stand + die nächsten Schritte aus Abschnitt 3 zusammenfassen und auf seine Anweisung warten.
-
-## 🔴 FÜR CLAUDE: BEIM SESSION-ENDE (Pflicht, damit PC-Wechsel funktioniert)
-
-Bevor die Session endet bzw. wenn der User signalisiert, dass er aufhört / den PC wechselt:
-
-1. **`git status` prüfen** — uncommittete Arbeit committen (nicht mergen, auf dem Feature-Branch bleiben).
-2. **Diese HANDOFF.md aktualisieren:**
-   - `Stand:`-Datum oben anpassen
-   - Abschnitt 1 (Git-Stand) auf aktuellen Branch/Commit-Stand bringen
-   - Abschnitt 3 (Nächste Schritte) so umschreiben, dass das **nächste Ich** (an irgendeinem PC) sofort weiß, wo es weitergeht — erledigte Punkte raus/abhaken, neue rein
-   - Neue Erkenntnisse in den passenden Abschnitt
-3. **`git push`** — sonst sieht der andere PC die Änderungen nicht.
-4. Dem User bestätigen: „HANDOFF aktualisiert + gepusht, du kannst am anderen PC mit `lies die HANDOFF.md` weitermachen."
-
-> Dieser Hin-und-Her-Workflow (PC A ↔ PC B) lebt davon, dass HANDOFF.md am Session-Ende IMMER aktuell + gepusht ist. Das ist die Single Source of Truth für den Arbeitsstand.
+- **Die 14.08.-JAR ist deployt** (`…-20260814-2101.jar`, `sha 57753139…`), gebaut gegen
+  packetevents 2.13.0.
 
 ---
 
@@ -487,32 +396,23 @@ entfernt** und der Wegfall live verifiziert (Aufgabe 4 oben) — nur bei einem D
 RPM ≤ 2.3.0 muss er zurück.
 
 ---
+## 4. Server / Deploy-Kontext
 
-## 4. Server / Deploy-Kontext (Erinnerung)
+Die Dauerregeln (SSH, „vor jeder Remote-Aktion fragen", Neustarts macht Fabi, fremde JARs nicht
+anfassen, Download-Quellen, Arbeitsteilung mit dem Server-Claude) stehen in **`../CLAUDE.md`**.
+Hier nur das Bridge-Spezifische:
 
-- SSH: `amp@mc.crazypandas.de` (`~/.ssh/id_ed25519`)
-- **Vor jeder Remote-Aktion erst fragen.** Server-Restarts/Console macht Fabi selbst über AMP.
-  JAR-Deploy via SCP ist ok. Deploy-Pfade: Memory `deployment_paths.md`.
-- **Der Server-Stand selbst steht in `server-tools/SERVER-STATE.md`** — Instanzen, Versionen,
-  JVM-Zuordnung, offene Log-Fehler, Änderungs-Log. Vor Server-Arbeit dort reinschauen.
-- **Auf dem Server arbeitet eine zweite Claude-Instanz** (als `amp`, zuständig für Update-System
-  und Fehlersuche). Analysieren dürfen beide parallel, **schreiben nur einer** — und wer schreibt,
-  trägt es in `SERVER-STATE.md` ein.
+- Deploy-Ziel ist `TestServer01/Minecraft/plugins/FMMBedrockBridge.jar` — **nur diese JAR gehört
+  Dev-Claude**, alles andere auf der Instanz nicht.
+- Deploy per SCP ist ok; den Neustart macht Fabi über AMP.
+- Weitere Pfade: Memory `deployment_paths.md`.
 
-## 5. Wichtige Doku-Dateien
+## 5. Wichtige Doku-Dateien dieses Plugins
 
-**Im Repo (Entwicklung):**
-- `CLAUDE.md` — Projektüberblick + Konventionen + Erkenntnisse
-- `CLAUDE_SESSION.md` — detaillierter Session-Verlauf
-- `README.md` — Status-Tabelle + Build/Deploy-Schritte
-- `docs/upstream-bugs/` — Report-Entwürfe an MagmaGuy
-- Memory-Index: `~/.claude/projects/.../memory/MEMORY.md`
-
-**Server-Seite (in `server-tools/` versioniert, Arbeitskopien auf dem Host):**
-- `SERVER-STATE.md` → `~/SERVER-STATE.md` — lebender Server-Stand, **beide Claudes**
-- `server-CLAUDE.md` → `~/.claude/CLAUDE.md` — Dauerregeln für den Server-Claude
-- `plugin-update-check.sh` → `~/plugin-update-check.sh`
-- `backup-testserver.sh` → `~/backup-testserver.sh`
-
-> Änderungen an den Server-Dateien im Repo **und** per `scp` auf den Host nachziehen, sonst
-> driften die zwei Kopien.
+| Datei | Inhalt |
+|---|---|
+| `CLAUDE.md` | Bridge-Fachliches: Architektur, FMM-Interna, bekannte Probleme |
+| `CLAUDE_SESSION.md` | Session-für-Session-Historie (lang, gewachsen) |
+| `README.md` | Feature-Übersicht, Klassen-Tabelle, Deployment |
+| `docs/upstream-bugs/` | Report-Entwürfe für MagmaGuy/zimzaza4 |
+| `../CLAUDE.md` · `../HANDOFF.md` | Workspace-weit — Rolle, Server, Stack, Einstieg |

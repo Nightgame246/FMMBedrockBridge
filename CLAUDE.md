@@ -1,21 +1,13 @@
-# CLAUDE.md — FMM Bedrock Bridge Plugin
+# CLAUDE.md — FMMBedrockBridge
 
-## Rolle & Arbeitsweise (zuerst lesen)
+> ⚠️ **Diese Datei enthält nur noch, was NUR dieses Plugin angeht.**
+> Rolle & Arbeitsweise, Server-Infrastruktur, SSH- und Deploy-Regeln, der geprüfte
+> Versions-Satz, Coding-Konventionen und der Multi-PC-Workflow stehen eine Ebene höher in
+> **`../CLAUDE.md`** (Workspace-weit) — beide werden geladen.
+> **Claude Code aus `codeing/minecraft/` starten, nicht aus diesem Ordner.**
 
-**Du bist ein erfahrener Minecraft-Java-Entwickler** — für **Plugins** (Spigot/Paper/Velocity/BungeeCord) **und Mods** (Forge/Fabric/NeoForge/Quilt) sowie alles drumherum: Geyser/Bedrock-Bridging, Resource Packs, NMS, Server-Administration, Debugging. Geh standardmäßig davon aus, dass Aufgaben in diese Domäne fallen, und denke aus dieser Expertise heraus.
-
-**Nutze die Superpowers-Minecraft-Skills.** Sie sind installiert und für genau diese Arbeit gedacht — lade sie aktiv, statt aus dem Gedächtnis zu raten:
-- `superpowers:getting-started` — Einstieg/Übersicht aller Minecraft-Skills; hier scannen, welcher Skill zur Aufgabe passt
-- `superpowers:plugin-development` — Plugin-Bau (dieses Projekt ist ein Plugin)
-- `superpowers:geyser-bridge-development` — Java→Bedrock-Bridges, Geyser/Floodgate/GeyserUtils (Kern dieses Projekts)
-- `superpowers:resourcepack-conversion` — Java↔Bedrock Pack-/Geometry-Konvertierung
-- `superpowers:minecraft-debugging` — Crashes, Stacktraces, Packet-/Version-Probleme
-- `superpowers:minecraft-server-admin` — Velocity/Paper-Config, JVM, AMP, Deployment
-- `superpowers:mod-porting` — falls es um Mods/Loader-Portierung geht
-
-Regel: Wenn auch nur eine geringe Chance besteht, dass ein Skill passt, lade ihn (per `Skill`-Tool) **bevor** du antwortest oder handelst. Bei Projekt-Tasks zuerst `superpowers:getting-started` scannen.
-
-**Portabilität (wichtig bei PC-Wechsel):** Die 7 Minecraft-Skills sind **Custom-Skills, nicht im Marketplace** — sie liegen im Repo unter `claude-skills/` und werden per `bash install-skills.sh` auf jeden PC gespielt (setzt installiertes Superpowers-Plugin voraus). Die allgemeinen Skills (brainstorming, TDD, debugging) kommen aus dem offiziellen Superpowers-Plugin. Wenn ein `superpowers:<minecraft-skill>`-Aufruf fehlschlägt → `install-skills.sh` lief noch nicht auf diesem PC.
+**Lizenz:** GPL-3.0 — FMM ist GPL-3.0, alle abgeleiteten Werke müssen es ebenfalls sein.
+**Package:** `de.crazypandas.fmmbedrockbridge`
 
 ## Projektübersicht
 
@@ -139,88 +131,6 @@ Die Konvertierung muss folgendes leisten:
 
 **Wichtig:** `per_texture_uv_size` Werte in config.json müssen **Integer** sein, keine Floats! (Bekannter Bug im BlockbenchPacker)
 
-## Server-Setup des Betreibers (Fabi)
-
-### Infrastruktur:
-- **Proxy:** Velocity 3.5.0-SNAPSHOT auf Hetzner Dedicated Server
-- **Backend-Server:** Mehrere Paper-Server verwaltet über AMP
-- **Geyser:** Auf dem Velocity Proxy (nicht auf Backend-Servern)
-- **Floodgate:** Auf Proxy UND Backend-Servern
-- **GeyserUtils:** Auf Backend-Servern als Spigot Plugin, auf Proxy als Geyser Extension
-
-### Relevante Pfade (AMP):
-```
-/home/amp/.ampdata/instances/
-├── Proxy01/Minecraft/
-│   ├── plugins/Geyser-Velocity/
-│   │   ├── extensions/          # Geyser Extensions (GeyserModelEngineExtension, GeyserUtils)
-│   │   ├── packs/               # Bedrock Resource Packs die an Clients geschickt werden
-│   │   └── config.yml           # force-resource-packs: true, enable-integrated-pack: true
-│   └── logs/latest.log
-├── Survival01/Minecraft/
-│   ├── plugins/
-│   │   ├── FreeMinecraftModels/
-│   │   │   ├── imports/         # .bbmodel Input
-│   │   │   ├── models/          # .fmmodel Output
-│   │   │   └── output/          # Java Resource Pack
-│   │   ├── EliteMobs/           # Nutzt FMM für Custom Boss Models
-│   │   └── (GeyserModelEngine am 16.08.2026 als Altlast ENTFERNT)
-│   └── logs/latest.log
-└── TestServer01/Minecraft/
-    ├── plugins/
-    │   ├── FreeMinecraftModels/  # 2.11.2 (seit 08.09.2026, Boot steht aus)
-    │   ├── ModelEngine/          # R4.1.0 (separat von FMM)
-    │   ├── EliteMobs/            # 10.8.1 (seit 08.09.2026, Boot steht aus)
-    │   ├── MythicMobs/           # 5.10.1-SNAPSHOT
-    │   ├── GeyserModelEngine-1.0.9.jar
-    │   └── geyserutils-spigot-1.0-SNAPSHOT.jar
-    └── logs/latest.log
-```
-
-> ⚠️ **Die Versionen hier sind ein Schnappschuss.** Der belastbare Ist-Stand aller Instanzen
-> (ServerJAR, Java, Ports, Plugin-Versionen) steht in **`server-tools/SERVER-STATE.md`** und wird
-> vom Server-Claude gepflegt. Auf dem Server heissen die PluginPortal-verwalteten JARs
-> **`[PP] … .jar`** — nie über den Dateinamen auf ein Plugin schliessen, sondern
-> `paper-plugin.yml` lesen (und nur ersatzweise `plugin.yml`).
-
-### Wichtige Erkenntnisse:
-- **PacketEvents wurde vom Proxy entfernt** — verursachte Disconnects mit 1.21.11
-- **Snap Plugin wurde entfernt** — inkompatibel mit Velocity
-- **GeyserModelEngine funktioniert NUR mit ModelEngine (Ticxo)**, nicht mit FMM
-- EliteMobs-Bosse nutzen FMM, nicht ModelEngine, für Custom Models
-- Bedrock-Spieler sehen das Basis-Mob (z.B. Wolf) statt des Custom Models
-
-## Entwicklungsschritte
-
-### Phase 1: Analyse & Proof of Concept
-1. FMM Quellcode klonen und API-Events identifizieren
-2. Verstehen wie FMM Display Entities spawnt und tracked
-3. Minimales Plugin bauen das FMM Entity Spawns loggt
-4. GeyserUtils API verstehen (wie Custom Entities für Bedrock registriert werden)
-
-### Phase 2: Entity Bridging
-1. FMM Entity Spawn Events abfangen
-2. Für jeden Bedrock-Spieler (via Floodgate) die entsprechende Bedrock Custom Entity spawnen
-3. Position/Rotation synchronisieren
-4. Entity Lifecycle managen (Spawn/Despawn/Move)
-
-### Phase 3: Resource Pack Konvertierung
-1. Tool/Code schreiben der FMM's Java Models ins Bedrock .geo.json Format konvertiert
-2. Entity Definitionen, Render Controller, Animation Controller generieren
-3. Bedrock Resource Pack (.mcpack/.zip) automatisch generieren
-4. Pack in Geyser packs/ Ordner integrieren
-
-### Phase 4: Animation Support
-1. FMM Animationen nach Bedrock Animation Format übersetzen
-2. Animation States synchronisieren (idle, walk, attack, death)
-3. Animation Controller für State Machines generieren
-
-### Phase 5: Integration & Polish
-1. Config-Datei für Admins (enable/disable, pack-output-path, etc.)
-2. Auto-Reload bei FMM Model Changes
-3. Performance-Optimierung (nur Bedrock-Spieler in Reichweite)
-4. Kompatibilität mit EliteMobs verifizieren
-
 ## FMM Interna (aus README & Source)
 
 ### Model-Typen:
@@ -240,61 +150,6 @@ Die Konvertierung muss folgendes leisten:
 - `tag_` Prefix — Nametag Position
 - `h_` Prefix — Kopf-Rotation (folgt Entity Head Rotation)
 
-## Coding-Konventionen
-
-- **Sprache:** Java 21
-- **Build:** Maven
-- **Naming:** camelCase für Methoden/Variablen, PascalCase für Klassen
-- **Package:** `de.crazypandas.fmmbedrockbridge`
-- **Keine Shade von FMM** — als provided dependency
-- **Async wo möglich** — FMM läuft selbst größtenteils async
-- **Logging:** Java Logger, kein System.out
-- **Config:** YAML via Bukkit Config API
-
-## Dependencies (pom.xml Vorlage)
-
-```xml
-<repositories>
-    <repository>
-        <id>magmaguy-repo</id>
-        <url>https://repo.magmaguy.com/releases</url>
-    </repository>
-    <repository>
-        <id>opencollab</id>
-        <url>https://repo.opencollab.dev/main/</url>
-    </repository>
-    <repository>
-        <id>papermc</id>
-        <url>https://repo.papermc.io/repository/maven-public/</url>
-    </repository>
-</repositories>
-
-<dependencies>
-    <!-- Paper API -->
-    <dependency>
-        <groupId>io.papermc.paper</groupId>
-        <artifactId>paper-api</artifactId>
-        <version>1.21.4-R0.1-SNAPSHOT</version>
-        <scope>provided</scope>
-    </dependency>
-    <!-- FreeMinecraftModels -->
-    <dependency>
-        <groupId>com.magmaguy</groupId>
-        <artifactId>FreeMinecraftModels</artifactId>
-        <version>2.3.17</version>
-        <scope>provided</scope>
-    </dependency>
-    <!-- Floodgate API -->
-    <dependency>
-        <groupId>org.geysermc.floodgate</groupId>
-        <artifactId>api</artifactId>
-        <version>2.2.3-SNAPSHOT</version>
-        <scope>provided</scope>
-    </dependency>
-    <!-- GeyserUtils (muss ggf. lokal installiert werden) -->
-</dependencies>
-```
-
 ## Nützliche Links
 
 - **FMM Source:** https://github.com/MagmaGuy/FreeMinecraftModels
@@ -305,22 +160,15 @@ Die Konvertierung muss folgendes leisten:
 - **Bedrock Entity Docs:** https://learn.microsoft.com/en-us/minecraft/creator/reference/content/addonsreference/
 - **Blockbench Bedrock Format:** https://www.blockbench.net/wiki/guides/bedrock-modeling
 
-## Hinweise für Claude Code
+## Bridge-spezifische Merker
 
-- Der Betreiber (Fabi) kommuniziert auf Deutsch
-- Server läuft unter dem `amp` User auf Debian Bookworm (Hetzner Dedicated)
-- SSH-Zugang: `amp@mc.crazypandas.de` mit `~/.ssh/id_ed25519` (bereits eingerichtet)
-- Vor jeder Remote-Aktion den User fragen — nicht selbstständig auf dem Server handeln
-- Teste nie mit root, immer als `amp` User
-- Der Proxy (Velocity) und Backend-Server (Paper) sind separate Prozesse
-- GeyserUtils braucht sowohl ein Spigot-Plugin (Backend) als auch eine Geyser Extension (Proxy)
-- FMM ist GPL-3.0 — alle abgeleiteten Werke müssen ebenfalls GPL-3.0 sein
-- Existierende GeyserModelEngine-Dateien auf dem Server können als Referenz für das Bedrock-Format dienen (Pfad: `/home/amp/.ampdata/instances/Proxy01/Minecraft/plugins/Geyser-Velocity/extensions/geysermodelengineextension/input_backup/`)
-- **Vor jedem git push:** `README.md` und `CLAUDE_SESSION.md` aktualisieren (Status-Tabelle, neue Klassen, Deployment-Schritte, Session-Fortschritt)
-- **Multi-PC-Workflow (`HANDOFF.md`):** Fabi arbeitet abwechselnd an mehreren PCs. `HANDOFF.md` im Repo-Root ist die Single Source of Truth für den Arbeitsstand.
-  - **Session-Start:** Sagt Fabi „lies die HANDOFF.md", den Bootstrap-Block oben in der Datei abarbeiten (Branch checken, `git pull`, `bash setup-references.sh`).
-  - **Session-Ende / PC-Wechsel:** IMMER `HANDOFF.md` aktualisieren (Stand-Datum, Git-Stand, nächste Schritte) **und** `git push` — sonst kann am anderen PC nicht weitergearbeitet werden. Das Session-Ende-Protokoll steht in der Datei selbst.
-  - Reference-Repos (`references/`) sind gitignored/separat → via `setup-references.sh` holen, nicht via `git clone` des Bridge-Repos.
+- Existierende GeyserModelEngine-Dateien auf dem Server dienen als Referenz für das
+  Bedrock-Format: `Proxy01/Minecraft/plugins/Geyser-Velocity/extensions/geysermodelengineextension/input_backup/`
+- **Vor jedem git push:** `README.md` und `CLAUDE_SESSION.md` aktualisieren (Status-Tabelle,
+  neue Klassen, Deployment-Schritte, Session-Fortschritt).
+- Die ursprünglichen „Entwicklungsschritte Phase 1–5" standen hier bis 09.09.2026 und sind
+  durch den Architektur-Pivot vom 24.05.2026 gegenstandslos geworden — Phasen 1–6 wurden
+  entfernt. Historie: git tag `archive/2026-05-24-pre-rpm18-pivot`.
 
 ## Architektur-Pivot 2026-05-24 + RPM 2.0.0 Upgrade 2026-05-28
 

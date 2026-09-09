@@ -162,33 +162,17 @@ Extends Phase 7.3 to EliteMobs' NPC quest menu — the only other Bedrock-forced
 
 Config: `phase73.bedrock-quest-reroute: true` (toggles independently of `bedrock-dialog-reroute`). Requires MC >= 1.21.6. Java players unaffected.
 
-## Server tooling (`server-tools/`)
+## Server tooling
 
-Admin helpers for the AMP host — **not part of the plugin build**, versioned here so they
-survive the multi-PC workflow. See `server-tools/README.md` for deployment.
+Moved out of this repo on 2026-09-09. The admin helpers for the AMP host now live one level up,
+in the workspace, because they serve every plugin and not just this one:
 
-| File | Target on the server | Purpose |
-|---|---|---|
-| `plugin-update-check.sh` | `~/plugin-update-check.sh` | Reports available plugin updates (Modrinth with loader filter, GitHub releases, GeyserMC, `fill.papermc.io/v3`). Read-only; exit 10 = updates available, so it is cron-friendly. |
-| `backup-testserver.sh` | `~/backup-testserver.sh` | Full instance backup — paper jars, `plugins/`, configs, version manifest, checksums. |
-| `server-CLAUDE.md` | `~/.claude/CLAUDE.md` | User-level note for the Claude Code instance running on the server. |
-
-The update check deliberately separates **MANUELL** (MagmaGuy Discord builds, premium plugins)
-and **OHNE QUELLE** (no verified mapping) from **AKTUELL** — those sections are coverage gaps,
-not an all-clear. `[PP]`-prefixed plugins and `Polymart.jar` are skipped: PluginPortal and
-Polymart manage their own updates, and replacing those jars by hand breaks their updaters.
-
-> ⚠️ **Coupled set:** Geyser · ResourcePackManager · FreeMinecraftModels · EliteMobs · Floodgate
-> move together. Geyser 2.11 breaks the custom-entity bridge in RPM < 2.3.0 (Bedrock players see
-> pigs instead of models). Restart the proxy **twice** after any RPM update — the Geyser extension
-> is only written on the first boot. Bedrock rendering can only be verified in-game, never from logs.
->
-> ⚠️ **Also audit `Geyser-Velocity/extensions/` on every Geyser update.** Extensions that *replace*
-> a Geyser packet translator fail hard when the internal API moves. On 2026-08-08 a stale
-> **GeyserUtils** build (compiled against Geyser API 2.4.1) hit `NoSuchFieldError` on
-> `Registries.ENTITY_DEFINITIONS` inside its `ClientboundAddEntityPacket` replacement under Geyser
-> 2.11.1 — every entity spawn died and Bedrock clients network-wide saw **no entities at all**. If
-> Bedrock suddenly renders nothing, look in `extensions/` before suspecting RPM or FMM.
+- **`../server-tools/`** — `plugin-update-check.sh`, `backup-testserver.sh`, `check-invsee.sh`,
+  `server-CLAUDE.md` (→ `~/.claude/CLAUDE.md` on the host), and **`SERVER-STATE.md`**, the shared
+  working file with the Claude instance running on the server.
+- **`../CLAUDE.md`** — the operational rules that used to be duplicated here: SSH access, the
+  coupled Geyser/RPM/FMM/EliteMobs set, the twice-restart rule after an RPM update, download
+  source precedence, and why Bedrock rendering can only be verified in-game.
 
 ## License
 
