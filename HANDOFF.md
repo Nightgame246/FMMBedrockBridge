@@ -1,6 +1,6 @@
 # HANDOFF — FMMBedrockBridge
 
-> Übergabe-Datei für Weiterarbeit an einem anderen PC. Stand: **2026-08-16**
+> Übergabe-Datei für Weiterarbeit an einem anderen PC. Stand: **2026-09-09**
 > Branch: **`main`** — `feat/mc-26.2-readiness` ist am 16.08. gemerged (`--no-ff`).
 > **Wieder ganz normal auf `main` weiterarbeiten.**
 >
@@ -42,12 +42,22 @@ gewandert. Historie steckt in der Git-Historie dieser Datei.
 - **`api-version` in `plugin.yml` bleibt bewusst `'1.21'`** — Mindestangabe, keine Zielangabe.
   Ein 1.21.x-Server würde `'26.2'` ablehnen; Paper 26.2 lädt `'1.21'` problemlos. FMM und
   EliteMobs machen es genauso. **Nicht "korrigieren".**
-- **Der Ziel-Stack, gegen den die Bridge laufen muss** (Stand 09.08.): Paper 1.21.10 bzw. 26.2,
-  Java 25, Geyser 2.11.1, RPM 2.3.0, FMM 2.10.2, EM 10.7.3, packetevents 2.13.0.
-- **Auf TestServer01 liegt noch die Bridge-JAR vom 10.07.**, gebaut gegen packetevents 2.12.x.
-  Seit 09.08. läuft dort packetevents **2.13.0** → nach dem nächsten Neustart im Log prüfen, ob
-  `[FMMBedrockBridge] PacketEvents: found — packet interception active` noch kommt. Wenn nicht:
-  den 26.2-Branch-Build deployen, der baut bereits gegen 2.13.0.
+- **Der Ziel-Stack, gegen den die Bridge laufen muss** (Stand 09.09., aus `SERVER-STATE.md`):
+  Paper **26.2-112**, Java 25, Geyser **2.11.1**, RPM **2.3.1**, FMM **2.11.2**, EM **10.8.1**,
+  packetevents **2.13.0**.
+  - ⚠️ **Der pom hängt bewusst eine Patch-Version zurück** (FMM 2.11.1 / EM 10.8.0). Beides sind
+    `provided`-Deps und seit dem 14.08.-Build gab es keinen Plugin-Code-Change, also steht kein
+    Redeploy an. **Entscheidung Fabi, 09.09.: nicht bumpen, nur notieren** — beim nächsten
+    echten Build-Anlass mitziehen (Rezept in Abschnitt 3, „Build & Deploy").
+  - **TestServer01 steht seit 08.09. 23:10 auf FMM 2.11.2 / EM 10.8.1, wurde aber nicht neu
+    gestartet** — der Boot dazu fehlt noch (macht Fabi in AMP). Bis dahin läuft dort real
+    weiterhin 2.11.1 / 10.8.0.
+- ⏸️ **Der 26.2-Rollout ist seit 09.09. pausiert** (Fabi: „parke minigames01"). Fabi klärt mit dem
+  Co-Owner einen **Umbau der Instanz-Struktur + Netzwerk-Einstellungen**. Stand: **4 von 6 Backends
+  auf 26.2** (TestServer01, hub01, farmwelt01, Survival01), offen minigames01 + challenges01.
+  **Dev-Claude stößt dafür keine Vorarbeit an.**
+- **Die 14.08.-Bridge-JAR ist deployt** (`…-20260814-2101.jar`, gegen packetevents 2.13.0). Der
+  frühere Merker „auf TestServer01 liegt noch der 10.07.-Build" ist damit erledigt.
 - **Bedrock-Rendering ist nie im Log verifizierbar**, nur in-game.
 
 ---
@@ -79,13 +89,21 @@ Wenn der User sagt „lies die HANDOFF.md", dann:
    ```bash
    mvn -o clean package -DskipTests
    ```
-   ⚠️ **Vorher am NEUEN PC einmalig:** Der pom baut gegen **FMM 2.10.1 / EM 10.7.2**, die aber **NICHT im magmaguy-Maven-Repo publiziert** sind (Repo endet bei FMM 2.7.1 / EM 10.5.0). Ohne die JARs im lokalen `.m2` schlägt der Build mit „Could not find artifact" fehl. Einmalig die echten JARs vom Server holen + installieren:
+   ⚠️ **Vorher am NEUEN PC einmalig:** Der pom baut gegen **FMM 2.11.1 / EM 10.8.0**, die aber **NICHT im magmaguy-Maven-Repo publiziert** sind (Repo endet bei FMM 2.7.1 / EM 10.5.0). Ohne die JARs im lokalen `.m2` schlägt der Build mit „Could not find artifact" fehl. Einmalig die echten JARs vom Server holen + installieren — **PluginPortal benennt sie dort um, der Dateiname trägt ein `[PP] …`-Präfix**:
    ```bash
-   scp amp@mc.crazypandas.de:'/home/amp/.ampdata/instances/TestServer01/Minecraft/plugins/{FreeMinecraftModels,EliteMobs}.jar' /tmp/
-   mvn install:install-file -Dfile=/tmp/FreeMinecraftModels.jar -DgroupId=com.magmaguy -DartifactId=FreeMinecraftModels -Dversion=2.10.1 -Dpackaging=jar
-   mvn install:install-file -Dfile=/tmp/EliteMobs.jar         -DgroupId=com.magmaguy -DartifactId=EliteMobs         -Dversion=10.7.2 -Dpackaging=jar
+   export JAVA_HOME=/usr/lib/jvm/java-25-openjdk   # PFLICHT, sonst „Ungültige Klassendatei"
+   scp 'amp@mc.crazypandas.de:.ampdata/instances/TestServer01/Minecraft/plugins/[PP] Free Minecraft Models (MODRINTH).jar' /tmp/fmm.jar
+   scp 'amp@mc.crazypandas.de:.ampdata/instances/TestServer01/Minecraft/plugins/[PP] EliteMobs (MODRINTH).jar'              /tmp/em.jar
+   mvn install:install-file -Dfile=/tmp/fmm.jar -DgroupId=com.magmaguy -DartifactId=FreeMinecraftModels -Dversion=2.11.1 -Dpackaging=jar
+   mvn install:install-file -Dfile=/tmp/em.jar  -DgroupId=com.magmaguy -DartifactId=EliteMobs           -Dversion=10.8.0 -Dpackaging=jar
    ```
-   (Falls kein `mvn` im PATH: IntelliJ bündelt eins unter `/usr/share/idea/plugins/maven/lib/maven3/bin/mvn`.) Danach läuft auch `-o` durch.
+   ⚠️ **Auf dem Server liegt inzwischen FMM 2.11.2 / EM 10.8.1** — die JARs tragen also eine neuere
+   Version als der `-Dversion=`-Wert oben. Das ist so gewollt (Patch-Drift, s. Abschnitt 0); die
+   `-Dversion=`-Werte müssen zum pom passen, nicht zur JAR. Vor dem `install-file` mit
+   `unzip -p <jar> plugin.yml | grep version` gegenprüfen, welche Version wirklich in der JAR steckt.
+   (Falls kein `mvn` im PATH: IntelliJ bündelt eins unter `/usr/share/idea/plugins/maven/lib/maven3/bin/mvn`
+   — Ordner je nach Version `maven` **oder** `maven-plugin`; `verify-both-apis.sh` probiert beide.)
+   Danach läuft auch `-o` durch.
 5. Dann dem User den aktuellen Stand + die nächsten Schritte aus Abschnitt 3 zusammenfassen und auf seine Anweisung warten.
 
 ## 🔴 FÜR CLAUDE: BEIM SESSION-ENDE (Pflicht, damit PC-Wechsel funktioniert)
@@ -106,6 +124,41 @@ Bevor die Session endet bzw. wenn der User signalisiert, dass er aufhört / den 
 ---
 
 ## 1. Wo wir gerade stehen (Git)
+
+### Session 2026-09-09 — Server-State nachgezogen, Doku entdriftet (KEIN Plugin-Code)
+
+`server-tools/SERVER-STATE.md` war **26 Tage im Rückstand** (Repo 14.08. / Server 09.09.). Die
+Server-Kopie ist per `scp` geholt und **bit-identisch** übernommen (`md5 168ed030…`, +1946 Zeilen);
+die 10 nur im Repo vorhandenen Zeilen waren Alttexte, die drüben nach Schreibregel 2 überschrieben
+wurden — **kein Verlust**. Damit sind beide Kopien wieder synchron.
+
+**Was sich seither geändert hat** (die ersten drei Zeilen standen so in der Dev-Doku, die vierte
+nur in `SERVER-STATE.md` und ist dort schon aufgelöst):
+
+| | stand da | Ist (09.09.) |
+|---|---|---|
+| FMM · EliteMobs | 2.11.1 · 10.8.0 | **2.11.2 · 10.8.1** (TestServer01 seit 08.09., **Boot fehlt**) |
+| 26.2-Rollout | „nächster Schritt Survival01" | Survival01 ✅ 08.09. · **Reihe pausiert** (Umbau) |
+| GeyserModelEngine | 1.0.3, geshadetes packetevents 2.11.2 ≠ 2.12.1 | **1.0.9**, geshadetes PE **2.13.0** = installiert ⇒ **kein Konflikt** |
+| `dungeons01` | „seit 06.07.2025 durchgehend online" | **leere Hülle** — keine ServerJAR, kein Prozess |
+
+**Angepasst:** Abschnitt 0 (Ziel-Stack, Rollout-Pause, pom-Drift), der Bootstrap-Build-Block
+(stand noch auf FMM 2.10.1 / EM 10.7.2, während der pom seit 14.08. auf 2.11.1 / 10.8.0 baut —
+wer ihn wörtlich abgearbeitet hätte, wäre am „Could not find artifact" hängengeblieben),
+`CLAUDE.md` (Instanz-Pfadliste) und `server-tools/server-CLAUDE.md` (Altlast-Eintrag).
+
+**Auf den Server zurückgespielt** (beides mit Backup + md5-Gegenprobe, keine Instanz/JAR/Config
+angefasst):
+- `~/.claude/CLAUDE.md` ← `server-tools/server-CLAUDE.md` (`32eed842…` → **`9bc4256a…`**,
+  Backup `~/.claude/CLAUDE.md.bak-20260909-devclaude`). Vorher geprüft: die Server-Kopie war
+  bit-identisch mit dem Repo-Stand vor der Änderung ⇒ **kein Server-Claude-Edit überschrieben.**
+- `~/SERVER-STATE.md` — Änderungs-Log-Eintrag „09.09. 15:30 Dev-Claude" ergänzt (Schreibregel:
+  wer schreibt, trägt es dort ein). Beide Kopien jetzt **`eb160f06…`**,
+  Backup `~/SERVER-STATE.md.bak-20260909-devclaude`.
+
+**Kein Plugin-Code angefasst, kein Rebuild.** Der pom bleibt auf FMM 2.11.1 / EM 10.8.0 —
+**Fabis Entscheidung vom 09.09.**, weil beides `provided` und Patch-Level ist und kein
+Deploy-Anlass besteht.
 
 ### Session 2026-08-16 — A/B-Test entschieden: 7.1b/7.1c bleiben (KEIN Plugin-Code)
 
@@ -341,7 +394,10 @@ Was von der Bridge **vielleicht** noch übrig bleibt (zu prüfen!):
    ~~Case-Sensitivity im RPM-Geyser-Bridge-Pfad~~ ✅ **von MagmaGuy in RPM 2.3.1 gefixt**
    (`BEDROCK_PACK_PATHS` probiert beide Schreibweisen, Kommentar *„Velocity's default data
    directory is lowercase"*) — Entwurf als erledigt markiert, nicht mehr einreichen.
-4. ~~**Symlink-Test**~~ ✅ **erledigt 16.08. — der Workaround ist weg und bleibt weg.**
+4. **Beim nächsten echten Build-Anlass: pom auf FMM 2.11.2 / EM 10.8.1 mitziehen.** Aktuell
+   bewusst eine Patch-Version zurück (s. Abschnitt 0). Kein eigener Anlass — nur nicht vergessen,
+   wenn ohnehin gebaut wird.
+5. ~~**Symlink-Test**~~ ✅ **erledigt 16.08. — der Workaround ist weg und bleibt weg.**
    Symlink deaktiviert, Proxy-Boot 17:51 ohne ihn:
    `Preloaded 316 … from …/plugins/`**`resourcepackmanager`**`/work/merged/Bedrock.zip`,
    `Registered 316 …`, `loadedDefinitions=316` (statt 0 — und zwei mehr als die 314 vom 14.08.).

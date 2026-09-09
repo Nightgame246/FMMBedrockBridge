@@ -164,19 +164,24 @@ Die Konvertierung muss folgendes leisten:
 │   │   │   ├── models/          # .fmmodel Output
 │   │   │   └── output/          # Java Resource Pack
 │   │   ├── EliteMobs/           # Nutzt FMM für Custom Boss Models
-│   │   ├── GeyserModelEngine-1.0.6.jar  # Nur für ModelEngine, NICHT FMM
-│   │   └── geyserutils-spigot-1.0-SNAPSHOT.jar
+│   │   └── (GeyserModelEngine am 16.08.2026 als Altlast ENTFERNT)
 │   └── logs/latest.log
 └── TestServer01/Minecraft/
     ├── plugins/
-    │   ├── FreeMinecraftModels/  # Version 2.3.17
+    │   ├── FreeMinecraftModels/  # 2.11.2 (seit 08.09.2026, Boot steht aus)
     │   ├── ModelEngine/          # R4.1.0 (separat von FMM)
-    │   ├── EliteMobs/           # Version 9.6.3
-    │   ├── MythicMobs/          # 5.10.1-SNAPSHOT
-    │   ├── GeyserModelEngine-1.0.3.jar
+    │   ├── EliteMobs/            # 10.8.1 (seit 08.09.2026, Boot steht aus)
+    │   ├── MythicMobs/           # 5.10.1-SNAPSHOT
+    │   ├── GeyserModelEngine-1.0.9.jar
     │   └── geyserutils-spigot-1.0-SNAPSHOT.jar
     └── logs/latest.log
 ```
+
+> ⚠️ **Die Versionen hier sind ein Schnappschuss.** Der belastbare Ist-Stand aller Instanzen
+> (ServerJAR, Java, Ports, Plugin-Versionen) steht in **`server-tools/SERVER-STATE.md`** und wird
+> vom Server-Claude gepflegt. Auf dem Server heissen die PluginPortal-verwalteten JARs
+> **`[PP] … .jar`** — nie über den Dateinamen auf ein Plugin schliessen, sondern
+> `paper-plugin.yml` lesen (und nur ersatzweise `plugin.yml`).
 
 ### Wichtige Erkenntnisse:
 - **PacketEvents wurde vom Proxy entfernt** — verursachte Disconnects mit 1.21.11
