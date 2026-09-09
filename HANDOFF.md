@@ -49,9 +49,11 @@ gewandert. Historie steckt in der Git-Historie dieser Datei.
     `provided`-Deps und seit dem 14.08.-Build gab es keinen Plugin-Code-Change, also steht kein
     Redeploy an. **Entscheidung Fabi, 09.09.: nicht bumpen, nur notieren** — beim nächsten
     echten Build-Anlass mitziehen (Rezept in Abschnitt 3, „Build & Deploy").
-  - **TestServer01 steht seit 08.09. 23:10 auf FMM 2.11.2 / EM 10.8.1, wurde aber nicht neu
-    gestartet** — der Boot dazu fehlt noch (macht Fabi in AMP). Bis dahin läuft dort real
-    weiterhin 2.11.1 / 10.8.0.
+  - ✅ **Am 09.09. 15:33 verifiziert:** TestServer01 ist auf FMM **2.11.2** / EM **10.8.1**
+    gebootet, und die JAR vom 14.08. (gegen 2.11.1 / 10.8.0 gebaut) läuft dagegen **sauber** —
+    null Bridge-WARN/Exception, netzwerkweit **kein** `NoSuchMethodError`/`NoSuchFieldError`/
+    `NoClassDefFoundError`. **Damit ist der Patch-Drift empirisch unkritisch**, nicht nur
+    theoretisch.
 - ⏸️ **Der 26.2-Rollout ist seit 09.09. pausiert** (Fabi: „parke minigames01"). Fabi klärt mit dem
   Co-Owner einen **Umbau der Instanz-Struktur + Netzwerk-Einstellungen**. Stand: **4 von 6 Backends
   auf 26.2** (TestServer01, hub01, farmwelt01, Survival01), offen minigames01 + challenges01.
@@ -159,6 +161,27 @@ angefasst):
 **Kein Plugin-Code angefasst, kein Rebuild.** Der pom bleibt auf FMM 2.11.1 / EM 10.8.0 —
 **Fabis Entscheidung vom 09.09.**, weil beides `provided` und Patch-Level ist und kein
 Deploy-Anlass besteht.
+
+#### ✅ Boot-Verifikation 09.09. 15:33 (Fabi hat TestServer01 neu gestartet)
+
+Paper **26.2-112**, `Done (52.820s)`, **5 ERROR** (Polymart, ShopGUIPlus, Genesis-Config — alle
+vorbestehend, keiner neu), `Ambiguous plugin name`: **0**. Live jetzt FMM **2.11.2** ·
+EM **10.8.1** · RPM 2.3.1 · packetevents 2.13.0 · GME 1.0.9 · Floodgate 2.2.5.
+
+**Die Bridge (JAR vom 14.08., `sha 57753139…`) meldet sich vollständig:** `FMMEntityTracker
+started` · `Sync task started` · `PacketInterceptor registered` · **`PacketEvents: found`** ·
+`Phase 7.1c: combat trigger registered` · **`Phase 7.3: … reroute registered (status=true,
+quest=true)`** · `FreeMinecraftModels: found` · `Floodgate: found`.
+**Null WARN, null Exception aus der Bridge**, und netzwerkweit **kein** `NoSuchMethodError` /
+`NoSuchFieldError` / `NoClassDefFoundError` ⇒ **FMM 2.11.2 und EM 10.8.1 brechen unsere API-
+Berührungspunkte nicht.** Das ist der harte Beleg für „pom-Bump nicht nötig".
+
+> 🔶 **Nebenfund, KEIN Bridge-Thema (Server-Content):** FMM 2.11.2 hat eine neue
+> Kollisionsprüfung für normalisierte Model-IDs und wirft daraufhin **zwei Modelle komplett weg**
+> — `em_goblin_coins` und `em_goblin_treasure` liegen je doppelt (`models/` Root **und**
+> `models/em_events_goblins_free/`), normalisieren auf dieselbe ID, `no colliding model was
+> loaded`. Die beiden Goblin-Event-Modelle fehlen also im Pack, auf Java **wie** auf Bedrock.
+> Fix: je Paar eine Datei umbenennen/löschen. **Gehört Fabi/Server-Claude, nicht der Bridge.**
 
 ### Session 2026-08-16 — A/B-Test entschieden: 7.1b/7.1c bleiben (KEIN Plugin-Code)
 
@@ -395,7 +418,8 @@ Was von der Bridge **vielleicht** noch übrig bleibt (zu prüfen!):
    (`BEDROCK_PACK_PATHS` probiert beide Schreibweisen, Kommentar *„Velocity's default data
    directory is lowercase"*) — Entwurf als erledigt markiert, nicht mehr einreichen.
 4. **Beim nächsten echten Build-Anlass: pom auf FMM 2.11.2 / EM 10.8.1 mitziehen.** Aktuell
-   bewusst eine Patch-Version zurück (s. Abschnitt 0). Kein eigener Anlass — nur nicht vergessen,
+   bewusst eine Patch-Version zurück (s. Abschnitt 0). Kein eigener Anlass — der 09.09.-Boot
+   belegt, dass die 14.08.-JAR gegen 2.11.2 / 10.8.1 bruchfrei läuft. Nur nicht vergessen,
    wenn ohnehin gebaut wird.
 5. ~~**Symlink-Test**~~ ✅ **erledigt 16.08. — der Workaround ist weg und bleibt weg.**
    Symlink deaktiviert, Proxy-Boot 17:51 ohne ihn:
