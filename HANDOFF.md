@@ -9,6 +9,11 @@
 >
 > Server-/Betriebswissen: `../server-tools/SERVER-STATE.md` (gemeinsam mit dem Server-Claude).
 >
+> 🔴 **Die Historie dieses Repos wurde am 09.09.2026 neu geschrieben und das GitHub-Repo
+> gelöscht + neu angelegt. ALLE Commit-SHAs sind anders.** Ein älterer Klon teilt mit dem
+> Remote keinen Commit mehr und lässt sich nicht pullen — er muss weg und frisch geklont
+> werden. Anleitung und Grund: `../HANDOFF.md`, Kopfblock und „Sicherheitsvorfall".
+>
 > ✅ **Auf der Entwicklungs-Seite ist nichts offen.** Der Rest-Scope (Combat-BossBar +
 > HP-Nametag) ist auf dem 26.2-Stack vollständig live verifiziert: 7.1a am 14.08.,
 > 7.1b/7.1c am 16.08. per A/B-Test, Boot-Gegenprobe am 09.09. Was übrig ist, liegt bei Fabi
@@ -35,6 +40,28 @@
 ---
 
 ## 1. Wo wir gerade stehen (Git)
+
+### Session 2026-09-09 (Teil 3) — Historie neu geschrieben, Repo neu angelegt
+
+**Kein Plugin-Code.** `server-tools/` ist aus der gesamten Historie entfernt worden, weil dort
+`SERVER-STATE.md` mit Instanz-Bestand, zwei DB-Host-IPs und einem PluginPortal-Key lag — in
+einem **öffentlichen** Repo.
+
+- `git filter-repo --invert-paths --path server-tools`, **196 → 191 Commits** (fünf Commits
+  betrafen nur server-tools und sind entfallen).
+- Gegenprobe lokal: 0 Commits und 0 Blobs unter `server-tools`, 0 Treffer auf beide IPs und den
+  Key. Plugin unversehrt — 24 Java-Dateien, 5 Tests, alle Kerndateien.
+- Force-Push allein hat **nicht gereicht**: die alten Commits blieben über ihre SHA öffentlich
+  abrufbar. Auch der Umweg „privat und zurück auf public" hielt nicht.
+- **Repo gelöscht und neu angelegt**, bereinigte Historie gepusht. Danach liefert die API
+  „No commit found for SHA" und raw **404 bei `x-cache: MISS`**. Alle **11 Branches + 2 Tags**
+  sind wieder drauf, URL unverändert, `main` ist Default.
+- HEAD ist jetzt **`00f9022`** (vorher `5701eec`) — dieselbe Arbeit, neue SHA.
+
+⚠️ **Folge für den zweiten PC:** alter Klon unbrauchbar, neu klonen. S. Kopfblock.
+
+Details, Messmethode und die Fastly-Cache-Falle: `../HANDOFF.md` → „Sicherheitsvorfall",
+Regel dauerhaft in `../CLAUDE.md`.
 
 ### Session 2026-09-09 — Server-State nachgezogen, Doku entdriftet (KEIN Plugin-Code)
 
