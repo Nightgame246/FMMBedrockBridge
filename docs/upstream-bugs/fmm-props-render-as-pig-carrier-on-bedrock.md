@@ -1,5 +1,11 @@
 # [FMM] Props/StaticEntities render as the raw PIG carrier on Bedrock — custom entity association never reaches the proxy
 
+> ⛔ **NICHT MEHR EINREICHEN (Stand 10.09.2026).** Derselbe Bug ist bereits von dritter Seite
+> upstream gemeldet worden. Dieses Dokument bleibt als **Analyse** liegen: der Trace unten ist
+> weiter der belastbare Beleg dafür, warum Props auf Bedrock als Schwein rendern und warum die
+> Ursache im Fake-Entity-Pfad (`carrierEntityType(EntityType.PIG)`) liegt, nicht bei RPM oder
+> im Pack.
+
 **Repo:** MagmaGuy/FreeMinecraftModels (touches Magmacore NMS + ResourcePackManager Geyser bridge)
 **Version:** FreeMinecraftModels 2.10.2, ResourcePackManager 2.3.0, Geyser 2.11.1-b1210
 **Observed:** 2026-08-08, production network (Velocity proxy + Paper backend)

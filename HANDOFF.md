@@ -1,6 +1,6 @@
 # HANDOFF — FMMBedrockBridge
 
-> Arbeitsstand **dieses Plugins**. Stand: **2026-09-09**  ·  Branch: **`main`**
+> Arbeitsstand **dieses Plugins**. Stand: **2026-09-10**  ·  Branch: **`main`**
 >
 > ⚠️ **Der Einstieg steht eine Ebene höher: `../HANDOFF.md`.**
 > Dort liegen Bootstrap, Session-Ende-Protokoll, Build-Vorbereitung am neuen PC und die
@@ -347,9 +347,11 @@ Was von der Bridge **vielleicht** noch übrig bleibt (zu prüfen!):
    Bedrock **nicht**, und eine Dopplung gab es ohnehin nie (unser Overlay ist Bedrock-only).
    **7.1b/7.1c bleiben unverändert**, EM-Config **nicht** angefasst. Details in Abschnitt 1.
 2. ~~**Combat-BossBar (7.1a) auf Bedrock prüfen**~~ ✅ **erledigt 14.08.**, s. Abschnitt 1.
-3. **Upstream-Reports einreichen** (nur Fabi — Zugang zu GitHub-Issues/Discord). Noch offen:
-   **Props-als-Schwein (FMM)** — in 2.11.1 unverändert, `BedrockModeledEntity.java:64` führt
-   weiter `.carrierEntityType(EntityType.PIG)` im Fake-Entity-Pfad.
+3. ~~**Upstream-Reports einreichen**~~ ✅ **erledigt 10.09.** — **nichts mehr offen.**
+   **Props-als-Schwein (FMM)** ist bereits **von dritter Seite gemeldet** worden (Fabi,
+   10.09.); wir reichen nicht nach. Der Entwurf bleibt als Analyse liegen und ist oben mit
+   „nicht mehr einreichen" markiert. Technisch unverändert: `BedrockModeledEntity.java:64`
+   führt weiter `.carrierEntityType(EntityType.PIG)` im Fake-Entity-Pfad.
    ~~Case-Sensitivity im RPM-Geyser-Bridge-Pfad~~ ✅ **von MagmaGuy in RPM 2.3.1 gefixt**
    (`BEDROCK_PACK_PATHS` probiert beide Schreibweisen, Kommentar *„Velocity's default data
    directory is lowercase"*) — Entwurf als erledigt markiert, nicht mehr einreichen.
