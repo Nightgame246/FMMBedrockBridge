@@ -1,6 +1,6 @@
 # [EliteMobs] Advanced Combat System: Bedrock players cannot trigger any active ability
 
-**Status:** DRAFT — not yet posted upstream
+**Status:** ✅ **Gepostet am 11.09.2026 von Fabi** im Suggestions-Forum von MagmaGuys Discord.
 **Kanal:** MagmaGuys **Discord, Suggestions-Forum** (nicht GitHub — so will MagmaGuy es).
 Fertige Fassung zum Kopieren steht am Ende unter „Discord-Fassung".
 **Repo:** MagmaGuy/EliteMobs
@@ -241,3 +241,33 @@ On a mixed server that forces a choice: graphical HUD for Java players, or a rea
       konkrete Zahlen wirken bei Upstream deutlich stärker
 - [ ] Alle drei Nachrichten in **denselben** Thread, in dieser Reihenfolge
 - [ ] Nach dem Posten hier oben den Status von DRAFT auf „gepostet am <Datum>" setzen
+
+---
+
+## Nachtrag 4 — optional, erst nach dem Posten entstanden
+
+> **Warum es ihn gibt:** Die drei geposteten Nachrichten beschreiben nur die **erste** Sperre (der
+> F-Chord). Die **zweite** — EMs Opt-in per F-Doppeltipp ausserhalb von Dungeons — stand zwar im
+> Analyse-Teil oben, aber nicht in der Discord-Fassung. Beim Bau unserer eigenen Ueberbrueckung
+> am 11.09. hat sich gezeigt, dass genau diese zweite Sperre das Feature fuer Bedrock auf
+> Dungeons und Matches zusammenschrumpfen laesst. Das ist ein belastbares Praxisargument, das
+> MagmaGuy in den geposteten Nachrichten noch nicht hat.
+>
+> Nur posten, wenn der Thread noch offen ist und sich ein Nachtrag natuerlich einfuegt.
+> Zeichenzahl siehe unten.
+
+<!-- BEGIN-4 -->
+**One more lock I ran into while bridging this locally — it may matter more than the first.**
+
+Even with a working Bedrock input path, abilities only fire inside dungeons and matches. `useAbility` → `mechanicsActive` → `ClassAbilityInputRouter.controlsEnabled` → `ClassControlMode.enabled(uuid, controlsAlwaysAvailable, outsideControlsAllowed)`. Outside instanced content, `controlsAlwaysAvailable` is false, so the player must be in the `outsideEnabled` set — and the only way in is the F double-tap while sneaking. Same key Bedrock does not have.
+
+So there are two independent locks, not one:
+1. no F → no chord → no ability (the original report)
+2. no F → never in `outsideEnabled` → abilities stay off in the open world even if 1 is solved
+
+I hit this concretely: my sneak-based bridge consumed the player's attack and then `useAbility` returned a failure, because our arming gate was wider than EliteMobs' own. I have since narrowed our gate to `isInitialized() && mechanicsActive(player)` so we never swallow input EliteMobs would not act on — which is correct, but leaves Bedrock players with abilities in dungeons only.
+
+If a `BEDROCK_*` InputProfile lands, it would need to cover the arming path too, not just the chord — otherwise the open world stays dark for those players.
+
+(Also worth knowing: `AdvancedCombatModule.get()` throws `IllegalStateException` rather than returning null when the system is disabled, while `DungeonCombatRuntime.start()` runs unconditionally. Anything integrating with this should gate on `isInitialized()` first.)
+<!-- END-4 -->
