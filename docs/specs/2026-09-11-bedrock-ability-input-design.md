@@ -186,12 +186,19 @@ ist eine technische ID und gehört nicht vor den Spieler.
 Das geht als schlichter ActionBar-Text heraus — **ohne** Custom-Fonts, damit Bedrock ihn
 darstellen kann.
 
-| Fall | Anzeige (Beispiel) |
+⚠️ **Korrektur gegenüber dem ersten Entwurf:** `AbilityFailureReason` kennt **keine** Cooldown-
+oder Ressourcen-Gründe. Die tatsächlichen Werte sind `NONE`, `WRONG_THREAD`, `INVALID_PLAYER`,
+`INVALID_LEVEL`, `ABILITY_NOT_REGISTERED`, `NO_VALID_TARGET`, `NO_CORPSE`, `PATH_BLOCKED`,
+`UNSAFE_DESTINATION`, `ENGINE_CLOSED`. Cooldowns und Ressourcen meldet EM selbst über
+`CombatHudFeedback`; wir mischen uns da nicht ein.
+
+| Fall | Anzeige |
 |---|---|
 | Erfolg | `▶ Schattenschritt` |
-| Cooldown | `Schattenschritt — noch 3s` |
-| Ressource fehlt | `Nicht genug Fokus` |
-| Keine Klasse aktiv | *(nichts — der Chord bleibt still)* |
+| `NO_VALID_TARGET` | `Kein Ziel` |
+| `PATH_BLOCKED` / `UNSAFE_DESTINATION` | `Weg blockiert` |
+| `INVALID_LEVEL` | `Fähigkeit noch nicht freigeschaltet` |
+| alle übrigen (technisch) | *(nichts anzeigen, nur `debugLog`)* |
 
 ⚠️ **Die Bridge hat keine Sprachdatei** (nur `config.yml`). Die vier Textbausteine kommen
 deshalb in die Config, damit sie ohne Neubau änderbar sind — eine eigene Sprachdatei-Infrastruktur
