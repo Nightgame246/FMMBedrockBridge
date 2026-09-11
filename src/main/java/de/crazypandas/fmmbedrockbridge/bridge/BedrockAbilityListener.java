@@ -1,6 +1,7 @@
 package de.crazypandas.fmmbedrockbridge.bridge;
 
 import de.crazypandas.fmmbedrockbridge.FMMBedrockBridge;
+import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
@@ -41,15 +42,22 @@ public final class BedrockAbilityListener implements Listener {
     public void onSneak(PlayerToggleSneakEvent event) {
         // Only sneak STARTS count. Closing on sneak end would make "sneak, sneak" impossible,
         // because the second start requires releasing first.
-        if (!event.isSneaking()) return;
-
         Player player = event.getPlayer();
+
+        // The release matters as much as the press: without it the controls stay armed across
+        // crouches, and the next crouch reads as the second tap of a double tap.
+        if (!event.isSneaking()) {
+            gestureFor(player).sneakEnd(Bukkit.getCurrentTick());
+            FMMBedrockBridge.debugLog("[PHASE74] controls DISARMED for " + player.getName());
+            return;
+        }
+
         if (!armed(player)) {
             FMMBedrockBridge.debugLog("[PHASE74] sneak from " + player.getName() + " — not armed");
             return;
         }
 
-        BedrockAbilityGesture.Outcome outcome = gestureFor(player).sneakStart();
+        BedrockAbilityGesture.Outcome outcome = gestureFor(player).sneakStart(Bukkit.getCurrentTick());
         if (outcome == BedrockAbilityGesture.Outcome.NONE) {
             FMMBedrockBridge.debugLog("[PHASE74] controls ARMED for " + player.getName());
         }
