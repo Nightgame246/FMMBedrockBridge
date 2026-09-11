@@ -1,6 +1,9 @@
 # [EliteMobs] Advanced Combat System: Bedrock players cannot trigger any active ability
 
 **Status:** ✅ **Gepostet am 11.09.2026 von Fabi** im Suggestions-Forum von MagmaGuys Discord.
+**Thread:** https://discord.com/channels/320602228669022208/1547941122335187025
+(Stand 11.09.2026: noch keine Reaktion im Thread. Nachtrag 4 ist von Fabi zum Nachposten
+vorgesehen.)
 **Kanal:** MagmaGuys **Discord, Suggestions-Forum** (nicht GitHub — so will MagmaGuy es).
 Fertige Fassung zum Kopieren steht am Ende unter „Discord-Fassung".
 **Repo:** MagmaGuy/EliteMobs
