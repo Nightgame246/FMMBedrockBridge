@@ -204,7 +204,7 @@ public class FMMBedrockBridge extends JavaPlugin {
 
     public static long getPhase74ChordMaxTicks() {
         FMMBedrockBridge plugin = instance;
-        return plugin != null ? plugin.getConfig().getLong("phase74.chord-max-ticks", 40L) : 40L;
+        return plugin != null ? plugin.getConfig().getLong("phase74.chord-max-ticks", 200L) : 200L;
     }
 
     public static boolean isPhase74RequireCombat() {

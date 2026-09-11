@@ -101,11 +101,12 @@ phase74:
   # Advanced Combat System aus, keine Klasse gewählt, oder außerhalb von Dungeon/Match.
   bedrock-abilities: true
 
-  # Wie lange der Chord nach dem Schleich-Beginn offen bleibt, in Ticks (20 = 1s).
-  # EM selbst nutzt 12 Ticks, das ist aber auf einen Tastendruck gemünzt; Schleichen
-  # ist ein Zustand und auf einem Controller träger. 40 = 2s ist der Startwert —
-  # im Spieltest justieren.
-  chord-max-ticks: 40
+  # Sicherheitsnetz: Der Chord ist offen, SOLANGE geschlichen wird — dieser Wert deckelt das
+  # nur nach oben, damit niemand dauerhaft geduckt im Faehigkeiten-Modus herumlaeuft.
+  # 200 Ticks = 10 s. Frueher standen hier 40 (2 s); das war eine Stoppuhr und hat im ersten
+  # Spieltest am 11.09. dafuer gesorgt, dass nur "Schleichen, Schleichen" erreichbar war —
+  # schleichen, zielen und zuschlagen dauert auf einem Controller laenger.
+  chord-max-ticks: 200
 
   # Wenn true, ist die Steuerung nur im Kampf bzw. in Dungeons scharf. Auf false
   # gesetzt löst auch normales Schleichen beim Bauen Fähigkeiten aus — nicht empfohlen.
