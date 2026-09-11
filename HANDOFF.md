@@ -1,6 +1,6 @@
 # HANDOFF — FMMBedrockBridge
 
-> Arbeitsstand **dieses Plugins**. Stand: **2026-09-10**  ·  Branch: **`main`**
+> Arbeitsstand **dieses Plugins**. Stand: **2026-09-11**  ·  Branch: **`phase-7.4-bedrock-ability-input`** (25 Commits, **nicht** gemerged)
 >
 > ⚠️ **Der Einstieg steht eine Ebene höher: `../HANDOFF.md`.**
 > Dort liegen Bootstrap, Session-Ende-Protokoll, Build-Vorbereitung am neuen PC und die
@@ -14,10 +14,98 @@
 > Remote keinen Commit mehr und lässt sich nicht pullen — er muss weg und frisch geklont
 > werden. Anleitung und Grund: `../HANDOFF.md`, Kopfblock und „Sicherheitsvorfall".
 >
-> ✅ **Auf der Entwicklungs-Seite ist nichts offen.** Der Rest-Scope (Combat-BossBar +
-> HP-Nametag) ist auf dem 26.2-Stack vollständig live verifiziert: 7.1a am 14.08.,
-> 7.1b/7.1c am 16.08. per A/B-Test, Boot-Gegenprobe am 09.09. Was übrig ist, liegt bei Fabi
-> (Upstream-Report) oder auf der Server-Seite — Abschnitt 3.
+> 🔵 **Neu seit 11.09.: Phase 7.4 + 7.5 auf eigenem Branch, deployt auf TestServer01,
+> in-game noch NICHT final abgenommen.** Die älteren Phasen (BossBar + HP-Nametag) sind
+> unverändert live verifiziert: 7.1a am 14.08., 7.1b/7.1c am 16.08. per A/B-Test,
+> Boot-Gegenprobe am 09.09.
+
+
+### Was Phase 7.4 und 7.5 sind
+
+**7.4 — Bedrock-Eingabe für EMs Klassen-Fähigkeiten.** EliteMobs 10.9.0 bindet sie an einen
+F-Chord; `F` ist der Offhand-Tausch, den Bedrock auf keinem Gerät hat. Konsolenspieler können
+ohne die Bridge **keine einzige** aktive Fähigkeit auslösen. Wir übersetzen das auf Schleichen.
+
+**7.5 — Bedrock-HUD.** EMs Combat-HUD wird aus einer Java-Resource-Pack-Schrift gezeichnet;
+689 der 703 Glyphen liegen in der Private Use Area, wo Bedrock seine eigenen Item-Symbole hat.
+Ergebnis in-game: hunderte Rüstungs- und Karotten-Icons über dem halben Bildschirm, fünfmal pro
+Sekunde neu — der Client laggt sich fest. Screenshots: `../references/screenshots/`.
+Die Bridge ersetzt das für Bedrock durch eine eigene Textzeile aus EMs öffentlichen Snapshots.
+**Java-Spieler behalten das grafische HUD unverändert.**
+
+Design: `docs/specs/2026-09-11-bedrock-ability-input-design.md` ·
+Plan: `docs/plans/2026-09-11-bedrock-ability-input.md` ·
+Upstream: `docs/upstream-bugs/em-advanced-combat-bedrock-input-lockout.md`
+(am 11.09. von Fabi im Discord gepostet, Thread-Link steht drin; **Nachtrag 4 ist noch nicht
+gepostet** — er beschreibt die zweite Sperre und ist durch die Arbeit an 7.4 belegt).
+
+### Vier Irrwege, die nicht noch einmal nötig sind
+
+Die Gesten-Erkennung hat vier Anläufe gebraucht. Alle vier scheiterten am selben
+Missverständnis — EliteMobs' Chord-Metapher ist für einen **Tastendruck** gemacht, Schleichen
+ist ein **Zustand**:
+
+1. Festes 2-Sekunden-Fenster → lief beim Zielen ab
+2. Chord wird von der ersten Fähigkeit verbraucht → zweite Fähigkeit unmöglich
+3. Arming über Sneak-Events → **Geyser liefert Bedrocks Ducken als Flatter-Folge**
+   (gemessen: 5 × „armed" gegen 20 × „disarmed" in Sekunden)
+4. Jetzt: Klicks lesen `player.isSneaking()` direkt; nur Mobility wertet noch Events aus,
+   mit 4-Tick-Untergrenze gegen das Flattern
+
+⚠️ **Merksatz:** Bei Bedrock-Eingaben den **Zustand** abfragen, nicht dem Eventstrom trauen.
+
+### Die EliteMobs-Seite, die uns nicht gehört
+
+`INVALID_PLAYER` im Log heißt „Class controls are not active here" — das kommt von EliteMobs,
+nicht von uns. Tritt es **in** einer EM-Welt mit aktiver Klasse auf, ist es ein Upstream-Thema.
+Klassen setzen ohne Instructor-Trial: `/em class test set <player> <class> <level>`.
+
+---
+
+## ▶ HIER WEITERMACHEN (Stand 11.09.2026, Sitzungsende)
+
+**Als Allererstes:** TestServer01 **neu starten** — die JAR von 23:34 liegt drauf, der
+laufende Server hat sie noch nicht geladen. Danach in-game testen.
+
+### Was zu testen ist
+
+| Geste | erwartet |
+|---|---|
+| Schleichen halten + **Linksklick** | Signature |
+| Schleichen halten + **Rechtsklick** | Utility |
+| Ducken, kurz loslassen, wieder ducken | Mobility |
+
+Dazu die Bar ansehen: Klassenname · Level · ♥ HP · Ressource, und dahinter EMs eigene
+Meldungen **mit ihren Zahlen** (z. B. `Dodge! -20 Stamina`, `Not enough Stamina (20/100
+required)`).
+
+⚠️ **Der Test muss in einer EliteMobs-Welt oder einem Dungeon stattfinden.** Draußen gibt
+EliteMobs die Steuerung nicht frei — dort ist Stille das korrekte Verhalten, kein Fehler.
+
+### Stand der letzten Rückmeldung (Fabi, 11.09. ~23:40)
+
+- **Auslösen:** lief gut, „alles hat ausgelöst"
+- **Bar:** gut, bis auf abgeschnittene Meldungen (`required`) — dafür ist die neue
+  Trennung hinter dem Klassennamen da, noch ungetestet
+
+### Wenn etwas nicht stimmt
+
+`debug: true` steht in der Instanz-Config. Im Log stehen dann:
+
+- `[PHASE74] interact from …: action=… hand=… sneaking=… cancelled=…` — was Geyser wirklich
+  schickt, **vor** jeder Prüfung
+- `[PHASE75] raw: '§f##60/60##…'` — die Rohstruktur des HUD-Pakets, Glyphen als `#`
+- `[PHASE74] … failed: <GRUND>` — EliteMobs hat abgelehnt, nicht wir
+
+Diese drei Zeilen sind aus Fehlern entstanden: Ohne sie war jedes Mal unklar, ob ein Event
+fehlt, verworfen wird oder EliteMobs ablehnt — und jede Vermutung darüber war falsch.
+
+### Danach: Branch abschließen
+
+`phase-7.4-bedrock-ability-input` hat 25 Commits und ist **nicht** gemerged. Nach
+erfolgreicher Abnahme: mergen nach `main` oder PR — die Entscheidung steht noch aus.
+⚠️ Commit `4dbfe52` hat eine kaputte Message (Trailer ohne Leerzeile am Betreff);
+ein Squash-Merge räumt das mit auf.
 
 ---
 
