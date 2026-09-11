@@ -121,6 +121,21 @@ public final class BedrockGlyphFilter {
         return PROSE.matcher(tail).matches() ? tail : null;
     }
 
+    /**
+     * Drops a leading class name from a message, so the line does not read
+     * "Adventurer … Adventurer [EM] Teleportiere …". EliteMobs prefixes its own messages with
+     * the class name, which our HUD line already carries.
+     */
+    public static String withoutLeadingName(String message, String name) {
+        if (message == null || name == null || name.isEmpty()) return message;
+        String bare = message.replaceAll("^(§[0-9a-fk-orx])+", "");
+        if (!bare.startsWith(name)) return message;
+        // Only the separator EliteMobs puts between name and message goes — §f/§r plus spaces.
+        // A colour that belongs to the message itself (its §7, say) has to survive.
+        String rest = bare.substring(name.length()).replaceAll("^(§[fr]|\\s)+", "");
+        return rest.isEmpty() ? null : rest;
+    }
+
     private static boolean isGlyph(char c) {
         return c >= PUA_FIRST && c <= PUA_LAST;
     }

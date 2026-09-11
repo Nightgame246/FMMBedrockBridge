@@ -126,4 +126,31 @@ class BedrockGlyphFilterTest {
         assertNull(BedrockGlyphFilter.messageAfterHud(null));
         assertNull(BedrockGlyphFilter.messageAfterHud(""));
     }
+
+    @Test
+    void dropsTheClassNameEliteMobsRepeatsInFrontOfItsMessages() {
+        // Live line on 11.09.2026: "Adventurer Lv1 ♥60/60 38/100 Adventurer [EM] Teleportiere…"
+        // — the name appeared twice, once from our HUD and once from EliteMobs' own prefix.
+        assertEquals("§7[EM] Teleportiere in §a1 §7Sekunden...",
+                BedrockGlyphFilter.withoutLeadingName(
+                        "§fAdventurer§f §7[EM] Teleportiere in §a1 §7Sekunden...", "Adventurer"));
+    }
+
+    @Test
+    void leavesAMessageAloneWhenItDoesNotStartWithTheName() {
+        assertEquals("Not enough Stamina (20 required).",
+                BedrockGlyphFilter.withoutLeadingName("Not enough Stamina (20 required).", "Adventurer"));
+    }
+
+    @Test
+    void aMessageThatIsOnlyTheNameBecomesNothing() {
+        assertNull(BedrockGlyphFilter.withoutLeadingName("§fAdventurer", "Adventurer"));
+    }
+
+    @Test
+    void withoutLeadingNameSurvivesNulls() {
+        assertNull(BedrockGlyphFilter.withoutLeadingName(null, "Adventurer"));
+        assertEquals("text", BedrockGlyphFilter.withoutLeadingName("text", null));
+        assertEquals("text", BedrockGlyphFilter.withoutLeadingName("text", ""));
+    }
 }

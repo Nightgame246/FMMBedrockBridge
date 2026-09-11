@@ -100,8 +100,11 @@ public final class BedrockAbilityListener implements Listener {
                     + " cancelled=" + event.isCancelled());
         }
 
-        // Firing still respects a cancellation — the diagnosis above is the only reason we see it.
-        if (event.isCancelled()) return;
+        // A cancelled interact is NOT a reason to skip the ability. Measured on 11.09.2026 in the
+        // Adventurer's Guild: 19 right clicks and 12 left clicks arrived, every one of them
+        // cancelled — region protection says "you may not use a block here", which has nothing to
+        // do with whether a class ability may fire. EliteMobs allows abilities in that very
+        // place, so the gesture is read regardless; we simply have nothing left to consume.
 
         if (event.getHand() != EquipmentSlot.HAND) return;
         boolean leftClick = action == Action.LEFT_CLICK_AIR || action == Action.LEFT_CLICK_BLOCK;
@@ -118,6 +121,8 @@ public final class BedrockAbilityListener implements Listener {
         BedrockAbilityGesture.Outcome outcome = leftClick
                 ? gesture.attack(player.isSneaking())
                 : gesture.use(player.isSneaking());
+        // An already-cancelled event has nothing left to consume.
+        boolean alreadyCancelled = event.isCancelled();
         if (outcome == BedrockAbilityGesture.Outcome.NONE) {
             FMMBedrockBridge.debugLog("[PHASE74] " + (leftClick ? "left" : "right") + " click from "
                     + player.getName() + " — controls not armed (sneaking="

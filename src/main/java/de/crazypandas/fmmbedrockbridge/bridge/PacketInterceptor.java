@@ -194,6 +194,11 @@ public class PacketInterceptor {
             // guild), so the message wins whenever there is one.
             String message = BedrockGlyphFilter.messageAfterHud(stripped);
             String own = hook.hudLine(playerObj);
+            if (message != null && own != null) {
+                // EliteMobs prefixes messages with the class name our line already shows.
+                message = BedrockGlyphFilter.withoutLeadingName(message,
+                        own.replaceAll("§[0-9a-fk-orx]", "").split(" ")[0]);
+            }
             if (message != null) {
                 return own == null ? message : own + " §f" + message;
             }
