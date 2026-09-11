@@ -1,6 +1,8 @@
 # [EliteMobs] Advanced Combat System: Bedrock players cannot trigger any active ability
 
 **Status:** DRAFT — not yet posted upstream
+**Kanal:** MagmaGuys **Discord, Suggestions-Forum** (nicht GitHub — so will MagmaGuy es).
+Fertige Fassung zum Kopieren steht am Ende unter „Discord-Fassung".
 **Repo:** MagmaGuy/EliteMobs
 **Version:** EliteMobs 10.9.0 (Modrinth, released 2026-09-11, `md5 ffd90956ece71c5e88d3a183de80ec2d`)
 **Environment:** Paper 26.2, Velocity proxy, Geyser-Velocity 2.11.1, Floodgate 2.2.5
@@ -158,3 +160,84 @@ calling `AdvancedCombatModule.useAbility` directly) and will drop that path as s
 covers it.
 
 Happy to test any patch against a real Bedrock console client.
+
+
+---
+
+# Discord-Fassung — zum Kopieren
+
+> **Ziel:** MagmaGuys Discord, **Suggestions-Forum** (so will MagmaGuy es, nicht GitHub).
+> **Ton:** Vorschlag, nicht Fehlermeldung.
+> **Format:** Discord kann **keine Markdown-Tabellen** — deshalb Listen und Code-Blöcke.
+> **Grenze:** 2000 Zeichen je Nachricht → ein Thread-Start plus zwei Antworten, in dieser
+> Reihenfolge in **denselben** Thread.
+>
+> Die Nachrichten stehen bewusst **nicht** in Code-Blöcken: sie enthalten selbst welche, und ein
+> innerer ``` beendet den äußeren. Kopiert wird jeweils zwischen den BEGIN/END-Markern.
+
+## Thread-Titel
+
+Advanced Combat: add a Bedrock-compatible input path (F has no Bedrock equivalent)
+
+## Nachricht 1 — Thread-Start
+
+<!-- BEGIN-1 -->
+**Advanced Combat looks great — but Bedrock players currently can't use any of it.**
+
+I run a mixed Java/Bedrock network with a lot of console players, so I went through 10.9.0 with javap to see how the new class abilities are triggered.
+
+The three slots are bound to an F-chord (F,F / F+LMB / F+RMB). F is the offhand-swap key, and **Bedrock has no offhand-swap control** — not on controller, not on touch, not on console. Geyser never produces a `PlayerSwapHandItemsEvent` for those clients.
+
+EliteMobs already knows about this:
+```java
+public boolean fLayerSupported(Player p) {
+    return !GeyserDetector.bedrockPlayer(p);   // Bedrock -> false
+}
+```
+The catch is that `ClassAbilityInputRouter` has five input handlers, and only `onSwapHands` can *open* a chord. The other four — hotbar select, interact, interact-entity, attack — all bail out when no chord is open. (`onChordInteract` only checks `recentDispatches` to swallow a follow-up right-click, then returns.)
+
+So: no F → no chord → no ability, with no second entry point.
+
+The net effect is that Bedrock players can pick a class, level it and get passives, but can't trigger a single active ability — roughly a third of the system is unreachable for them.
+
+Suggestions in the next message, all three reuse things that are already in the code.
+<!-- END-1 -->
+
+## Nachricht 2 — die Vorschläge
+
+<!-- BEGIN-2 -->
+**Three ways to close it, all building on what's already there:**
+
+**1. A third InputProfile.** The enum already models alternative schemes (`JAVA_HOTBAR_LAYER`, `DEFAULT`) and `AdvancedCombatModule.activeInputProfile(Player)` resolves it per player. A `BEDROCK_*` value would slot right in.
+
+**2. Sneak as the chord opener when `!fLayerSupported(player)`.** This looks like the smallest change: `ClassControlMode.pressF` already receives `player.isSneaking()` as a parameter, so sneak is literally already wired into the input layer. Feeding sneak-start (`PlayerToggleSneakEvent`) into `ClassAbilityGestureState.pressF` would reuse the existing state machine almost unchanged, and it keeps the muscle memory of the Java scheme:
+```
+sneak, sneak     -> Mobility
+sneak + attack   -> Signature
+sneak + use      -> Utility
+```
+**3. A chordless hotbar layer.** `selectHotbar()` already exists on `ClassAbilityGestureState` — three reserved slots need no timing at all, which is the friendliest option on a controller.
+
+One timing note if you go with sneak: `CHORD_WINDOW_TICKS = 12` (0.6s) is tuned for a key *press*. Sneak is a *state*, and 0.6s is tight on a controller — a sneak path would probably want a longer or state-based window.
+
+I'm happy to test any of this against real console clients and report back.
+<!-- END-2 -->
+
+## Nachricht 3 — der HUD-Nebenbefund
+
+<!-- BEGIN-3 -->
+**Related, smaller thing in the same feature: the graphical combat HUD.**
+
+It renders through Java resource-pack font providers (`assets/elitemobs/font/combat_hud_*.json`). Bedrock can't resolve those. The text fallback exists, but it's a global switch (`isEnableCombatHud`), not a per-player Bedrock branch.
+
+10.9.0 checks `GeyserDetector` in nine classes — MenuPresentation, PlayerStatusScreen, QuestMenu, QuestDialogueBossBarManager, PartyInventoryMenu, CombatLevelDisplay, BedrockWormholeMarker, PatrolEditor$Session and AdvancedCombatModule — but `CombatHud` and `ClassHudPresentation` contain no Geyser/Floodgate reference at all.
+
+On a mixed server that forces a choice: graphical HUD for Java players, or a readable HUD for Bedrock players. Deciding graphical-vs-text per player, with the same `GeyserDetector` call the menus already use, would serve both.
+<!-- END-3 -->
+
+## Vor dem Posten prüfen
+
+- [ ] „a lot of console players" in Nachricht 1 gegen die echte Zahl ersetzen, falls verfügbar —
+      konkrete Zahlen wirken bei Upstream deutlich stärker
+- [ ] Alle drei Nachrichten in **denselben** Thread, in dieser Reihenfolge
+- [ ] Nach dem Posten hier oben den Status von DRAFT auf „gepostet am <Datum>" setzen
