@@ -2,7 +2,7 @@ package de.crazypandas.fmmbedrockbridge.bridge;
 
 import org.junit.jupiter.api.Test;
 
-import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -24,13 +24,9 @@ class AdvancedCombatSupportTest {
     }
 
     @Test
-    void alwaysExplainsWhyItIsUnavailable() {
-        // With the package present (EliteMobs 10.9.0), isPresent() succeeds and
-        // missingReason() clears to "" — there is nothing left to explain, so the "must be
-        // non-blank" expectation from the "package absent" case no longer applies here.
-        // What still holds unconditionally is the contract that missingReason() never returns
-        // null, so the startup log always has something to call.
-        AdvancedCombatSupport.isPresent();
-        assertNotNull(AdvancedCombatSupport.missingReason());
+    void missingReasonClearsOnceThePackageIsPresent() {
+        assertTrue(AdvancedCombatSupport.isPresent());
+        assertEquals("", AdvancedCombatSupport.missingReason(),
+                "once the probe succeeds there is nothing left to explain");
     }
 }
