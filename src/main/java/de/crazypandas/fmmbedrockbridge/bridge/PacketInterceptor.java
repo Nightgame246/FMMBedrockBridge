@@ -58,6 +58,19 @@ public class PacketInterceptor {
             new java.util.concurrent.atomic.AtomicInteger();
     private volatile boolean glyphFilterDisabled = false;
 
+    /**
+     * Above this many glyphs a packet is EliteMobs' HUD rather than a message. Its bars run to
+     * several hundred glyphs; decorative ones in a sentence stay in the low single digits.
+     */
+    private static final int HUD_GLYPH_THRESHOLD = 20;
+
+    /** Set when EliteMobs' Advanced Combat System is available — used to build our own HUD. */
+    private AdvancedCombatHook hook;
+
+    public void setAdvancedCombatHook(AdvancedCombatHook hook) {
+        this.hook = hook;
+    }
+
     public void setBridge(BedrockEntityBridge bridge) {
         this.bridge = bridge;
         this.floodgateAvailable = Bukkit.getPluginManager().getPlugin("floodgate") != null;
@@ -160,6 +173,28 @@ public class PacketInterceptor {
      *
      * <p>Java players are never touched. Runs on the Netty thread, so everything is wrapped.
      */
+    /**
+     * Decides what a Bedrock player should see instead of glyph-laden text.
+     *
+     * <p>EliteMobs' combat HUD is hundreds of font glyphs forming bars; stripping them leaves
+     * unreadable rubble like "56/6092/100". So a packet with that many glyphs is treated as the
+     * HUD and <b>replaced</b> with a line we build from EliteMobs' own values — Java players keep
+     * the graphical version untouched. A packet with only a few glyphs is an ordinary message
+     * ("Class controls are not active here") and merely gets them stripped.
+     *
+     * @return the text to send, or {@code null} to suppress the packet entirely
+     */
+    private String replacementFor(String legacy, Player playerObj) {
+        if (BedrockGlyphFilter.countGlyphs(legacy) >= HUD_GLYPH_THRESHOLD && hook != null) {
+            String own = hook.hudLine(playerObj);
+            if (own != null) return own;
+            // No class data to show — better nothing than rubble.
+            return null;
+        }
+        String stripped = BedrockGlyphFilter.strip(legacy);
+        return stripped.isEmpty() ? null : stripped;
+    }
+
     private void handleActionBarGlyphs(PacketSendEvent event, Player playerObj) {
         if (!floodgateAvailable || glyphFilterDisabled) return;
         try {
@@ -172,15 +207,14 @@ public class PacketInterceptor {
                 String legacy = serializer.serialize(wrapper.getActionBarText());
                 if (!BedrockGlyphFilter.containsGlyphs(legacy)) return;
 
-                String cleaned = BedrockGlyphFilter.strip(legacy);
-                if (cleaned.isEmpty()) {
-                    // Nothing but glyphs — an empty action bar would just flicker.
+                String replacement = replacementFor(legacy, playerObj);
+                if (replacement == null) {
                     event.setCancelled(true);
                 } else {
-                    wrapper.setActionBarText(serializer.deserialize(cleaned));
+                    wrapper.setActionBarText(serializer.deserialize(replacement));
                 }
-                FMMBedrockBridge.debugLog("[PHASE75] action bar cleaned for "
-                        + playerObj.getName() + " -> '" + cleaned + "'");
+                FMMBedrockBridge.debugLog("[PHASE75] action bar for " + playerObj.getName()
+                        + " -> '" + (replacement == null ? "(suppressed)" : replacement) + "'");
                 return;
             }
 
@@ -192,14 +226,14 @@ public class PacketInterceptor {
             String legacy = serializer.serialize(wrapper.getMessage());
             if (!BedrockGlyphFilter.containsGlyphs(legacy)) return;
 
-            String cleaned = BedrockGlyphFilter.strip(legacy);
-            if (cleaned.isEmpty()) {
+            String replacement = replacementFor(legacy, playerObj);
+            if (replacement == null) {
                 event.setCancelled(true);
             } else {
-                wrapper.setMessage(serializer.deserialize(cleaned));
+                wrapper.setMessage(serializer.deserialize(replacement));
             }
-            FMMBedrockBridge.debugLog("[PHASE75] overlay chat cleaned for "
-                    + playerObj.getName() + " -> '" + cleaned + "'");
+            FMMBedrockBridge.debugLog("[PHASE75] overlay for " + playerObj.getName()
+                    + " -> '" + (replacement == null ? "(suppressed)" : replacement) + "'");
         } catch (Throwable t) {
             // Never let a malformed packet take the interceptor down — and never let a
             // permanent failure flood the log, since this runs on every action-bar packet.

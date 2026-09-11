@@ -5,6 +5,8 @@ import com.magmaguy.elitemobs.advancedcombat.abilities.AbilityResult;
 import com.magmaguy.elitemobs.advancedcombat.classes.AbilitySlot;
 import com.magmaguy.elitemobs.combatsystem.combattag.DungeonCombatRuntime;
 import de.crazypandas.fmmbedrockbridge.FMMBedrockBridge;
+import org.bukkit.attribute.Attribute;
+import org.bukkit.attribute.AttributeInstance;
 import org.bukkit.entity.Player;
 
 /**
@@ -86,6 +88,49 @@ public final class AdvancedCombatHook {
             // broken Alpha API would otherwise spam the console once per input.
             FMMBedrockBridge.debugLog("[PHASE74] useAbility failed: " + t);
             return NOT_HANDLED;
+        }
+    }
+
+    /**
+     * Phase 7.5 — builds a plain-text HUD line for a Bedrock player from EliteMobs' own data.
+     *
+     * <p>EliteMobs draws its combat HUD with a Java resource-pack font that Bedrock renders as a
+     * wall of item icons. Rather than strip that text down to rubble, we read the same values
+     * EliteMobs uses and write our own line. Java players keep the graphical HUD untouched.
+     *
+     * <p>Everything used here is public API of {@code AdvancedCombatModule}, so no reflection is
+     * involved — but the package is still Alpha, hence the blanket catch.
+     *
+     * @return the line, or {@code null} when there is nothing sensible to show
+     */
+    public String hudLine(Player player) {
+        try {
+            if (!AdvancedCombatModule.isInitialized()) return null;
+
+            StringBuilder line = new StringBuilder();
+
+            AdvancedCombatModule.activeClassLineageSnapshot(player.getUniqueId())
+                    .ifPresent(lineage -> line.append("§e").append(lineage.activeForm().displayName()));
+            AdvancedCombatModule.classProgressSnapshot(player.getUniqueId())
+                    .ifPresent(progress -> line.append(" §7Lv").append(progress.effectiveLevel()));
+
+            AttributeInstance maxHealth = player.getAttribute(Attribute.MAX_HEALTH);
+            if (maxHealth != null) {
+                if (line.length() > 0) line.append("  ");
+                line.append("§c♥ ").append(Math.round(player.getHealth()))
+                        .append('/').append(Math.round(maxHealth.getValue()));
+            }
+
+            AdvancedCombatModule.resourceSnapshot(player.getUniqueId()).ifPresent(resource -> {
+                if (line.length() > 0) line.append("  ");
+                line.append("§b").append(Math.round(resource.amount()))
+                        .append('/').append(Math.round(resource.maximum()));
+            });
+
+            return line.length() == 0 ? null : line.toString();
+        } catch (Throwable t) {
+            FMMBedrockBridge.debugLog("[PHASE75] hud line failed: " + t);
+            return null;
         }
     }
 

@@ -108,6 +108,9 @@ public class FMMBedrockBridge extends JavaPlugin {
                 try {
                     de.crazypandas.fmmbedrockbridge.bridge.AdvancedCombatHook hook =
                             new de.crazypandas.fmmbedrockbridge.bridge.AdvancedCombatHook();
+                    // Phase 7.5 needs the hook too: it replaces EliteMobs' glyph HUD for Bedrock
+                    // players with a line built from the same values.
+                    if (bridge != null) bridge.getPacketInterceptor().setAdvancedCombatHook(hook);
                     // The listener reads its config per event, like every other phase, instead
                     // of freezing it here — so a switch flipped during the playtest only needs
                     // the config reloaded, not the whole server restarted.

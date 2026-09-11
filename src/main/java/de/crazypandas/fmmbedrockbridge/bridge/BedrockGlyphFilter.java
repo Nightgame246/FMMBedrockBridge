@@ -28,6 +28,22 @@ public final class BedrockGlyphFilter {
     private BedrockGlyphFilter() {
     }
 
+    /**
+     * How many Private Use Area glyphs the text holds.
+     *
+     * <p>Used to tell EliteMobs' HUD apart from its ordinary messages: the HUD draws bars out of
+     * hundreds of glyphs, while a message like "Class controls are not active here" carries at
+     * most a handful of decorative ones.
+     */
+    public static int countGlyphs(String text) {
+        if (text == null || text.isEmpty()) return 0;
+        int n = 0;
+        for (int i = 0; i < text.length(); i++) {
+            if (isGlyph(text.charAt(i))) n++;
+        }
+        return n;
+    }
+
     /** True when the text holds at least one Private Use Area glyph worth stripping. */
     public static boolean containsGlyphs(String text) {
         if (text == null || text.isEmpty()) return false;
