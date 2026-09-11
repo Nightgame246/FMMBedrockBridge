@@ -45,6 +45,19 @@ public class PacketInterceptor {
     private BedrockEntityBridge bridge;
     private boolean floodgateAvailable = false;
 
+    /**
+     * Phase 7.5 self-disable. A filter that fails once will almost always keep failing — a
+     * swapped jar, a renamed PacketEvents wrapper — and it runs on every action-bar packet.
+     * EliteMobs re-sends its HUD about five times a second, so an unguarded failure floods the
+     * log with thousands of identical lines (observed on 11.09.2026 after a live jar swap).
+     * After {@link #GLYPH_FILTER_FAILURE_LIMIT} failures the filter switches itself off, logs
+     * once at WARNING, and leaves the rest of the interceptor untouched.
+     */
+    private static final int GLYPH_FILTER_FAILURE_LIMIT = 5;
+    private final java.util.concurrent.atomic.AtomicInteger glyphFilterFailures =
+            new java.util.concurrent.atomic.AtomicInteger();
+    private volatile boolean glyphFilterDisabled = false;
+
     public void setBridge(BedrockEntityBridge bridge) {
         this.bridge = bridge;
         this.floodgateAvailable = Bukkit.getPluginManager().getPlugin("floodgate") != null;
@@ -148,7 +161,7 @@ public class PacketInterceptor {
      * <p>Java players are never touched. Runs on the Netty thread, so everything is wrapped.
      */
     private void handleActionBarGlyphs(PacketSendEvent event, Player playerObj) {
-        if (!floodgateAvailable) return;
+        if (!floodgateAvailable || glyphFilterDisabled) return;
         try {
             if (!FloodgateApi.getInstance().isFloodgatePlayer(playerObj.getUniqueId())) return;
 
@@ -188,8 +201,18 @@ public class PacketInterceptor {
             FMMBedrockBridge.debugLog("[PHASE75] overlay chat cleaned for "
                     + playerObj.getName() + " -> '" + cleaned + "'");
         } catch (Throwable t) {
-            // Never let a malformed packet take the interceptor down.
-            FMMBedrockBridge.debugLog("[PHASE75] glyph filter skipped a packet: " + t);
+            // Never let a malformed packet take the interceptor down — and never let a
+            // permanent failure flood the log, since this runs on every action-bar packet.
+            if (glyphFilterFailures.incrementAndGet() >= GLYPH_FILTER_FAILURE_LIMIT) {
+                glyphFilterDisabled = true;
+                Bukkit.getLogger().warning("[FMMBedrockBridge] Phase 7.5 disabled itself after "
+                        + GLYPH_FILTER_FAILURE_LIMIT + " failures — Bedrock action bars are no"
+                        + " longer filtered. Last cause: " + t
+                        + " (a jar swapped while the server was running causes exactly this;"
+                        + " restart the server)");
+            } else {
+                FMMBedrockBridge.debugLog("[PHASE75] glyph filter skipped a packet: " + t);
+            }
         }
     }
 
