@@ -94,37 +94,36 @@ class BedrockGlyphFilterTest {
     }
 
     @Test
-    void findsTheMessageAfterTheLastGlyph() {
-        String raw = "\uE010\uE011Adventurer\uE012 60/60\uE013 12/100\uE014 §7Dodge! -20 Stamina";
+    void findsNoMessageInAPlainHud() {
+        // Exact shape measured on 11.09.2026 — note it ENDS in glyphs.
+        String raw = "§f\uE010\uE01160/60\uE012\uE01325/100\uE014§x§f§f§f§0§b§eAdventurer§f\uE015";
 
-        assertEquals("§7Dodge! -20 Stamina", BedrockGlyphFilter.messageAfterGlyphs(raw));
+        assertNull(BedrockGlyphFilter.messageAfterName(raw, "Adventurer"));
+    }
+
+    @Test
+    void findsTheMessageAfterTheClassName() {
+        String raw = "§f\uE01060/60\uE01125/100\uE012Adventurer§f\uE013 §7Dodge! -20 Stamina";
+
+        assertEquals("§7Dodge! -20 Stamina",
+                BedrockGlyphFilter.messageAfterName(raw, "Adventurer"));
     }
 
     @Test
     void aMessageMayCarryItsOwnValuePair() {
-        // THE bug this replaced: cutting at the last "n/m" pair chopped inside the message and
-        // left only "required)" on the bar.
-        String raw = "\uE010Adventurer\uE011 60/60\uE012 0/100\uE013 Not enough Stamina (20/100 required)";
+        // The bug Fabi hit: cutting at the last "n/m" pair chopped inside the message and left
+        // only "required" on the bar.
+        String raw = "§f\uE0100/100\uE011Adventurer§f\uE012 Not enough Stamina (20/100 required)";
 
         assertEquals("Not enough Stamina (20/100 required)",
-                BedrockGlyphFilter.messageAfterGlyphs(raw));
+                BedrockGlyphFilter.messageAfterName(raw, "Adventurer"));
     }
 
     @Test
-    void aHudWithoutAMessageYieldsNothing() {
-        assertNull(BedrockGlyphFilter.messageAfterGlyphs("\uE010Adventurer\uE011 60/60\uE012"));
-    }
-
-    @Test
-    void textWithoutGlyphsHasNothingToSplit() {
-        assertNull(BedrockGlyphFilter.messageAfterGlyphs("plain text, no glyphs"));
-        assertNull(BedrockGlyphFilter.messageAfterGlyphs(null));
-        assertNull(BedrockGlyphFilter.messageAfterGlyphs(""));
-    }
-
-    @Test
-    void aTrailingSeparatorIsNotAMessage() {
-        assertNull(BedrockGlyphFilter.messageAfterGlyphs("\uE010Adventurer\uE011 60/60\uE012 ·"));
+    void messageAfterNameSurvivesMissingInput() {
+        assertNull(BedrockGlyphFilter.messageAfterName(null, "Adventurer"));
+        assertNull(BedrockGlyphFilter.messageAfterName("text", null));
+        assertNull(BedrockGlyphFilter.messageAfterName("no name here", "Adventurer"));
     }
 
     @Test

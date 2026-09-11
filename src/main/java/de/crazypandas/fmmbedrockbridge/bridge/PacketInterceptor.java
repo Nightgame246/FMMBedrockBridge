@@ -199,13 +199,10 @@ public class PacketInterceptor {
             // such as "Teleportiere in 3 Sekunden…" arrive in the same packet. Replacing the
             // whole thing swallowed those messages (seen 11.09.2026 when teleporting out of the
             // guild), so the message wins whenever there is one.
-            String message = BedrockGlyphFilter.messageAfterGlyphs(legacy);
             String own = hook.hudLine(playerObj);
-            if (message != null && own != null) {
-                // EliteMobs prefixes messages with the class name our line already shows.
-                message = BedrockGlyphFilter.withoutLeadingName(message,
-                        own.replaceAll("§[0-9a-fk-orx]", "").split(" ")[0]);
-            }
+            String className = own == null ? null
+                    : own.replaceAll("§[0-9a-fk-orx]", "").split(" ")[0];
+            String message = BedrockGlyphFilter.messageAfterName(legacy, className);
             if (message != null) {
                 return own == null ? message : own + " §f" + message;
             }

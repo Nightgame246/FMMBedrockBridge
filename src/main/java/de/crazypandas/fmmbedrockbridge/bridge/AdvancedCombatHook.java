@@ -82,7 +82,7 @@ public final class AdvancedCombatHook {
             String reason = result.failureReason() == null ? null : result.failureReason().name();
             FMMBedrockBridge.debugLog("[PHASE74] " + player.getName() + " " + slot + " failed: " + reason);
             // EliteMobs saw the input and rejected it — that still counts as handled.
-            return new FireResult(true, AbilityFeedback.forFailure(reason));
+            return new FireResult(false, AbilityFeedback.forFailure(reason));
         } catch (Throwable t) {
             // Alpha package: degrade this feature, never the plugin. Debug-only, because a
             // broken Alpha API would otherwise spam the console once per input.

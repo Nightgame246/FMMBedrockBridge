@@ -97,30 +97,41 @@ public final class BedrockGlyphFilter {
     }
 
     /**
-     * Splits EliteMobs' message off the RAW HUD text, or {@code null} when there is none.
+     * Splits EliteMobs' message off the raw HUD text, or {@code null} when there is none.
      *
-     * <p>EliteMobs' {@code ActionBarCompositor} mixes sources into one packet: the HUD and a
-     * message such as "Teleportiere in 3 Sekunden…" arrive together. The HUD is drawn out of font
-     * glyphs, the message is not — so everything after the LAST glyph is the message.
+     * <p>Measured shape of a real packet (glyphs shown as {@code #}):
+     * <pre>§f##60/60##25/100##§x…Adventurer§f##</pre>
+     * The HUD ends with the class name followed by trailing glyphs, so the message — when there
+     * is one — starts after that. Cutting at the last glyph finds nothing, because the packet
+     * ends in glyphs; cutting at the last "n/m" pair cut inside messages that carry a pair of
+     * their own ("Not enough Stamina (20/100 required)" became "required").
      *
-     * <p>This deliberately works on the raw text, before stripping. An earlier version cut at the
-     * last "current/maximum" pair in the stripped text, which broke as soon as the message
-     * carried a pair of its own: "Not enough Stamina (20/100 required)" was cut down to
-     * "required".
+     * <p>Returned verbatim: the message's own numbers have to survive.
      *
-     * <p>The result is returned verbatim — it carries numbers that must survive.
+     * @param className the class name the HUD shows, used as the anchor
      */
-    public static String messageAfterGlyphs(String raw) {
-        if (raw == null || raw.isEmpty()) return null;
+    public static String messageAfterName(String raw, String className) {
+        if (raw == null || raw.isEmpty() || className == null || className.isEmpty()) return null;
 
-        int lastGlyph = -1;
-        for (int i = 0; i < raw.length(); i++) {
-            if (isGlyph(raw.charAt(i))) lastGlyph = i;
+        int nameEnd = raw.lastIndexOf(className);
+        if (nameEnd < 0) return null;
+        nameEnd += className.length();
+
+        // Skip the glyphs and colour resets EliteMobs puts between HUD and message.
+        int i = nameEnd;
+        while (i < raw.length()) {
+            char c = raw.charAt(i);
+            if (isGlyph(c) || c == ' ') {
+                i++;
+            } else if (c == '§' && i + 1 < raw.length() && "fr".indexOf(raw.charAt(i + 1)) >= 0) {
+                i += 2;
+            } else {
+                break;
+            }
         }
-        if (lastGlyph < 0 || lastGlyph == raw.length() - 1) return null;
+        if (i >= raw.length()) return null;
 
-        String tail = raw.substring(lastGlyph + 1);
-        tail = SEPARATOR_PREFIX.matcher(tail.trim()).replaceAll("").trim();
+        String tail = strip(raw.substring(i)).trim();
         if (tail.isEmpty()) return null;
 
         return PROSE.matcher(tail).matches() ? tail : null;
