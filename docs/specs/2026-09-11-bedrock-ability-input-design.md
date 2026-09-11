@@ -292,5 +292,36 @@ Entwurf gehört nach `docs/upstream-bugs/`, wie der FMM-Props-Report.
 
 ## 12. Offene Entscheidungen
 
-Keine. Freigaben vom 11.09.2026: Bridge bauen **und** Upstream melden · Schleichen als
-F-Ersatz · Scharfschaltung automatisch im Kampf/Dungeon · HUD-Fallback später.
+Freigaben vom 11.09.2026: Bridge bauen **und** Upstream melden · Schleichen als F-Ersatz ·
+Scharfschaltung an EMs eigene Vorbedingungen gekoppelt · HUD-Fallback später.
+
+### ⏸️ Vertagt: die zweite Sperre in der offenen Welt
+
+**Der Befund** (11.09.2026 am Artefakt geprüft): `isInEligibleCombatContent` ist ein ODER aus
+„in einer `DungeonInstance`" und „`EliteMobsWorld.isEliteMobsWorld(weltUUID)`". Letzteres umfasst
+**jede Welt, die EM aus einem Content-Package angelegt hat** — also auch permanente Dungeon- und
+Arena-Welten, nicht nur instanzierte Runs. Phase 7.4 wirkt dort vollständig.
+
+**Nicht** darunter fallen selbst angelegte Welten (`survival`, `farmwelt`, deren Nether/End). Dort
+verlangt EM den Opt-in per F-Doppeltipp — **auch von Java-Spielern**. Der Unterschied ist also
+nicht „Java kann, Bedrock nicht", sondern „Java muss einmal pro Sitzung eine Taste drücken,
+Bedrock kann diese Taste nicht drücken".
+
+**Die drei Wege, geprüft:**
+
+| Weg | Ergebnis |
+|---|---|
+| Synthetisches `PlayerSwapHandItemsEvent` feuern | ❌ tot — `pressF` prüft `fSupported` als erstes und liefert für Bedrock sofort `PASS_THROUGH` |
+| Config `allowClassAbilitiesOutsideEliteMobsWorlds` | ❌ regelt nur die *Erlaubnis*; der Opt-in-Akt bleibt der F-Doppeltipp |
+| `GeyserDetector` täuschen | ❌ würde EMs Bedrock-Menüs brechen — neun Klassen hängen an der Prüfung |
+| **Reflection auf `outsideEnabled`** | ⚠️ machbar: `AdvancedCombatModule` → `inputRouter` → `controlMode` → `Set<UUID>`, drei private Felder tief, davon eines in einer package-private Klasse. Absicherbar, indem man danach über das öffentliche `mechanicsActive(player)` prüft, ob es gewirkt hat |
+
+**Stand der Entscheidung (Fabi, 11.09.):** vertagt — erst das Grundsystem fertigstellen.
+
+⚠️ **Warum der Punkt wiederkommt:** Fabi plant, EM-Monster-Content auch **außerhalb** der EM-Maps
+einzusetzen (Open-World-Spawns, perspektivisch Event-Spawns aus allen Paketen). In dem Moment
+trifft die zweite Sperre den Hauptanwendungsfall, nicht mehr den Randfall.
+
+**Wie die Entscheidung vorzubereiten ist:** Sobald die Content-Packages installiert sind, am
+laufenden Server auswerten, welche Welten EM als eigene führt und wo tatsächlich Elites spawnen.
+Erst dann ist beurteilbar, ob der Reflection-Weg seinen Preis wert ist.
