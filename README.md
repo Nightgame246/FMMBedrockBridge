@@ -162,6 +162,34 @@ Extends Phase 7.3 to EliteMobs' NPC quest menu — the only other Bedrock-forced
 
 Config: `phase73.bedrock-quest-reroute: true` (toggles independently of `bedrock-dialog-reroute`). Requires MC >= 1.21.6. Java players unaffected.
 
+## Phase 7.4 — Bedrock-Eingabe für EliteMobs' Klassen-Fähigkeiten
+
+EliteMobs 10.9.0 bindet die drei Fähigkeits-Slots seines Advanced Combat System an einen
+F-Chord (`F,F` / `F+LMB` / `F+RMB`). `F` ist der Offhand-Tausch — **den gibt es auf Bedrock
+nicht**, weder auf Controller noch auf Touch. Bedrock- und Konsolenspieler können dort ohne
+diese Phase keine einzige aktive Fähigkeit auslösen.
+
+Die Bridge übersetzt den Chord auf Schleichen:
+
+| Geste | Fähigkeit |
+|---|---|
+| Schleichen, Schleichen | Mobility |
+| Schleichen + Angriff | Signature |
+| Schleichen + Benutzen | Utility |
+
+Scharf ist die Steuerung **nur im Kampf bzw. in Dungeons**, damit normales Schleichen beim
+Bauen nichts auslöst. Java-Spieler sind nicht betroffen und behalten EMs Originalsteuerung.
+
+**Voraussetzungen:** EliteMobs **10.9.0+** mit eingeschaltetem Advanced Combat System und
+Floodgate. Fehlt eines davon, schaltet sich die Phase beim Start selbst ab und schreibt den
+Grund ins Log — die übrige Bridge läuft normal weiter.
+
+Konfiguration: Block `phase74` in der `config.yml`. Der Startwert für `chord-max-ticks` (40 =
+2 s) ist bewusst großzügiger als EMs 12 Ticks und im Spieltest zu justieren.
+
+- Design: `docs/specs/2026-09-11-bedrock-ability-input-design.md`
+- Upstream gemeldet: `docs/upstream-bugs/em-advanced-combat-bedrock-input-lockout.md`
+
 ## Server tooling
 
 Moved out of this repo on 2026-09-09. The admin helpers for the AMP host now live one level up,

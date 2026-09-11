@@ -1,5 +1,6 @@
 package de.crazypandas.fmmbedrockbridge;
 
+import de.crazypandas.fmmbedrockbridge.bridge.AdvancedCombatSupport;
 import de.crazypandas.fmmbedrockbridge.bridge.BedrockEntityBridge;
 import de.crazypandas.fmmbedrockbridge.commands.FMMBridgeCommand;
 import de.crazypandas.fmmbedrockbridge.tracker.FMMEntityTracker;
@@ -100,6 +101,36 @@ public class FMMBedrockBridge extends JavaPlugin {
                     + ", status=" + statusReroute + ", quest=" + questReroute + ")");
         }
 
+        // Phase 7.4 — sneak-based ability input for Bedrock players.
+        // EliteMobs' F-chord cannot be produced by Bedrock clients; see the upstream report.
+        if (floodgateAvailable && elitemobsAvailable && isPhase74Enabled()) {
+            if (AdvancedCombatSupport.isPresent()) {
+                try {
+                    de.crazypandas.fmmbedrockbridge.bridge.AdvancedCombatHook hook =
+                            new de.crazypandas.fmmbedrockbridge.bridge.AdvancedCombatHook(log);
+                    getServer().getPluginManager().registerEvents(
+                            new de.crazypandas.fmmbedrockbridge.bridge.BedrockAbilityListener(
+                                    hook,
+                                    getPhase74ChordMaxTicks(),
+                                    isPhase74RequireCombat(),
+                                    isPhase74FeedbackEnabled()),
+                            this);
+                    log.info("Phase 7.4: Bedrock ability input registered (sneak chord, max "
+                            + getPhase74ChordMaxTicks() + " ticks, require-combat="
+                            + isPhase74RequireCombat() + ")");
+                } catch (Throwable t) {
+                    // Alpha package: this feature may break, the plugin must not.
+                    log.warning("Phase 7.4: registration failed, Bedrock ability input disabled. Cause: " + t);
+                }
+            } else {
+                log.info("Phase 7.4: EliteMobs Advanced Combat System not available ("
+                        + AdvancedCombatSupport.missingReason() + ") — Bedrock ability input off");
+            }
+        } else {
+            log.info("Phase 7.4: NOT registered (floodgate=" + floodgateAvailable
+                    + ", em=" + elitemobsAvailable + ", enabled=" + isPhase74Enabled() + ")");
+        }
+
         FMMBridgeCommand cmd = new FMMBridgeCommand(this);
         getCommand("fmmbridge").setExecutor(cmd);
         getCommand("fmmbridge").setTabCompleter(cmd);
@@ -165,6 +196,26 @@ public class FMMBedrockBridge extends JavaPlugin {
     public static long getPhase71cDamageTimeoutTicks() {
         FMMBedrockBridge plugin = instance;
         return plugin != null ? plugin.getConfig().getLong("phase71c.damage-timeout-ticks", 0L) : 0L;
+    }
+
+    public static boolean isPhase74Enabled() {
+        FMMBedrockBridge plugin = instance;
+        return plugin != null && plugin.getConfig().getBoolean("phase74.bedrock-abilities", true);
+    }
+
+    public static long getPhase74ChordMaxTicks() {
+        FMMBedrockBridge plugin = instance;
+        return plugin != null ? plugin.getConfig().getLong("phase74.chord-max-ticks", 40L) : 40L;
+    }
+
+    public static boolean isPhase74RequireCombat() {
+        FMMBedrockBridge plugin = instance;
+        return plugin != null && plugin.getConfig().getBoolean("phase74.require-combat", true);
+    }
+
+    public static boolean isPhase74FeedbackEnabled() {
+        FMMBedrockBridge plugin = instance;
+        return plugin != null && plugin.getConfig().getBoolean("phase74.feedback", true);
     }
 
 }
