@@ -1,7 +1,7 @@
 # Bedrock-Eingabe für EMs Advanced Combat System — Implementierungsplan
 
 > **Für agentische Ausführung:** PFLICHT-SUB-SKILL: `superpowers:subagent-driven-development`
-> (empfohlen) oder `superpowers:executing-plans`, Aufgabe für Aufgabe. Schritte sind als
+> (empfohlen) oder `superpowers:executing-plans`, Task für Task. Schritte sind als
 > Checkboxen (`- [ ]`) geführt.
 
 **Ziel:** Bedrock- und Konsolenspieler können EliteMobs' Klassen-Fähigkeiten über Schleichen
@@ -35,7 +35,7 @@ Spec; beide zusammen lesen.
 - **Kommentare auf Englisch**, wie im übrigen Bridge-Code. Spieler-sichtbare Texte auf Deutsch.
 - **Der pom bleibt in diesem Plan unangetastet** (FMM 2.11.1 / EM 10.8.0). Der Versions-Nachzug
   auf 2.12.0 / 10.9.0 ist an die Server-Entscheidung gekoppelt und **nicht Teil dieses Plans** —
-  siehe Aufgabe 6.
+  siehe Task 6.
 
 ---
 
@@ -54,7 +54,7 @@ Spec; beide zusammen lesen.
 
 ---
 
-## Aufgabe 1: Chord-Zustandsautomat
+## Task 1: Chord-Zustandsautomat
 
 Das Herzstück, und das einzige Stück mit echter Logik. Vollständig ohne Server testbar — deshalb
 zuerst und mit echtem TDD.
@@ -286,7 +286,7 @@ git commit -m "feat(phase74): Chord-Zustandsautomat fuer die Bedrock-Eingabe"
 
 ---
 
-## Aufgabe 2: Verfügbarkeitsprüfung ohne harte Kopplung
+## Task 2: Verfügbarkeitsprüfung ohne harte Kopplung
 
 Diese Klasse ist die Brandmauer. Sie darf **keine** EM-Klasse importieren, sonst löst schon ihr
 Laden die Verknüpfung aus, die sie verhindern soll.
@@ -415,7 +415,7 @@ git commit -m "feat(phase74): Verfuegbarkeitspruefung ohne harte Kopplung an EMs
 
 ---
 
-## Aufgabe 3: Anzeigetexte
+## Task 3: Anzeigetexte
 
 **Dateien:**
 - Neu: `src/main/java/de/crazypandas/fmmbedrockbridge/bridge/AbilityFeedback.java`
@@ -428,7 +428,7 @@ git commit -m "feat(phase74): Verfuegbarkeitspruefung ohne harte Kopplung an EMs
   werden soll
 
 ⚠️ Der Parameter ist bewusst der **Enum-Name als String**, nicht der Enum selbst: sonst müsste
-diese Klasse `AbilityFailureReason` importieren und stünde hinter der Brandmauer aus Aufgabe 2.
+diese Klasse `AbilityFailureReason` importieren und stünde hinter der Brandmauer aus Task 2.
 
 Die echten Werte von `AbilityFailureReason` (per `javap` an der 10.9.0-JAR): `NONE`,
 `WRONG_THREAD`, `INVALID_PLAYER`, `INVALID_LEVEL`, `ABILITY_NOT_REGISTERED`, `NO_VALID_TARGET`,
@@ -561,7 +561,7 @@ git commit -m "feat(phase74): Anzeigetexte fuer die Bedrock-Faehigkeiten"
 
 ---
 
-## Aufgabe 4: Der EliteMobs-Hook
+## Task 4: Der EliteMobs-Hook
 
 Die **einzige** Klasse, die `advancedcombat` importieren darf. Sie wird nur erzeugt, wenn
 `AdvancedCombatSupport.isPresent()` true ergeben hat.
@@ -573,7 +573,7 @@ Aufruf gekapselt ist.
 - Neu: `src/main/java/de/crazypandas/fmmbedrockbridge/bridge/AdvancedCombatHook.java`
 
 **Schnittstellen:**
-- Verbraucht: `BedrockAbilityGesture.Outcome` (Aufgabe 1), `AbilityFeedback` (Aufgabe 3)
+- Verbraucht: `BedrockAbilityGesture.Outcome` (Task 1), `AbilityFeedback` (Task 3)
 - Produziert: `AdvancedCombatHook(Logger log)` · `boolean isInCombat(Player player)` ·
   `String fire(Player player, BedrockAbilityGesture.Outcome outcome)` — liefert den Anzeigetext
   oder `null`
@@ -678,7 +678,7 @@ export JAVA_HOME=/usr/lib/jvm/java-25-openjdk
 
 ⚠️ **Erwartet: Compile-Fehler**, solange der pom auf EM 10.8.0 steht — dort gibt es
 `advancedcombat` noch nicht. **Das ist kein Planfehler, sondern der Beweis dafür, warum die
-Brandmauer aus Aufgabe 2 existiert.**
+Brandmauer aus Task 2 existiert.**
 
 Zum Weiterarbeiten die 10.9.0-JAR lokal bereitstellen:
 
@@ -694,7 +694,7 @@ export JAVA_HOME=/usr/lib/jvm/java-25-openjdk
 Dann im `pom.xml` die EliteMobs-Version von `10.8.0` auf `10.9.0` ziehen (Zeile ~133).
 
 ⚠️ **Dieser pom-Schritt ist der einzige im Plan, der den geprüften Stack anfasst.** Er gehört mit
-Fabi abgestimmt (siehe Aufgabe 6) — er koppelt die Bridge an eine EM-Version, die auf dem Server
+Fabi abgestimmt (siehe Task 6) — er koppelt die Bridge an eine EM-Version, die auf dem Server
 noch nicht installiert ist.
 
 - [ ] **Schritt 3: Erneut bauen, grün erwartet**
@@ -704,7 +704,7 @@ export JAVA_HOME=/usr/lib/jvm/java-25-openjdk
 /usr/share/idea/plugins/maven-plugin/lib/maven3/bin/mvn -o clean test
 ```
 
-Erwartet: `BUILD SUCCESS`, `Tests run: 37`. Der Test aus Aufgabe 2 kippt jetzt — er erwartet
+Erwartet: `BUILD SUCCESS`, `Tests run: 37`. Der Test aus Task 2 kippt jetzt — er erwartet
 `isPresent() == false`. Ihn wie dort beschrieben auf `assertTrue` umstellen und den Kommentar
 nachziehen.
 
@@ -718,7 +718,7 @@ git commit -m "feat(phase74): Hook auf EMs useAbility, gekapselt gegen das Alpha
 
 ---
 
-## Aufgabe 5: Der Bukkit-Listener
+## Task 5: Der Bukkit-Listener
 
 **Dateien:**
 - Neu: `src/main/java/de/crazypandas/fmmbedrockbridge/bridge/BedrockAbilityListener.java`
@@ -881,7 +881,7 @@ git commit -m "feat(phase74): Bukkit-Listener fuer die Schleich-Steuerung"
 
 ---
 
-## Aufgabe 6: Verdrahtung, Config und Doku
+## Task 6: Verdrahtung, Config und Doku
 
 **Dateien:**
 - Ändern: `src/main/java/de/crazypandas/fmmbedrockbridge/FMMBedrockBridge.java`
