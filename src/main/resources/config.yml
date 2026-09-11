@@ -95,8 +95,10 @@ phase73:
 #
 # Java-Spieler sind nicht betroffen und behalten EMs Originalsteuerung.
 phase74:
-  # Gesamtschalter. Wirkt nur, wenn EliteMobs das Advanced Combat System überhaupt
-  # geladen hat — sonst schaltet sich die Phase beim Start selbst ab (siehe Log).
+  # Gesamtschalter. Die Phase registriert sich beim Start, sobald EliteMobs' Klassen
+  # vorhanden sind. Ob die Schleich-Steuerung dann tatsächlich etwas auslöst, entscheidet
+  # EliteMobs zur Laufzeit: Sie bleibt stumm, solange EM selbst nicht handeln würde —
+  # Advanced Combat System aus, keine Klasse gewählt, oder außerhalb von Dungeon/Match.
   bedrock-abilities: true
 
   # Wie lange der Chord nach dem Schleich-Beginn offen bleibt, in Ticks (20 = 1s).
@@ -109,6 +111,9 @@ phase74:
   # gesetzt löst auch normales Schleichen beim Bauen Fähigkeiten aus — nicht empfohlen.
   require-combat: true
 
-  # Rückmeldung in der Actionbar (reiner Text — EMs grafisches HUD nutzt
+  # Zusätzliche Rückmeldung in der Actionbar (reiner Text — EMs grafisches HUD nutzt
   # Java-Font-Provider, die Bedrock nicht darstellen kann).
-  feedback: true
+  # Standardmäßig AUS: EliteMobs meldet Erfolg und die vier Fehlerfälle bereits selbst
+  # über seine eigene Actionbar (mit Keepalive-Loop). Einschalten kann deshalb mit EMs
+  # Anzeige kollidieren und im selben Tick flackern.
+  feedback: false

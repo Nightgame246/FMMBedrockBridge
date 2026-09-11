@@ -126,7 +126,10 @@
             </exclusions>
         </dependency>
 
-        <!-- EliteMobs (soft-dep — only imported in EliteMobsHook) -->
+        <!-- EliteMobs (soft-dep). Imported in EliteMobsHook (api.* + mobconstructor),
+             BedrockCombatTrigger (api.* combat events) and AdvancedCombatHook.
+             AdvancedCombatHook is the ONLY class allowed to name the internal, [Alpha]
+             package com.magmaguy.elitemobs.advancedcombat — keep it that way. -->
         <dependency>
             <groupId>com.magmaguy</groupId>
             <artifactId>EliteMobs</artifactId>

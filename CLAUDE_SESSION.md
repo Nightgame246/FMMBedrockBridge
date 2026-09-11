@@ -1682,3 +1682,92 @@ Mob**, nicht durch den Render-Mechanismus.
 `install-skills.sh` musste neu laufen: das Superpowers-Update auf 6.3.0 (14.08.) hat den
 `skills/`-Ordner im Plugin-Cache ersetzt und damit die 7 Minecraft-Custom-Skills entfernt.
 **Nach jedem Superpowers-Update erneut ausführen.**
+
+---
+
+## Session: 2026-09-11 — Phase 7.4 (Bedrock-Eingabe für EMs Klassen-Fähigkeiten) + Abschluss-Review
+
+Branch `phase-7.4-bedrock-ability-input`. Fünf neue Klassen, danach ein Whole-Branch-Review, dessen
+Befunde in einem Durchgang eingearbeitet sind. Die interessanten Punkte sind die Befunde, nicht die
+Klassen.
+
+### 1. Das Problem
+
+EliteMobs 10.9.0 bindet seine drei Fähigkeits-Slots an einen F-Chord (`F,F` / `F+LMB` / `F+RMB`).
+`F` ist der Offhand-Tausch — **den gibt es auf Bedrock auf keinem Gerät**, weder Controller noch
+Touch. Bedrock- und Konsolenspieler können damit keine einzige aktive Fähigkeit auslösen. Die
+Bridge übersetzt den Chord auf Schleichen (`Schleichen,Schleichen` / `+Angriff` / `+Benutzen`) und
+ruft EMs `useAbility` direkt. Upstream gemeldet:
+`docs/upstream-bugs/em-advanced-combat-bedrock-input-lockout.md`.
+
+Genau **eine** Klasse darf EMs internes, als `[Alpha]` markiertes Paket
+`com.magmaguy.elitemobs.advancedcombat` importieren: `AdvancedCombatHook`. Die Startprüfung
+(`AdvancedCombatSupport`) geht bewusst über `Class.forName` auf Strings, ohne Import — Lehre aus
+dem GeyserUtils-Vorfall vom 08.08.2026.
+
+### 2. Zwei falsche Annahmen über EliteMobs — am Artefakt 10.9.0 nachgeprüft
+
+- **`AdvancedCombatModule.get()` liefert nie `null`**, sondern wirft
+  `IllegalStateException("[Alpha] Advanced Combat System is not initialized")`. Der `module ==
+  null`-Zweig in `fire(...)` war toter Code — und Plan wie Spec haben ihn als die Stelle
+  ausgegeben, an der die beiden Laufzeitprüfungen stattfinden. Sie fanden gar nicht statt.
+  Richtig ist `AdvancedCombatModule.isInitialized()` (`public static`, vorhanden) **vor** `get()`.
+- **Unser Kampf-Gate war breiter als EMs eigenes.** `useAbility` beginnt mit
+  `mechanicsActive(player)` — verlangt `hasActiveClass` **und** `controlModeEnabled`. Außerhalb
+  von Dungeons/Matches heißt Letzteres Mitgliedschaft in `ClassControlMode.outsideEnabled`, einer
+  Menge, der man **nur per F-Doppeltipp beim Schleichen** beitritt. Wir haben stattdessen den
+  allgemeinen Kampf-Tag benutzt, der im gewöhnlichen Elite-Kampf im offenen Gelände true ist.
+
+  **Kombinierter Fehlerfall:** Bedrock-Spieler schleicht und schlägt im offenen Gelände einen
+  Elite — wir canceln den Schaden, `useAbility` tut nichts (oder `get()` wirft). Schlag weg, keine
+  Fähigkeit, eine Warnzeile pro Eingabe im Log.
+
+  ⇒ Beides ersetzt durch **ein** Gate `AdvancedCombatHook.canUseAbilities(Player)`:
+  `isInitialized()` → `mechanicsActive(player)` → Dungeon/Match **oder** Kampf-Tag. EM baut das
+  Modul nur bei eingeschaltetem `AdvancedCombatSystemConfig`, startet `DungeonCombatRuntime` aber
+  bedingungslos — der Kampf-Tag beweist also nichts über das Modul.
+
+  ⚠️ **Konsequenz für den Betrieb: Phase 7.4 wirkt faktisch nur in Dungeons und Matches.** Der
+  Opt-in außerhalb ist für Bedrock unerreichbar; im offenen Gelände bleibt die Steuerung stumm —
+  korrekt, aber wirkungslos. Steht so in README und Spec.
+
+### 3. Weitere Review-Befunde
+
+- **Eingabe wurde verbraucht, bevor der Hook gefragt war.** `dispatch(...)` hat erst gecancelt,
+  dann gefeuert. `fire(...)` liefert jetzt `FireResult(handled, message)`; gecancelt wird **nur**
+  bei `handled == true`. Eine von EM abgelehnte Fähigkeit zählt dabei als `handled` — EM hat die
+  Eingabe gesehen.
+- **Enum-Zugriff lag außerhalb von `try`.** `toSlot(outcome)` liest `AbilitySlot.MOBILITY/…`; eine
+  upstream umbenannte Konstante wirft `NoSuchFieldError` — der wäre in den Bukkit-Handler
+  entkommen, **nachdem** das Event schon gecancelt war. Aufruf in den bestehenden `try` gezogen.
+- **Unsere Actionbar kämpfte gegen EMs eigene.** EM schreibt Skill-Feedback über den
+  `ActionBarCompositor` mit Keepalive-Re-Render und meldet dieselben vier Fehlerfälle. Zwei
+  Schreiber im selben Tick flackern ⇒ **`phase74.feedback` steht jetzt default auf `false`**
+  (Config **und** Getter-Default). Der Code-Pfad bleibt, falls EMs Anzeige auf Bedrock doch nicht
+  ankommt.
+- **Config war bei der Registrierung eingefroren.** Der Listener nahm seine vier Werte im
+  Konstruktor; ausgerechnet `chord-max-ticks` ist der Wert, den der Spieltest justieren soll.
+  Jetzt liest er die Statics pro Event wie jede andere Phase. Die Geste hält ihr Fenster ab
+  Erzeugung — deshalb gibt `BedrockAbilityGesture.maxOpenTicks()` den Wert heraus und
+  `gestureFor(...)` ersetzt eine Geste, deren Fenster nicht mehr zum konfigurierten Wert passt.
+- **Doku-Inventur:** README-Klassentabelle um die fünf neuen Klassen ergänzt und die Zählung
+  korrigiert (jetzt **24** Dateien unter `src/main/java`, nicht „roughly 18"). Die Behauptung
+  „EliteMobs nur in `EliteMobsHook` importiert" stand in `pom.xml`, in `EliteMobsHook` selbst und
+  in der README-Tabelle — sie ist seit `BedrockCombatTrigger` falsch und jetzt an allen drei
+  Stellen korrigiert.
+
+### 4. Was daraus zu lernen ist
+
+**„Null zurück" ist eine Annahme, kein Vertrag** — bei einem `[Alpha]`-Paket erst recht. Die
+Begründung im Plan stützte sich auf einen Zweig, den es im Artefakt nie gab; ein `javap` hätte das
+in einer Minute gezeigt. Dasselbe Muster wie bei „Commit ≠ Artefakt" (RPM 2.3.1): **am laufenden
+Artefakt belegen, nicht am erinnerten Verhalten.**
+
+Und: **wer ein Event cancelt, schuldet dem Spieler eine Wirkung.** Ein Gate, das breiter ist als
+das des Zielsystems, verwandelt jede Eingabe in einen Verlust.
+
+### 5. Stand
+
+`mvn -o clean test` grün, **37 Tests**. Deployment/Spieltest offen — die Phase ist bisher nur
+gebaut, nicht in-game verifiziert; wegen Punkt 2 bitte **in einem Dungeon** testen, im offenen
+Gelände ist Stille das erwartete Verhalten.

@@ -148,11 +148,16 @@ phase71c:
 | `bridge/MenuRerouteRegistry` | Phase 7.3: title-normalize (strip color codes) + title→dialog-invoker lookup; extensible to more EM menus |
 | `bridge/McVersions` | Pure dotted-version threshold check (gates the reroute on MC ≥ 1.21.6) |
 | `bridge/RerouteDecision` | Phase 7.3b: pure resolver — status-vs-quest precedence + per-flag gating; no side effects |
+| `bridge/BedrockAbilityListener` | Phase 7.4: the three Bukkit listeners for the sneak chord (sneak start, attack, use) plus quit/death/world-change cleanup; Floodgate gate first, then EliteMobs' own preconditions. Reads its config per event |
+| `bridge/BedrockAbilityGesture` | Phase 7.4: pure state machine of the chord — open/closed, window cap, slot decision. No Bukkit types, unit-testable |
+| `bridge/AdvancedCombatHook` | Phase 7.4: the ONLY class that imports EM's internal, [Alpha] `advancedcombat` package. Runtime gate (`canUseAbilities`) + `fire` into `useAbility`, everything wrapped against LinkageError |
+| `bridge/AdvancedCombatSupport` | Phase 7.4: startup probe for EM's Advanced Combat classes — by name via `Class.forName`, deliberately without an import, so a renamed package cannot take the bridge down at class-load time |
+| `bridge/AbilityFeedback` | Phase 7.4: pure mapper from an EM failure-reason name to the optional plain-text action-bar line (no custom fonts — Bedrock cannot resolve Java font providers) |
 | `elite/QuestMenuContext` | Phase 7.3b: opaque carrier record for the recovered quest menu context |
-| `elite/EliteMobsHook` | Soft-dep wrapper around EliteMobs API (only file with `com.magmaguy.elitemobs.*` imports); incl. Phase 7.3 reflection wrappers for EM's native status dialog, and Phase 7.3b `tryRecoverQuestMenu` + `openNativeQuestDialog` reflection into EM's `QuestInventoryMenu` static maps |
+| `elite/EliteMobsHook` | Soft-dep wrapper around EliteMobs' stable API (`com.magmaguy.elitemobs.api.*`); since Phase 7.1c/7.4 no longer the only EM importer — `BedrockCombatTrigger` and `AdvancedCombatHook` import EM too; incl. Phase 7.3 reflection wrappers for EM's native status dialog, and Phase 7.3b `tryRecoverQuestMenu` + `openNativeQuestDialog` reflection into EM's `QuestInventoryMenu` static maps |
 | `commands/FMMBridgeCommand` | `/fmmbridge debug` — shows active controllers, ready Bedrock players, suppressed UUIDs |
 
-Roughly 18 classes. The pre-refactor bridge was 27 classes + a Geyser Extension; both archived under the git tag mentioned above.
+24 classes under `src/main/java`. The pre-refactor bridge was 27 classes + a Geyser Extension; both archived under the git tag mentioned above.
 
 > **Phase 7.2b removed (2026-06-14):** EM 2D UI items (legacy `custom_model_data` overrides on `minecraft:emerald` and similar base items) are now handled natively by ResourcePackManager 2.0.2 via `GenericJavaScanner.scanLegacyCustomModelOverrides` (legacy `→` Bedrock conversion, 10 of 12 EM UI icons). The bridge no longer injects `item_model` or generates/ships an `em_bridge_pack.mcpack`. Known Bedrock/Geyser limitation: the 2 banner-based icons (`green_banner`+CMD31173→`boxinput`, `red_banner`+CMD31173→`boxoutput`, used in EM's enchantment/"Verzauberer" and elite-scroll menus) do **not** render on Bedrock — Geyser cannot apply custom-item-v2 to banner base items (block-entity/pattern-rendered). This is a known upstream-pending gap; see `docs/upstream-bugs/em-banner-ui-items-bedrock.md`.
 
@@ -177,15 +182,36 @@ Die Bridge übersetzt den Chord auf Schleichen:
 | Schleichen + Angriff | Signature |
 | Schleichen + Benutzen | Utility |
 
-Scharf ist die Steuerung **nur im Kampf bzw. in Dungeons**, damit normales Schleichen beim
-Bauen nichts auslöst. Java-Spieler sind nicht betroffen und behalten EMs Originalsteuerung.
+Scharf ist die Steuerung nur dann, wenn EliteMobs selbst auf die Eingabe reagieren würde. Das
+Gate spiegelt bewusst EMs eigene Vorbedingungen, statt breiter zu sein als sie:
+`AdvancedCombatModule.isInitialized()` → `mechanicsActive(player)` (aktive Klasse **und**
+eingeschalteter Control-Mode) → Dungeon/Match oder aktiver Kampf-Tag. Normales Schleichen beim
+Bauen löst damit nichts aus, und eine Geste, die EM ohnehin verwerfen würde, kostet den Spieler
+weder Schlag noch Interaktion — das auslösende Event wird erst gecancelt, wenn EM die Eingabe
+tatsächlich angenommen hat. Java-Spieler sind nicht betroffen und behalten EMs
+Originalsteuerung.
+
+> ⚠️ **Praktische Grenze: Dungeons und Matches.** Außerhalb davon verlangt EMs
+> `mechanicsActive` die Mitgliedschaft in `ClassControlMode.outsideEnabled` — dieser Opt-in
+> entsteht **nur** durch einen F-Doppeltipp beim Schleichen, und genau diese Eingabe kann
+> Bedrock nicht erzeugen. **Phase 7.4 ist damit faktisch auf Dungeons und Matches beschränkt.**
+> In der offenen Welt bleibt die Steuerung stumm — korrekt, aber wirkungslos. Der eigentliche
+> Fix muss upstream kommen; siehe den Report unten.
 
 **Voraussetzungen:** EliteMobs **10.9.0+** mit eingeschaltetem Advanced Combat System und
-Floodgate. Fehlt eines davon, schaltet sich die Phase beim Start selbst ab und schreibt den
-Grund ins Log — die übrige Bridge läuft normal weiter.
+Floodgate. Fehlen EMs Advanced-Combat-Klassen, registriert sich die Phase beim Start gar nicht
+erst und schreibt den Grund ins Log. Sind sie da, registriert sie sich — ob sie wirkt,
+entscheidet danach das Laufzeit-Gate oben (System aus, keine Klasse gewählt oder außerhalb von
+Dungeon/Match ⇒ stumm). Die übrige Bridge läuft in jedem Fall normal weiter.
 
 Konfiguration: Block `phase74` in der `config.yml`. Der Startwert für `chord-max-ticks` (40 =
-2 s) ist bewusst großzügiger als EMs 12 Ticks und im Spieltest zu justieren.
+2 s) ist bewusst großzügiger als EMs 12 Ticks und im Spieltest zu justieren. Alle vier Werte
+werden **pro Event** aus der Config gelesen (wie in jeder anderen Phase), nicht beim Registrieren
+eingefroren — ein erneutes Laden der Config reicht also aus. Einen eigenen Reload-Befehl hat die
+Bridge noch nicht; bis dahin ist ein Plugin-Reload der Weg.
+`phase74.feedback` steht **standardmäßig auf `false`**: EliteMobs meldet Erfolg und die vier
+Fehlerfälle bereits über seine eigene Actionbar (`ActionBarCompositor` mit Keepalive-Loop), ein
+zweiter Schreiber im selben Tick flackert.
 
 - Design: `docs/specs/2026-09-11-bedrock-ability-input-design.md`
 - Upstream gemeldet: `docs/upstream-bugs/em-advanced-combat-bedrock-input-lockout.md`

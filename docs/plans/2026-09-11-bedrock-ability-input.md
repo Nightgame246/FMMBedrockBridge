@@ -578,12 +578,40 @@ Aufruf gekapselt ist.
   `String fire(Player player, BedrockAbilityGesture.Outcome outcome)` — liefert den Anzeigetext
   oder `null`
 
-⚠️ **Bewusste Abweichung von Spec Abschnitt 6.** Dort stehen drei Startprüfungen:
-`Class.forName`, `AdvancedCombatSystemConfig.isEnabled()` und `AdvancedCombatModule.isInitialized()`.
-Umgesetzt wird nur die erste beim Start — die anderen beiden **zur Laufzeit**, über den
-`module == null`-Zweig in `fire(...)`. Grund: EliteMobs initialisiert sein Modul nicht garantiert
-vor unserem `onEnable`, und ein Schalter kann im Betrieb umgelegt werden. Eine Startprüfung würde
-die Phase in beiden Fällen fälschlich abschalten, bis der Server neu startet.
+> 📌 **Überholt durch den Abschluss-Review (11.09.2026).** Tatsächlich gebaut ist:
+> `AdvancedCombatHook()` (ohne Logger, es loggt nur noch über `FMMBedrockBridge.debugLog`) ·
+> `boolean canUseAbilities(Player)` statt `isInCombat` · `FireResult fire(Player, Outcome)` mit
+> `record FireResult(boolean handled, String message)`. Begründung im Kasten unten. Die
+> Code-Listings in diesem und im nächsten Task zeigen den **ursprünglichen** Entwurf und sind
+> hier nur noch als Historie stehengeblieben.
+
+⚠️ **Bewusste Abweichung von Spec Abschnitt 6** — und **die ursprüngliche Begründung dazu war
+falsch.** Sie lautete: Von den drei Prüfungen (`Class.forName`,
+`AdvancedCombatSystemConfig.isEnabled()`, `AdvancedCombatModule.isInitialized()`) laufe nur die
+erste beim Start, die anderen beiden „zur Laufzeit, über den `module == null`-Zweig in
+`fire(...)`".
+
+**Diesen Zweig gibt es nicht.** `AdvancedCombatModule.get()` liefert nie `null`, sondern wirft
+`IllegalStateException("[Alpha] Advanced Combat System is not initialized")` — am Artefakt
+EliteMobs 10.9.0 im Bytecode nachgeprüft. Der Zweig war toter Code, die Laufzeitprüfung fand
+also gar nicht statt.
+
+**Was tatsächlich umgesetzt ist** (Korrektur aus dem Abschluss-Review):
+
+- Beim Start bleibt es bei `Class.forName` über `AdvancedCombatSupport` — die Phase registriert
+  sich, sobald EMs Klassen auflösbar sind. Der Grund für die Startprüfung-Zurückhaltung gilt
+  weiter: EM initialisiert sein Modul nicht garantiert vor unserem `onEnable`, und ein Schalter
+  kann im Betrieb umgelegt werden.
+- Zur Laufzeit entscheidet **ein** Gate, `AdvancedCombatHook.canUseAbilities(Player)`:
+  `AdvancedCombatModule.isInitialized()` (ersetzt die Config-Prüfung — EM baut das Modul nur bei
+  `AdvancedCombatSystemConfig.isEnabled()`), dann `AdvancedCombatModule.get().mechanicsActive(player)`
+  (genau die erste Prüfung in EMs eigenem `useAbility`), dann Dungeon/Match bzw. Kampf-Tag.
+- ⚠️ **Das alte Kampf-Gate war breiter als EMs eigenes.** `mechanicsActive` verlangt außerhalb
+  von Dungeons/Matches die Mitgliedschaft in `ClassControlMode.outsideEnabled`, ein F-Doppeltipp
+  beim Schleichen — für Bedrock unerreichbar. Mit dem bloßen Kampf-Tag als Gate hätten wir im
+  offenen Gelände das Event gecancelt und `useAbility` hätte nichts getan: Schlag weg, keine
+  Fähigkeit, eine Warnzeile pro Eingabe. **Praktische Folge: Phase 7.4 wirkt faktisch nur in
+  Dungeons und Matches.**
 
 - [ ] **Schritt 1: Implementierung schreiben**
 
@@ -730,6 +758,8 @@ git commit -m "feat(phase74): Hook auf EMs useAbility, gekapselt gegen das Alpha
 **Gates, in dieser Reihenfolge** — die billigste Prüfung zuerst:
 1. Floodgate: nur Bedrock-Spieler (Java behält EMs Original-Steuerung)
 2. Kampf: `hook.isInCombat(player)`, wenn `requireCombat`
+   — 📌 überholt: gebaut ist `hook.canUseAbilities(player)`, und die Config-Werte werden pro
+   Event aus den Statics gelesen statt im Konstruktor eingefroren (Abschluss-Review 11.09.2026)
 3. Chord-Zustand
 
 - [ ] **Schritt 1: Implementierung schreiben**

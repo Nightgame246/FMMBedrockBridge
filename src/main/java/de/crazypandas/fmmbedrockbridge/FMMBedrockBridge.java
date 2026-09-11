@@ -107,13 +107,12 @@ public class FMMBedrockBridge extends JavaPlugin {
             if (AdvancedCombatSupport.isPresent()) {
                 try {
                     de.crazypandas.fmmbedrockbridge.bridge.AdvancedCombatHook hook =
-                            new de.crazypandas.fmmbedrockbridge.bridge.AdvancedCombatHook(log);
+                            new de.crazypandas.fmmbedrockbridge.bridge.AdvancedCombatHook();
+                    // The listener reads its config per event, like every other phase, instead
+                    // of freezing it here — so a chord-max-ticks change during the playtest only
+                    // needs the config reloaded, not the whole server restarted.
                     getServer().getPluginManager().registerEvents(
-                            new de.crazypandas.fmmbedrockbridge.bridge.BedrockAbilityListener(
-                                    hook,
-                                    getPhase74ChordMaxTicks(),
-                                    isPhase74RequireCombat(),
-                                    isPhase74FeedbackEnabled()),
+                            new de.crazypandas.fmmbedrockbridge.bridge.BedrockAbilityListener(hook),
                             this);
                     log.info("Phase 7.4: Bedrock ability input registered (sneak chord, max "
                             + getPhase74ChordMaxTicks() + " ticks, require-combat="
@@ -215,7 +214,9 @@ public class FMMBedrockBridge extends JavaPlugin {
 
     public static boolean isPhase74FeedbackEnabled() {
         FMMBedrockBridge plugin = instance;
-        return plugin != null && plugin.getConfig().getBoolean("phase74.feedback", true);
+        // Default OFF: EliteMobs reports ability failures itself through its ActionBarCompositor
+        // (with a keepalive re-render loop), so a second writer in the same tick flickers.
+        return plugin != null && plugin.getConfig().getBoolean("phase74.feedback", false);
     }
 
 }

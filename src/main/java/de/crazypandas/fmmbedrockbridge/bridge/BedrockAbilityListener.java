@@ -31,18 +31,11 @@ import java.util.concurrent.ConcurrentHashMap;
 public final class BedrockAbilityListener implements Listener {
 
     private final AdvancedCombatHook hook;
-    private final long maxOpenTicks;
-    private final boolean requireCombat;
-    private final boolean feedback;
 
     private final Map<UUID, BedrockAbilityGesture> gestures = new ConcurrentHashMap<>();
 
-    public BedrockAbilityListener(AdvancedCombatHook hook, long maxOpenTicks,
-                                  boolean requireCombat, boolean feedback) {
+    public BedrockAbilityListener(AdvancedCombatHook hook) {
         this.hook = hook;
-        this.maxOpenTicks = maxOpenTicks;
-        this.requireCombat = requireCombat;
-        this.feedback = feedback;
     }
 
     @EventHandler(priority = EventPriority.NORMAL, ignoreCancelled = true)
@@ -101,25 +94,46 @@ public final class BedrockAbilityListener implements Listener {
         if (gesture != null) gesture.close();
     }
 
-    /** Bedrock-only, and only while EliteMobs considers the player to be in combat. */
+    /**
+     * Bedrock-only, and only while EliteMobs itself would act on the input — see
+     * {@link AdvancedCombatHook#canUseAbilities(Player)}. Floodgate first: it is the cheapest
+     * gate and rules out every Java player before EliteMobs is touched at all.
+     */
     private boolean armed(Player player) {
         if (!FloodgateApi.getInstance().isFloodgatePlayer(player.getUniqueId())) return false;
-        return !requireCombat || hook.isInCombat(player);
+        return !FMMBedrockBridge.isPhase74RequireCombat() || hook.canUseAbilities(player);
     }
 
+    /**
+     * Config is read per event like in every other phase, so a {@code chord-max-ticks} change
+     * takes effect on the next reload instead of the next server restart. A gesture keeps the
+     * value it was built with, so one whose window no longer matches the configured value is
+     * replaced — an open chord is dropped in that moment, which is the right call after a
+     * deliberate config change.
+     */
     private BedrockAbilityGesture gestureFor(Player player) {
-        return gestures.computeIfAbsent(player.getUniqueId(),
-                uuid -> new BedrockAbilityGesture(maxOpenTicks));
+        long maxOpenTicks = FMMBedrockBridge.getPhase74ChordMaxTicks();
+        return gestures.compute(player.getUniqueId(), (uuid, existing) ->
+                existing != null && existing.maxOpenTicks() == maxOpenTicks
+                        ? existing
+                        : new BedrockAbilityGesture(maxOpenTicks));
     }
 
+    /**
+     * Consumes the triggering event ONLY when EliteMobs actually took the input — otherwise the
+     * player would lose the swing or the interaction and get nothing in return.
+     */
     private void dispatch(Player player, BedrockAbilityGesture.Outcome outcome, Runnable consumeInput) {
         if (outcome == BedrockAbilityGesture.Outcome.NONE) return;
-        if (consumeInput != null) consumeInput.run();
 
-        String message = hook.fire(player, outcome);
-        FMMBedrockBridge.debugLog("[PHASE74] " + player.getName() + " -> " + outcome);
-        if (feedback && message != null) {
-            player.sendActionBar(message);
+        AdvancedCombatHook.FireResult result = hook.fire(player, outcome);
+        FMMBedrockBridge.debugLog("[PHASE74] " + player.getName() + " -> " + outcome
+                + " (handled=" + result.handled() + ")");
+        if (!result.handled()) return;
+
+        if (consumeInput != null) consumeInput.run();
+        if (FMMBedrockBridge.isPhase74FeedbackEnabled() && result.message() != null) {
+            player.sendActionBar(result.message());
         }
     }
 }

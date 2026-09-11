@@ -51,6 +51,11 @@ public final class BedrockAbilityGesture {
         return outcome;
     }
 
+    /** The window this gesture was built with — lets the listener spot a config change. */
+    public long maxOpenTicks() {
+        return maxOpenTicks;
+    }
+
     public boolean isOpen(long tick) {
         return open && tick - openedAtTick <= maxOpenTicks;
     }

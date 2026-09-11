@@ -119,16 +119,36 @@ Der reine Schleich-Vorgang wird **nie** gecancelt: Schleichen muss Schleichen bl
 
 ## 5. Scharfschaltung
 
-Damit normales Schleichen im Alltag keine Fähigkeiten auslöst, ist die Steuerung **nur im Kampf
-aktiv**. EM führt den Zustand bereits:
+Damit normales Schleichen im Alltag keine Fähigkeiten auslöst, ist die Steuerung nur scharf,
+wenn **EliteMobs selbst auf die Eingabe reagieren würde**. Das Gate sitzt in
+`AdvancedCombatHook.canUseAbilities(Player)` und prüft in dieser Reihenfolge:
 
 ```java
-DungeonCombatRuntime.getInstance().isInCombat(player.getUniqueId())   // PlayerCombatState
-DungeonCombatRuntime.isEligiblePlayer(player)                        // Dungeon/Match
+AdvancedCombatModule.isInitialized()                                  // Modul überhaupt gebaut?
+AdvancedCombatModule.get().mechanicsActive(player)                    // EMs eigene Vorbedingung
+DungeonCombatRuntime.isEligiblePlayer(player)                         // Dungeon/Match
+    || DungeonCombatRuntime.getInstance().isInCombat(player.getUniqueId())   // PlayerCombatState
 ```
 
-Beide `public static`. `PlayerCombatState.addListener(...)` erlaubt zusätzlich, auf Kampfbeginn
-und -ende zu reagieren, statt zu pollen.
+⚠️ **Korrektur gegenüber dem ersten Entwurf (Abschluss-Review 11.09.2026):** Der Entwurf nannte
+nur die beiden `DungeonCombatRuntime`-Aufrufe. Dieses Gate ist **breiter als EMs eigenes** und
+damit falsch. `useAbility` beginnt mit `mechanicsActive(player)`, das `hasActiveClass` **und**
+`controlModeEnabled` verlangt; außerhalb von Dungeons/Matches heißt Letzteres Mitgliedschaft in
+`ClassControlMode.outsideEnabled` — eine Menge, der man nur durch einen **F-Doppeltipp beim
+Schleichen** beitritt, also gerade nicht von Bedrock aus. Mit dem bloßen Kampf-Tag hätten wir im
+offenen Gelände das auslösende Event gecancelt, während `useAbility` nichts tut: Schlag weg,
+keine Fähigkeit.
+
+`isInitialized()` muss zwingend **vor** `get()` stehen: `AdvancedCombatModule.get()` liefert nie
+`null`, sondern wirft `IllegalStateException`. EM initialisiert das Modul nur bei
+`AdvancedCombatSystemConfig.isEnabled()`, startet `DungeonCombatRuntime` aber bedingungslos —
+der Kampf-Tag beweist also nichts über das Modul.
+
+⚠️ **Praktische Folge:** Solange der Opt-in außerhalb von Dungeons nur per F-Doppeltipp erreichbar
+ist, **wirkt Phase 7.4 faktisch nur in Dungeons und Matches.** Alles andere muss upstream kommen.
+
+`PlayerCombatState.addListener(...)` erlaubt zusätzlich, auf Kampfbeginn und -ende zu reagieren,
+statt zu pollen.
 
 ⚠️ **Nicht verwechseln:** Unser vorhandener `BedrockCombatTrigger` (Phase 7.1c) führt den
 Kampfzustand **pro Elite-Mob**, nicht pro Spieler. Er ist hier **nicht** wiederverwendbar.
@@ -146,8 +166,9 @@ Bedrock-Spieler schleicht (im Kampf)
              ├→ zweiter Schleich-Beginn   → MOBILITY
              ├→ EntityDamageByEntityEvent → SIGNATURE   (Event gecancelt)
              └→ PlayerInteractEvent       → UTILITY     (Event gecancelt)
-                  └→ AdvancedCombatHook.use(player, slot)
-                       └→ AbilityResult → ActionBar-Rückmeldung (reiner Text)
+                  └→ AdvancedCombatHook.fire(player, outcome)
+                       └→ FireResult(handled, message)
+                            └→ nur bei handled: Event canceln (+ optionale ActionBar)
 ```
 
 ### Komponenten
@@ -165,13 +186,28 @@ Bedrock-Spieler schleicht (im Kampf)
 als die `com.magmaguy.elitemobs.api.*`-Klassen, die die Bridge sonst benutzt. Es ist außerdem
 als **[Alpha]** gekennzeichnet, ändert sich also wahrscheinlich noch.
 
-`AdvancedCombatHook` prüft deshalb **einmal beim Start**:
-1. `Class.forName("com.magmaguy.elitemobs.advancedcombat.AdvancedCombatModule")`
-2. `AdvancedCombatSystemConfig.isEnabled()`
-3. `AdvancedCombatModule.isInitialized()`
+Die Prüfung ist deshalb zweistufig — **einmal beim Start**, per Namen und ohne Import:
 
-Schlägt eines fehl, schaltet sich das Feature ab und loggt **eine** Warnung. Jeder Aufruf von
-`useAbility` liegt zusätzlich in `try/catch` gegen `LinkageError` und `RuntimeException`.
+1. `Class.forName("com.magmaguy.elitemobs.advancedcombat.AdvancedCombatModule")` und dasselbe für
+   `…advancedcombat.classes.AbilitySlot` (`AdvancedCombatSupport`). Schlägt das fehl, registriert
+   sich die Phase gar nicht erst und loggt **eine** Zeile mit dem Grund.
+
+…und **bei jeder Eingabe** über `canUseAbilities(Player)` (Abschnitt 5):
+
+2. `AdvancedCombatModule.isInitialized()` — tritt an die Stelle von
+   `AdvancedCombatSystemConfig.isEnabled()`, weil EM das Modul genau dann baut.
+3. `AdvancedCombatModule.get().mechanicsActive(player)` — EMs eigene Vorbedingung.
+
+⚠️ **Korrektur:** Der erste Entwurf stellte 2. und 3. als **Startprüfungen** dar. Das wäre falsch:
+EM initialisiert sein Modul nicht garantiert vor unserem `onEnable`, und der Schalter kann im
+Betrieb umgelegt werden — eine Startprüfung würde die Phase bis zum Server-Neustart fälschlich
+abschalten. Beide gehören an die Eingabe, nicht an den Start.
+
+Jeder Aufruf von `useAbility` liegt zusätzlich in `try/catch` gegen `LinkageError` und
+`RuntimeException` — **einschließlich** der Übersetzung `Outcome → AbilitySlot`, denn ein
+upstream umbenannter Enum-Konstantenname wirft `NoSuchFieldError`. `fire(...)` liefert einen
+`FireResult(handled, message)`: Das auslösende Event wird **nur bei `handled == true`** gecancelt,
+sonst verliert der Spieler Schlag oder Interaktion für nichts.
 
 **Die Bridge darf davon niemals beim Laden sterben** — das ist die Lehre aus dem
 GeyserUtils-Vorfall vom 08.08.2026, als eine gegen eine alte API gebaute Extension jedes
@@ -185,6 +221,12 @@ ist eine technische ID und gehört nicht vor den Spieler.
 
 Das geht als schlichter ActionBar-Text heraus — **ohne** Custom-Fonts, damit Bedrock ihn
 darstellen kann.
+
+⚠️ **Standardmäßig ausgeschaltet (`phase74.feedback: false`, Abschluss-Review 11.09.2026):**
+EliteMobs schreibt seine Skill-Rückmeldung selbst über den `ActionBarCompositor` — mit
+Keepalive-Re-Render — und meldet genau die vier Fehlerfälle, die wir hier abbilden. Zwei
+Schreiber im selben Tick flackern. Der Code-Pfad bleibt erhalten und lässt sich per Config
+einschalten, falls EMs Anzeige auf Bedrock doch nicht ankommt.
 
 ⚠️ **Korrektur gegenüber dem ersten Entwurf:** `AbilityFailureReason` kennt **keine** Cooldown-
 oder Ressourcen-Gründe. Die tatsächlichen Werte sind `NONE`, `WRONG_THREAD`, `INVALID_PLAYER`,
