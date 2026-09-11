@@ -212,6 +212,11 @@ public class FMMBedrockBridge extends JavaPlugin {
         return plugin != null && plugin.getConfig().getBoolean("phase74.require-combat", true);
     }
 
+    public static boolean isPhase75Enabled() {
+        FMMBedrockBridge plugin = instance;
+        return plugin != null && plugin.getConfig().getBoolean("phase75.strip-java-font-glyphs", true);
+    }
+
     public static boolean isPhase74FeedbackEnabled() {
         FMMBedrockBridge plugin = instance;
         // Default OFF: EliteMobs reports ability failures itself through its ActionBarCompositor

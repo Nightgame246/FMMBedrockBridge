@@ -117,3 +117,19 @@ phase74:
   # über seine eigene Actionbar (mit Keepalive-Loop). Einschalten kann deshalb mit EMs
   # Anzeige kollidieren und im selben Tick flackern.
   feedback: false
+
+# Phase 7.5 — Java-Font-Glyphen aus Bedrock-Actionbars entfernen
+#
+# EliteMobs 10.9.0 zeichnet sein Combat-HUD mit einer eigenen Java-Resource-Pack-Schrift:
+# Balken bestehen aus hunderten winziger Glyphen, die auf Java zu einem Bild verschmelzen.
+# Bedrock kennt die Schrift nicht und legt dieselben Zeichen auf sein EIGENES Symbolblatt —
+# aus jedem Balkenstueck wird ein volles Item-Icon. Gemessen am 11.09.2026: 689 der 703
+# HUD-Glyphen liegen in der Private Use Area (U+E000-U+F8FF). In-game fuellte das den halben
+# Bildschirm mit Ruestungs- und Karotten-Symbolen und hat den Client lahmgelegt.
+#
+# Diese Phase entfernt fuer Bedrock-Spieler genau diese Zeichen aus Actionbar-Paketen.
+# Uebrig bleibt der lesbare Text. Java-Spieler sind nicht betroffen und behalten ihr HUD.
+phase75:
+  # Auf false setzen, falls ResourcePackManager irgendwann Java-Fonts nach Bedrock
+  # konvertiert — dann wuerde der Filter funktionierende Glyphen wegwerfen.
+  strip-java-font-glyphs: true

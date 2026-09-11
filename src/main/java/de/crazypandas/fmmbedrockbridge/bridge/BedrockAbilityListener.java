@@ -45,9 +45,16 @@ public final class BedrockAbilityListener implements Listener {
         if (!event.isSneaking()) return;
 
         Player player = event.getPlayer();
-        if (!armed(player)) return;
+        if (!armed(player)) {
+            FMMBedrockBridge.debugLog("[PHASE74] sneak from " + player.getName() + " — not armed");
+            return;
+        }
 
-        dispatch(player, gestureFor(player).sneakStart(Bukkit.getCurrentTick()), null);
+        BedrockAbilityGesture.Outcome outcome = gestureFor(player).sneakStart(Bukkit.getCurrentTick());
+        if (outcome == BedrockAbilityGesture.Outcome.NONE) {
+            FMMBedrockBridge.debugLog("[PHASE74] chord OPEN for " + player.getName());
+        }
+        dispatch(player, outcome, null);
     }
 
     @EventHandler(priority = EventPriority.NORMAL, ignoreCancelled = true)
@@ -55,7 +62,12 @@ public final class BedrockAbilityListener implements Listener {
         if (!(event.getDamager() instanceof Player player)) return;
         if (!armed(player)) return;
 
-        BedrockAbilityGesture.Outcome outcome = gestureFor(player).attack(Bukkit.getCurrentTick());
+        BedrockAbilityGesture.Outcome outcome =
+                gestureFor(player).attack(Bukkit.getCurrentTick(), player.isSneaking());
+        if (outcome == BedrockAbilityGesture.Outcome.NONE) {
+            FMMBedrockBridge.debugLog("[PHASE74] attack from " + player.getName()
+                    + " — no open chord (sneaking=" + player.isSneaking() + ")");
+        }
         // Cancel the swing that opened the chord, otherwise the player also hits.
         dispatch(player, outcome, () -> event.setCancelled(true));
     }
@@ -69,7 +81,12 @@ public final class BedrockAbilityListener implements Listener {
         Player player = event.getPlayer();
         if (!armed(player)) return;
 
-        BedrockAbilityGesture.Outcome outcome = gestureFor(player).use(Bukkit.getCurrentTick());
+        BedrockAbilityGesture.Outcome outcome =
+                gestureFor(player).use(Bukkit.getCurrentTick(), player.isSneaking());
+        if (outcome == BedrockAbilityGesture.Outcome.NONE) {
+            FMMBedrockBridge.debugLog("[PHASE74] use from " + player.getName()
+                    + " — no open chord (sneaking=" + player.isSneaking() + ")");
+        }
         // Cancel so the player does not also place a block or open a container.
         dispatch(player, outcome, () -> event.setCancelled(true));
     }

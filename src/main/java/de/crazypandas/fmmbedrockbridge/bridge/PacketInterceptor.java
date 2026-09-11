@@ -18,6 +18,8 @@ import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
+import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerActionBar;
+import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerSystemChatMessage;
 import org.geysermc.floodgate.api.FloodgateApi;
 
 import java.util.Set;
@@ -81,6 +83,14 @@ public class PacketInterceptor {
                 // Phase 7.1a — BOSS_EVENT suppress for Bedrock players
                 if (event.getPacketType() == PacketType.Play.Server.BOSS_BAR) {
                     handleBossEvent(event, playerObj);
+                    return;
+                }
+
+                // Phase 7.5 — strip Java resource-pack font glyphs from Bedrock action bars
+                if (FMMBedrockBridge.isPhase75Enabled()
+                        && (event.getPacketType() == PacketType.Play.Server.ACTION_BAR
+                            || event.getPacketType() == PacketType.Play.Server.SYSTEM_CHAT_MESSAGE)) {
+                    handleActionBarGlyphs(event, playerObj);
                 }
             }
         };
@@ -127,6 +137,62 @@ public class PacketInterceptor {
      * own — otherwise we would keep swallowing that slot's updates and leave Bedrock players with
      * a frozen or undismissable bar.
      */
+    /**
+     * Phase 7.5 — removes Private Use Area glyphs from action-bar text sent to Bedrock players.
+     *
+     * <p>EliteMobs draws its combat HUD from a Java resource-pack font. Bedrock cannot resolve
+     * that font and maps the same codepoints onto its own symbol sheet, turning every bar segment
+     * into an item icon — hundreds of them, re-sent on a keepalive loop, which lags the client
+     * out. See {@link BedrockGlyphFilter} for the measurements behind this.
+     *
+     * <p>Java players are never touched. Runs on the Netty thread, so everything is wrapped.
+     */
+    private void handleActionBarGlyphs(PacketSendEvent event, Player playerObj) {
+        if (!floodgateAvailable) return;
+        try {
+            if (!FloodgateApi.getInstance().isFloodgatePlayer(playerObj.getUniqueId())) return;
+
+            LegacyComponentSerializer serializer = LegacyComponentSerializer.legacySection();
+
+            if (event.getPacketType() == PacketType.Play.Server.ACTION_BAR) {
+                WrapperPlayServerActionBar wrapper = new WrapperPlayServerActionBar(event);
+                String legacy = serializer.serialize(wrapper.getActionBarText());
+                if (!BedrockGlyphFilter.containsGlyphs(legacy)) return;
+
+                String cleaned = BedrockGlyphFilter.strip(legacy);
+                if (cleaned.isEmpty()) {
+                    // Nothing but glyphs — an empty action bar would just flicker.
+                    event.setCancelled(true);
+                } else {
+                    wrapper.setActionBarText(serializer.deserialize(cleaned));
+                }
+                FMMBedrockBridge.debugLog("[PHASE75] action bar cleaned for "
+                        + playerObj.getName() + " -> '" + cleaned + "'");
+                return;
+            }
+
+            // Spigot's sendMessage(ACTION_BAR, …) travels as a system chat with overlay=true
+            // on modern servers, so the same treatment has to cover that shape too.
+            WrapperPlayServerSystemChatMessage wrapper = new WrapperPlayServerSystemChatMessage(event);
+            if (!wrapper.isOverlay()) return;
+
+            String legacy = serializer.serialize(wrapper.getMessage());
+            if (!BedrockGlyphFilter.containsGlyphs(legacy)) return;
+
+            String cleaned = BedrockGlyphFilter.strip(legacy);
+            if (cleaned.isEmpty()) {
+                event.setCancelled(true);
+            } else {
+                wrapper.setMessage(serializer.deserialize(cleaned));
+            }
+            FMMBedrockBridge.debugLog("[PHASE75] overlay chat cleaned for "
+                    + playerObj.getName() + " -> '" + cleaned + "'");
+        } catch (Throwable t) {
+            // Never let a malformed packet take the interceptor down.
+            FMMBedrockBridge.debugLog("[PHASE75] glyph filter skipped a packet: " + t);
+        }
+    }
+
     private void handleBossEvent(PacketSendEvent event, Player playerObj) {
         if (bridge == null) return;
         if (!isSuppressEnabled()) return;
