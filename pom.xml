@@ -130,7 +130,7 @@
         <dependency>
             <groupId>com.magmaguy</groupId>
             <artifactId>EliteMobs</artifactId>
-            <version>10.8.0</version>
+            <version>10.9.0</version>
             <scope>provided</scope>
         </dependency>
 
