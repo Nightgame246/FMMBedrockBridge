@@ -185,14 +185,43 @@ public class PacketInterceptor {
      * @return the text to send, or {@code null} to suppress the packet entirely
      */
     private String replacementFor(String legacy, Player playerObj) {
-        if (BedrockGlyphFilter.countGlyphs(legacy) >= HUD_GLYPH_THRESHOLD && hook != null) {
-            String own = hook.hudLine(playerObj);
-            if (own != null) return own;
-            // No class data to show — better nothing than rubble.
-            return null;
-        }
         String stripped = BedrockGlyphFilter.strip(legacy);
+
+        if (BedrockGlyphFilter.countGlyphs(legacy) >= HUD_GLYPH_THRESHOLD && hook != null) {
+            // EliteMobs' ActionBarCompositor MIXES sources into one line: the HUD and a message
+            // such as "Teleportiere in 3 Sekunden…" arrive in the same packet. Replacing the
+            // whole thing swallowed those messages (seen 11.09.2026 when teleporting out of the
+            // guild), so the message wins whenever there is one.
+            String message = messagePartOf(stripped);
+            String own = hook.hudLine(playerObj);
+            if (message != null) {
+                return own == null ? message : own + " §f" + message;
+            }
+            if (own != null) return own;
+            return null; // No class data to show — better nothing than rubble.
+        }
         return stripped.isEmpty() ? null : stripped;
+    }
+
+    /**
+     * Pulls the prose out of a stripped HUD line, or {@code null} when there is none.
+     *
+     * <p>What the HUD itself leaves behind is numbers, slashes and the class name — a message
+     * brings actual words with it. Anything with a run of three or more letters counts as prose;
+     * the class name is dropped first so it does not trigger on itself.
+     */
+    private String messagePartOf(String stripped) {
+        if (stripped == null || stripped.isEmpty()) return null;
+        String withoutColours = stripped.replaceAll("§[0-9a-fk-orx]", "");
+        String candidate = withoutColours.replaceAll("[0-9]+(/[0-9]+)?", " ").trim();
+        if (candidate.isEmpty()) return null;
+        // Strip the class name, which is the only word the HUD contributes on its own.
+        for (String word : new String[]{"Lv", "♥"}) {
+            candidate = candidate.replace(word, " ");
+        }
+        candidate = candidate.trim();
+        // One bare word is the class name; prose has more to say than that.
+        return candidate.split("\\s+").length >= 2 ? candidate : null;
     }
 
     private void handleActionBarGlyphs(PacketSendEvent event, Player playerObj) {
