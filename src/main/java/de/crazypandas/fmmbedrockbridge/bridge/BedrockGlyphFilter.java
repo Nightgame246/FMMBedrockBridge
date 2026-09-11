@@ -26,7 +26,11 @@ import java.util.regex.Pattern;
 public final class BedrockGlyphFilter {
 
     private static final Pattern VALUE_PAIR = Pattern.compile("[0-9]+\\s*/\\s*[0-9]+");
-    private static final Pattern LEADING_COLOURS = Pattern.compile("^(§[0-9a-fk-orx])+");
+    /**
+     * Only the reset EliteMobs puts between HUD and message is dropped — a colour belonging to
+     * the message itself has to survive, so this matches §f/§r and whitespace, nothing else.
+     */
+    private static final Pattern SEPARATOR_PREFIX = Pattern.compile("^(§[fr]|\\s)+");
     private static final Pattern PROSE = Pattern.compile(".*[A-Za-zÄÖÜäöüß]{3,}.*", Pattern.DOTALL);
 
     private static final char PUA_FIRST = '';
@@ -93,31 +97,32 @@ public final class BedrockGlyphFilter {
     }
 
     /**
-     * Splits EliteMobs' message off a stripped HUD line, or {@code null} when there is none.
+     * Splits EliteMobs' message off the RAW HUD text, or {@code null} when there is none.
      *
      * <p>EliteMobs' {@code ActionBarCompositor} mixes sources into one packet: the HUD and a
-     * message such as "Teleportiere in 3 Sekunden…" arrive together. The HUD's last element is
-     * always a "current/maximum" pair, so everything after the final pair is the message.
+     * message such as "Teleportiere in 3 Sekunden…" arrive together. The HUD is drawn out of font
+     * glyphs, the message is not — so everything after the LAST glyph is the message.
      *
-     * <p>It is returned <b>verbatim</b>. An earlier version scrubbed digits to tell prose from
-     * numbers and handed back the scrubbed text — which turned "Not enough Stamina (20 required)"
-     * into "Not enough Stamina (  required)".
+     * <p>This deliberately works on the raw text, before stripping. An earlier version cut at the
+     * last "current/maximum" pair in the stripped text, which broke as soon as the message
+     * carried a pair of its own: "Not enough Stamina (20/100 required)" was cut down to
+     * "required".
+     *
+     * <p>The result is returned verbatim — it carries numbers that must survive.
      */
-    public static String messageAfterHud(String stripped) {
-        if (stripped == null || stripped.isEmpty()) return null;
+    public static String messageAfterGlyphs(String raw) {
+        if (raw == null || raw.isEmpty()) return null;
 
-        Matcher pair = VALUE_PAIR.matcher(stripped);
-        int messageStart = -1;
-        while (pair.find()) {
-            messageStart = pair.end();
+        int lastGlyph = -1;
+        for (int i = 0; i < raw.length(); i++) {
+            if (isGlyph(raw.charAt(i))) lastGlyph = i;
         }
-        if (messageStart < 0) return null;
+        if (lastGlyph < 0 || lastGlyph == raw.length() - 1) return null;
 
-        String tail = stripped.substring(messageStart).trim();
-        tail = LEADING_COLOURS.matcher(tail).replaceAll("").trim();
+        String tail = raw.substring(lastGlyph + 1);
+        tail = SEPARATOR_PREFIX.matcher(tail.trim()).replaceAll("").trim();
         if (tail.isEmpty()) return null;
 
-        // Letters make it prose; a stray separator is not a message.
         return PROSE.matcher(tail).matches() ? tail : null;
     }
 

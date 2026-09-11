@@ -94,37 +94,37 @@ class BedrockGlyphFilterTest {
     }
 
     @Test
-    void keepsTheNumbersInsideAMessage() {
-        // Live on 11.09.2026 this lost its "20": an earlier version scrubbed digits to tell
-        // prose from HUD values and then returned the scrubbed text.
-        String line = "§eAdventurer §7Lv1  §c♥ 60/60  §b8/100 §fAdventurer Not enough Stamina (20 required).";
+    void findsTheMessageAfterTheLastGlyph() {
+        String raw = "\uE010\uE011Adventurer\uE012 60/60\uE013 12/100\uE014 §7Dodge! -20 Stamina";
 
-        assertEquals("§fAdventurer Not enough Stamina (20 required).".replaceFirst("^§f", ""),
-                BedrockGlyphFilter.messageAfterHud(line));
+        assertEquals("§7Dodge! -20 Stamina", BedrockGlyphFilter.messageAfterGlyphs(raw));
     }
 
     @Test
-    void findsTheMessageAfterTheLastValuePair() {
-        String line = "§eAdventurer §7Lv1  §c♥ 60/60  §b92/100 EM] Teleportiere in 3 Sekunden...";
+    void aMessageMayCarryItsOwnValuePair() {
+        // THE bug this replaced: cutting at the last "n/m" pair chopped inside the message and
+        // left only "required)" on the bar.
+        String raw = "\uE010Adventurer\uE011 60/60\uE012 0/100\uE013 Not enough Stamina (20/100 required)";
 
-        assertEquals("EM] Teleportiere in 3 Sekunden...", BedrockGlyphFilter.messageAfterHud(line));
+        assertEquals("Not enough Stamina (20/100 required)",
+                BedrockGlyphFilter.messageAfterGlyphs(raw));
     }
 
     @Test
-    void aPlainHudCarriesNoMessage() {
-        assertNull(BedrockGlyphFilter.messageAfterHud("§eAdventurer §7Lv1  §c♥ 60/60  §b8/100"));
+    void aHudWithoutAMessageYieldsNothing() {
+        assertNull(BedrockGlyphFilter.messageAfterGlyphs("\uE010Adventurer\uE011 60/60\uE012"));
+    }
+
+    @Test
+    void textWithoutGlyphsHasNothingToSplit() {
+        assertNull(BedrockGlyphFilter.messageAfterGlyphs("plain text, no glyphs"));
+        assertNull(BedrockGlyphFilter.messageAfterGlyphs(null));
+        assertNull(BedrockGlyphFilter.messageAfterGlyphs(""));
     }
 
     @Test
     void aTrailingSeparatorIsNotAMessage() {
-        assertNull(BedrockGlyphFilter.messageAfterHud("§eAdventurer 60/60  8/100  ·"));
-    }
-
-    @Test
-    void handlesLinesWithoutAnyValuePair() {
-        assertNull(BedrockGlyphFilter.messageAfterHud("just some text"));
-        assertNull(BedrockGlyphFilter.messageAfterHud(null));
-        assertNull(BedrockGlyphFilter.messageAfterHud(""));
+        assertNull(BedrockGlyphFilter.messageAfterGlyphs("\uE010Adventurer\uE011 60/60\uE012 ·"));
     }
 
     @Test

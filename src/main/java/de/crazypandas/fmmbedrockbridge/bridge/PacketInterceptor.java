@@ -187,12 +187,19 @@ public class PacketInterceptor {
     private String replacementFor(String legacy, Player playerObj) {
         String stripped = BedrockGlyphFilter.strip(legacy);
 
+        // Raw shape, glyphs shown as '#'. Without this the packet's real structure was invisible
+        // and every attempt at splitting HUD from message was guesswork.
+        if (FMMBedrockBridge.isDebugEnabled()) {
+            FMMBedrockBridge.debugLog("[PHASE75] raw: '"
+                    + legacy.replaceAll("[\\uE000-\\uF8FF]", "#").replaceAll("#{2,}", "##") + "'");
+        }
+
         if (BedrockGlyphFilter.countGlyphs(legacy) >= HUD_GLYPH_THRESHOLD && hook != null) {
             // EliteMobs' ActionBarCompositor MIXES sources into one line: the HUD and a message
             // such as "Teleportiere in 3 Sekunden…" arrive in the same packet. Replacing the
             // whole thing swallowed those messages (seen 11.09.2026 when teleporting out of the
             // guild), so the message wins whenever there is one.
-            String message = BedrockGlyphFilter.messageAfterHud(stripped);
+            String message = BedrockGlyphFilter.messageAfterGlyphs(legacy);
             String own = hook.hudLine(playerObj);
             if (message != null && own != null) {
                 // EliteMobs prefixes messages with the class name our line already shows.
