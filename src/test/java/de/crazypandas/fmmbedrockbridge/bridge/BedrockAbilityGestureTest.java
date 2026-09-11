@@ -4,180 +4,128 @@ import org.junit.jupiter.api.Test;
 
 import static de.crazypandas.fmmbedrockbridge.bridge.BedrockAbilityGesture.Outcome;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * EliteMobs binds its three ability slots to an F-chord that Bedrock clients cannot produce.
- * This mirrors it onto sneak — but as a held modifier, not as a chord that gets spent.
+ * This mirrors it onto sneak.
  *
- * <p>All three in-game failures from 11.09.2026 are pinned down here, so they cannot come back:
- * aiming that takes longer than a fixed window, a second ability after a first one, and crouches
- * that armed across each other and fired MOBILITY ten times in six seconds.
+ * <p>Every case here comes from a real in-game failure on 11.09.2026. The decisive measurement
+ * was the last one: Geyser delivers Bedrock's crouch as a rapid flutter of toggle events — five
+ * "armed" against twenty "disarmed" within seconds. Everything built on that event stream broke,
+ * so the clicks now read the sneak STATE and only MOBILITY still looks at the events, with a
+ * floor that filters the flutter out.
  */
 class BedrockAbilityGestureTest {
 
     private static final boolean SNEAKING = true;
-    private static final boolean RELEASED = false;
+    private static final boolean UPRIGHT = false;
 
     @Test
-    void firstSneakArmsTheControlsWithoutFiring() {
+    void clickingWhileCrouchedFires() {
         BedrockAbilityGesture gesture = new BedrockAbilityGesture();
-
-        assertEquals(Outcome.NONE, gesture.sneakStart(100L), "arming must not fire an ability");
-        assertTrue(gesture.isArmed(SNEAKING));
-    }
-
-    @Test
-    void crouchingAgainQuicklyFiresMobility() {
-        BedrockAbilityGesture gesture = new BedrockAbilityGesture();
-        gesture.sneakStart(100L);
-        gesture.sneakEnd(105L);
-
-        assertEquals(Outcome.MOBILITY, gesture.sneakStart(110L));
-    }
-
-    @Test
-    void leftClickWhileSneakingFiresSignature() {
-        BedrockAbilityGesture gesture = new BedrockAbilityGesture();
-        gesture.sneakStart(100L);
 
         assertEquals(Outcome.SIGNATURE, gesture.attack(SNEAKING));
+        assertEquals(Outcome.UTILITY, gesture.use(SNEAKING));
     }
 
     @Test
-    void rightClickWhileSneakingFiresUtility() {
+    void clickingUprightDoesNothing() {
         BedrockAbilityGesture gesture = new BedrockAbilityGesture();
-        gesture.sneakStart(100L);
 
-        assertEquals(Outcome.UTILITY, gesture.use(SNEAKING));
+        assertEquals(Outcome.NONE, gesture.attack(UPRIGHT));
+        assertEquals(Outcome.NONE, gesture.use(UPRIGHT));
+    }
+
+    @Test
+    void clicksNeverDependOnTheEventStream() {
+        // The flutter used to disarm the controls between crouch and click. The state is asked
+        // at the moment of the click, so any amount of toggling in between is irrelevant.
+        BedrockAbilityGesture gesture = new BedrockAbilityGesture();
+        gesture.sneakEnd(100L);
+        gesture.sneakStart(101L);
+        gesture.sneakEnd(102L);
+
+        assertEquals(Outcome.SIGNATURE, gesture.attack(SNEAKING), "still crouched, still fires");
     }
 
     @Test
     void severalAbilitiesInOneCrouchAllFire() {
-        // The second in-game failure: after UTILITY fired, six left clicks in a row were
-        // rejected with "no open chord (sneaking=true)". Holding sneak must stay armed.
         BedrockAbilityGesture gesture = new BedrockAbilityGesture();
-        gesture.sneakStart(100L);
 
         assertEquals(Outcome.UTILITY, gesture.use(SNEAKING));
-        assertEquals(Outcome.SIGNATURE, gesture.attack(SNEAKING), "still crouched, still armed");
+        assertEquals(Outcome.SIGNATURE, gesture.attack(SNEAKING));
         assertEquals(Outcome.SIGNATURE, gesture.attack(SNEAKING));
         assertEquals(Outcome.UTILITY, gesture.use(SNEAKING));
     }
 
     @Test
-    void armingSurvivesAnyAmountOfAiming() {
-        // The first in-game failure: a fixed two-second window expired while the player aimed.
-        // There is no timer any more, so this holds no matter how long it takes.
+    void aDeliberateDoubleTapFiresMobility() {
         BedrockAbilityGesture gesture = new BedrockAbilityGesture();
-        gesture.sneakStart(100L);
+        gesture.sneakEnd(100L);
 
-        assertTrue(gesture.isArmed(SNEAKING));
-        assertEquals(Outcome.SIGNATURE, gesture.attack(SNEAKING));
+        assertEquals(Outcome.MOBILITY, gesture.sneakStart(110L), "10 ticks is a human double tap");
     }
 
     @Test
-    void releasingSneakDisarms() {
+    void geyserFlutterDoesNotFireMobility() {
+        // THE failure that shaped this class: on/off/on within the same second fired MOBILITY
+        // over and over. A release shorter than MIN_RELEASE_TICKS is not a human letting go.
         BedrockAbilityGesture gesture = new BedrockAbilityGesture();
-        gesture.sneakStart(100L);
+        gesture.sneakEnd(100L);
 
-        assertFalse(gesture.isArmed(RELEASED));
-        assertEquals(Outcome.NONE, gesture.attack(RELEASED));
+        assertEquals(Outcome.NONE, gesture.sneakStart(101L), "1 tick apart is flutter");
+        gesture.sneakEnd(102L);
+        assertEquals(Outcome.NONE, gesture.sneakStart(105L), "3 ticks is still flutter");
     }
 
     @Test
-    void aReleaseIsRememberedEvenWithoutItsOwnEvent() {
-        // The listener does not get a "sneak end" of its own, so seeing sneaking == false once
-        // has to disarm for good — otherwise a later click would still fire.
+    void theFlutterFloorItselfCounts() {
         BedrockAbilityGesture gesture = new BedrockAbilityGesture();
-        gesture.sneakStart(100L);
-        gesture.sneakEnd(150L);
+        gesture.sneakEnd(100L);
 
-        assertEquals(Outcome.NONE, gesture.attack(SNEAKING),
-                "crouching again must go through sneakStart, not sneak back in through a click");
+        assertEquals(Outcome.MOBILITY, gesture.sneakStart(104L), "exactly 4 ticks is deliberate");
     }
 
     @Test
-    void clicksBeforeAnySneakDoNothing() {
+    void aSlowSecondCrouchIsNotADoubleTap() {
         BedrockAbilityGesture gesture = new BedrockAbilityGesture();
+        gesture.sneakEnd(100L);
 
-        assertEquals(Outcome.NONE, gesture.attack(SNEAKING));
-        assertEquals(Outcome.NONE, gesture.use(SNEAKING));
+        assertEquals(Outcome.NONE, gesture.sneakStart(121L), "21 ticks is past the window");
     }
 
     @Test
-    void closeDisarmsExplicitly() {
-        // Used on death, world change and quit.
+    void theDoubleTapCeilingItselfCounts() {
         BedrockAbilityGesture gesture = new BedrockAbilityGesture();
-        gesture.sneakStart(100L);
+        gesture.sneakEnd(100L);
 
-        gesture.close();
-
-        assertFalse(gesture.isArmed(SNEAKING));
-        assertEquals(Outcome.NONE, gesture.attack(SNEAKING));
-    }
-
-    @Test
-    void reArmingAfterAReleaseWorks() {
-        BedrockAbilityGesture gesture = new BedrockAbilityGesture();
-        gesture.sneakStart(100L);
-        gesture.sneakEnd(150L);
-
-        assertEquals(Outcome.NONE, gesture.sneakStart(400L), "a late crouch arms, it does not fire");
-        assertEquals(Outcome.SIGNATURE, gesture.attack(SNEAKING));
-    }
-
-    @Test
-    void eachCrouchOnItsOwnOnlyArms() {
-        // The third in-game failure: ignoring the sneak end left the controls armed across
-        // crouches, so every new crouch read as a second tap. MOBILITY fired ten times in six
-        // seconds. Crouches far apart must only ever arm.
-        BedrockAbilityGesture gesture = new BedrockAbilityGesture();
-
-        assertEquals(Outcome.NONE, gesture.sneakStart(100L));
-        gesture.sneakEnd(140L);
-        assertEquals(Outcome.NONE, gesture.sneakStart(200L), "60 ticks later is not a double tap");
-        gesture.sneakEnd(240L);
-        assertEquals(Outcome.NONE, gesture.sneakStart(400L));
+        assertEquals(Outcome.MOBILITY, gesture.sneakStart(120L), "exactly 20 ticks is inside");
     }
 
     @Test
     void oneReleaseCannotFeedTwoMobilities() {
         BedrockAbilityGesture gesture = new BedrockAbilityGesture();
-        gesture.sneakStart(100L);
-        gesture.sneakEnd(105L);
+        gesture.sneakEnd(100L);
 
         assertEquals(Outcome.MOBILITY, gesture.sneakStart(110L));
         assertEquals(Outcome.NONE, gesture.sneakStart(112L), "the release was already spent");
     }
 
     @Test
-    void aSlowSecondCrouchIsNotADoubleTap() {
+    void crouchingWithoutAnyPriorReleaseOnlyStartsThings() {
         BedrockAbilityGesture gesture = new BedrockAbilityGesture();
-        gesture.sneakStart(100L);
-        gesture.sneakEnd(105L);
 
-        assertEquals(Outcome.NONE, gesture.sneakStart(126L), "21 ticks is past the 20-tick window");
+        assertEquals(Outcome.NONE, gesture.sneakStart(100L));
     }
 
     @Test
-    void theDoubleTapBoundaryItselfCounts() {
+    void closeForgetsAPendingRelease() {
+        // Used on death, world change and quit.
         BedrockAbilityGesture gesture = new BedrockAbilityGesture();
-        gesture.sneakStart(100L);
-        gesture.sneakEnd(105L);
+        gesture.sneakEnd(100L);
 
-        assertEquals(Outcome.MOBILITY, gesture.sneakStart(125L), "exactly 20 ticks is inside");
-    }
+        gesture.close();
 
-    @Test
-    void abilitiesStillWorkAfterAMobility() {
-        BedrockAbilityGesture gesture = new BedrockAbilityGesture();
-        gesture.sneakStart(100L);
-        gesture.sneakEnd(105L);
-        gesture.sneakStart(110L);
-
-        assertEquals(Outcome.SIGNATURE, gesture.attack(SNEAKING), "a double tap also arms");
-        assertEquals(Outcome.UTILITY, gesture.use(SNEAKING));
+        assertEquals(Outcome.NONE, gesture.sneakStart(110L));
     }
 }

@@ -50,20 +50,12 @@ public final class BedrockAbilityListener implements Listener {
         // crouches, and the next crouch reads as the second tap of a double tap.
         if (!event.isSneaking()) {
             gestureFor(player).sneakEnd(Bukkit.getCurrentTick());
-            FMMBedrockBridge.debugLog("[PHASE74] controls DISARMED for " + player.getName());
             return;
         }
 
-        if (!armed(player)) {
-            FMMBedrockBridge.debugLog("[PHASE74] sneak from " + player.getName() + " — not armed");
-            return;
-        }
+        if (!armed(player)) return;
 
-        BedrockAbilityGesture.Outcome outcome = gestureFor(player).sneakStart(Bukkit.getCurrentTick());
-        if (outcome == BedrockAbilityGesture.Outcome.NONE) {
-            FMMBedrockBridge.debugLog("[PHASE74] controls ARMED for " + player.getName());
-        }
-        dispatch(player, outcome, null);
+        dispatch(player, gestureFor(player).sneakStart(Bukkit.getCurrentTick()), null);
     }
 
     @EventHandler(priority = EventPriority.NORMAL, ignoreCancelled = true)
