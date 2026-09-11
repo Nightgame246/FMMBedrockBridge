@@ -1,5 +1,8 @@
 package de.crazypandas.fmmbedrockbridge.bridge;
 
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
 /**
  * Phase 7.5 — strips Java resource-pack font glyphs from text headed for a Bedrock client.
  *
@@ -21,6 +24,10 @@ package de.crazypandas.fmmbedrockbridge.bridge;
  * font hits the same wall on Bedrock.
  */
 public final class BedrockGlyphFilter {
+
+    private static final Pattern VALUE_PAIR = Pattern.compile("[0-9]+\\s*/\\s*[0-9]+");
+    private static final Pattern LEADING_COLOURS = Pattern.compile("^(§[0-9a-fk-orx])+");
+    private static final Pattern PROSE = Pattern.compile(".*[A-Za-zÄÖÜäöüß]{3,}.*", Pattern.DOTALL);
 
     private static final char PUA_FIRST = '';
     private static final char PUA_LAST = '';
@@ -83,6 +90,35 @@ public final class BedrockGlyphFilter {
             out.append(c);
         }
         return out.toString().trim();
+    }
+
+    /**
+     * Splits EliteMobs' message off a stripped HUD line, or {@code null} when there is none.
+     *
+     * <p>EliteMobs' {@code ActionBarCompositor} mixes sources into one packet: the HUD and a
+     * message such as "Teleportiere in 3 Sekunden…" arrive together. The HUD's last element is
+     * always a "current/maximum" pair, so everything after the final pair is the message.
+     *
+     * <p>It is returned <b>verbatim</b>. An earlier version scrubbed digits to tell prose from
+     * numbers and handed back the scrubbed text — which turned "Not enough Stamina (20 required)"
+     * into "Not enough Stamina (  required)".
+     */
+    public static String messageAfterHud(String stripped) {
+        if (stripped == null || stripped.isEmpty()) return null;
+
+        Matcher pair = VALUE_PAIR.matcher(stripped);
+        int messageStart = -1;
+        while (pair.find()) {
+            messageStart = pair.end();
+        }
+        if (messageStart < 0) return null;
+
+        String tail = stripped.substring(messageStart).trim();
+        tail = LEADING_COLOURS.matcher(tail).replaceAll("").trim();
+        if (tail.isEmpty()) return null;
+
+        // Letters make it prose; a stray separator is not a message.
+        return PROSE.matcher(tail).matches() ? tail : null;
     }
 
     private static boolean isGlyph(char c) {

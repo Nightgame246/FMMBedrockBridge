@@ -80,7 +80,12 @@ public final class BedrockAbilityListener implements Listener {
         dispatch(player, outcome, () -> event.setCancelled(true));
     }
 
-    @EventHandler(priority = EventPriority.NORMAL, ignoreCancelled = true)
+    // ignoreCancelled is deliberately FALSE here: on 11.09.2026 not a single interact event
+    // showed up in the diagnosis, and with ignoreCancelled=true a cancelled event never reaches
+    // the handler at all — so "Geyser sends nothing" and "another plugin cancels it" look
+    // identical. Seeing the event is what tells them apart; a cancelled one is still ignored
+    // for firing purposes below.
+    @EventHandler(priority = EventPriority.NORMAL, ignoreCancelled = false)
     public void onInteract(PlayerInteractEvent event) {
         Player player = event.getPlayer();
         Action action = event.getAction();
@@ -91,8 +96,12 @@ public final class BedrockAbilityListener implements Listener {
         if (FMMBedrockBridge.isDebugEnabled() && isBedrock(player)) {
             FMMBedrockBridge.debugLog("[PHASE74] interact from " + player.getName()
                     + ": action=" + action + " hand=" + event.getHand()
-                    + " sneaking=" + player.isSneaking());
+                    + " sneaking=" + player.isSneaking()
+                    + " cancelled=" + event.isCancelled());
         }
+
+        // Firing still respects a cancellation — the diagnosis above is the only reason we see it.
+        if (event.isCancelled()) return;
 
         if (event.getHand() != EquipmentSlot.HAND) return;
         boolean leftClick = action == Action.LEFT_CLICK_AIR || action == Action.LEFT_CLICK_BLOCK;

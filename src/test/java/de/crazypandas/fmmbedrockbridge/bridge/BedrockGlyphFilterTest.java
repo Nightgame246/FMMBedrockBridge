@@ -4,6 +4,7 @@ import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -90,5 +91,39 @@ class BedrockGlyphFilterTest {
         assertFalse(BedrockGlyphFilter.containsGlyphs("HP 332/332"));
         assertFalse(BedrockGlyphFilter.containsGlyphs(""));
         assertFalse(BedrockGlyphFilter.containsGlyphs(null));
+    }
+
+    @Test
+    void keepsTheNumbersInsideAMessage() {
+        // Live on 11.09.2026 this lost its "20": an earlier version scrubbed digits to tell
+        // prose from HUD values and then returned the scrubbed text.
+        String line = "§eAdventurer §7Lv1  §c♥ 60/60  §b8/100 §fAdventurer Not enough Stamina (20 required).";
+
+        assertEquals("§fAdventurer Not enough Stamina (20 required).".replaceFirst("^§f", ""),
+                BedrockGlyphFilter.messageAfterHud(line));
+    }
+
+    @Test
+    void findsTheMessageAfterTheLastValuePair() {
+        String line = "§eAdventurer §7Lv1  §c♥ 60/60  §b92/100 EM] Teleportiere in 3 Sekunden...";
+
+        assertEquals("EM] Teleportiere in 3 Sekunden...", BedrockGlyphFilter.messageAfterHud(line));
+    }
+
+    @Test
+    void aPlainHudCarriesNoMessage() {
+        assertNull(BedrockGlyphFilter.messageAfterHud("§eAdventurer §7Lv1  §c♥ 60/60  §b8/100"));
+    }
+
+    @Test
+    void aTrailingSeparatorIsNotAMessage() {
+        assertNull(BedrockGlyphFilter.messageAfterHud("§eAdventurer 60/60  8/100  ·"));
+    }
+
+    @Test
+    void handlesLinesWithoutAnyValuePair() {
+        assertNull(BedrockGlyphFilter.messageAfterHud("just some text"));
+        assertNull(BedrockGlyphFilter.messageAfterHud(null));
+        assertNull(BedrockGlyphFilter.messageAfterHud(""));
     }
 }
