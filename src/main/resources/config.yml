@@ -88,10 +88,16 @@ phase73:
 # weder auf Controller noch auf Touch. Bedrock-Spieler können damit KEINE aktive
 # Fähigkeit auslösen. Details: docs/upstream-bugs/em-advanced-combat-bedrock-input-lockout.md
 #
-# Diese Phase übersetzt den Chord auf Schleichen:
-#   Schleichen, Schleichen  -> Mobility
-#   Schleichen + Angriff    -> Signature
-#   Schleichen + Benutzen   -> Utility
+# Diese Phase übersetzt das auf Schleichen — als GEHALTENEN Modifikator, nicht als
+# Zeitfenster. Solange geschlichen wird, ist die Steuerung scharf:
+#   Linksklick              -> Signature (beliebig oft)
+#   Rechtsklick             -> Utility   (beliebig oft)
+#   Loslassen + neu ducken  -> Mobility
+#   Loslassen               -> Steuerung aus
+#
+# Frühere Fassungen hatten hier ein Zeitfenster nach EliteMobs' Vorbild. Das passt zu einem
+# Tastendruck, nicht zu einem Zustand: im Spieltest am 11.09. lief es beim Zielen ab, und nach
+# der ersten Fähigkeit war es verbraucht, obwohl der Spieler noch geduckt war.
 #
 # Java-Spieler sind nicht betroffen und behalten EMs Originalsteuerung.
 phase74:
@@ -101,12 +107,6 @@ phase74:
   # Advanced Combat System aus, keine Klasse gewählt, oder außerhalb von Dungeon/Match.
   bedrock-abilities: true
 
-  # Sicherheitsnetz: Der Chord ist offen, SOLANGE geschlichen wird — dieser Wert deckelt das
-  # nur nach oben, damit niemand dauerhaft geduckt im Faehigkeiten-Modus herumlaeuft.
-  # 200 Ticks = 10 s. Frueher standen hier 40 (2 s); das war eine Stoppuhr und hat im ersten
-  # Spieltest am 11.09. dafuer gesorgt, dass nur "Schleichen, Schleichen" erreichbar war —
-  # schleichen, zielen und zuschlagen dauert auf einem Controller laenger.
-  chord-max-ticks: 200
 
   # Wenn true, ist die Steuerung nur im Kampf bzw. in Dungeons scharf. Auf false
   # gesetzt löst auch normales Schleichen beim Bauen Fähigkeiten aus — nicht empfohlen.

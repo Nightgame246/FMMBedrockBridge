@@ -9,129 +9,120 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * EliteMobs binds its three ability slots to an F-chord that Bedrock clients cannot produce.
- * This mirrors that chord onto sneak. The state machine is the only part with real logic, so
- * it is kept free of Bukkit types and covered here rather than in-game.
+ * This mirrors it onto sneak — but as a held modifier, not as a chord that gets spent.
  *
- * <p>The "still sneaking" tests exist because of a real failure: the first in-game run on
- * 11.09.2026 could only reach MOBILITY. The chord was a fixed 2s stopwatch that ignored whether
- * the player was still crouched, and sneaking-then-striking takes longer than that on a
- * controller. The chord must live as long as the sneak does.
+ * <p>Both of the in-game failures from 11.09.2026 are pinned down here, so they cannot come
+ * back: aiming that takes longer than a fixed window, and a second ability after a first one.
  */
 class BedrockAbilityGestureTest {
 
-    private static final long MAX = 200L;
     private static final boolean SNEAKING = true;
     private static final boolean RELEASED = false;
 
     @Test
-    void firstSneakOpensTheChordWithoutFiring() {
-        BedrockAbilityGesture gesture = new BedrockAbilityGesture(MAX);
+    void firstSneakArmsTheControlsWithoutFiring() {
+        BedrockAbilityGesture gesture = new BedrockAbilityGesture();
 
-        assertEquals(Outcome.NONE, gesture.sneakStart(100L), "opening must not fire an ability");
-        assertTrue(gesture.isOpen(100L, SNEAKING));
+        assertEquals(Outcome.NONE, gesture.sneakStart(), "arming must not fire an ability");
+        assertTrue(gesture.isArmed(SNEAKING));
     }
 
     @Test
-    void secondSneakFiresMobility() {
-        BedrockAbilityGesture gesture = new BedrockAbilityGesture(MAX);
-        gesture.sneakStart(100L);
+    void sneakingAgainWhileArmedFiresMobility() {
+        BedrockAbilityGesture gesture = new BedrockAbilityGesture();
+        gesture.sneakStart();
 
-        assertEquals(Outcome.MOBILITY, gesture.sneakStart(110L));
+        assertEquals(Outcome.MOBILITY, gesture.sneakStart());
     }
 
     @Test
-    void attackWhileStillSneakingFiresSignature() {
-        BedrockAbilityGesture gesture = new BedrockAbilityGesture(MAX);
-        gesture.sneakStart(100L);
+    void leftClickWhileSneakingFiresSignature() {
+        BedrockAbilityGesture gesture = new BedrockAbilityGesture();
+        gesture.sneakStart();
 
-        assertEquals(Outcome.SIGNATURE, gesture.attack(105L, SNEAKING));
+        assertEquals(Outcome.SIGNATURE, gesture.attack(SNEAKING));
     }
 
     @Test
-    void useWhileStillSneakingFiresUtility() {
-        BedrockAbilityGesture gesture = new BedrockAbilityGesture(MAX);
-        gesture.sneakStart(100L);
+    void rightClickWhileSneakingFiresUtility() {
+        BedrockAbilityGesture gesture = new BedrockAbilityGesture();
+        gesture.sneakStart();
 
-        assertEquals(Outcome.UTILITY, gesture.use(105L, SNEAKING));
+        assertEquals(Outcome.UTILITY, gesture.use(SNEAKING));
     }
 
     @Test
-    void aimingTakesTimeAndTheChordMustSurviveIt() {
-        // The regression that broke the first in-game test: sneak, aim, strike. Three seconds
-        // pass, which the old fixed 2s window silently swallowed.
-        BedrockAbilityGesture gesture = new BedrockAbilityGesture(MAX);
-        gesture.sneakStart(100L);
+    void severalAbilitiesInOneCrouchAllFire() {
+        // The second in-game failure: after UTILITY fired, six left clicks in a row were
+        // rejected with "no open chord (sneaking=true)". Holding sneak must stay armed.
+        BedrockAbilityGesture gesture = new BedrockAbilityGesture();
+        gesture.sneakStart();
 
-        assertEquals(Outcome.SIGNATURE, gesture.attack(160L, SNEAKING), "3s of aiming is normal");
+        assertEquals(Outcome.UTILITY, gesture.use(SNEAKING));
+        assertEquals(Outcome.SIGNATURE, gesture.attack(SNEAKING), "still crouched, still armed");
+        assertEquals(Outcome.SIGNATURE, gesture.attack(SNEAKING));
+        assertEquals(Outcome.UTILITY, gesture.use(SNEAKING));
     }
 
     @Test
-    void releasingSneakClosesTheChord() {
-        BedrockAbilityGesture gesture = new BedrockAbilityGesture(MAX);
-        gesture.sneakStart(100L);
+    void armingSurvivesAnyAmountOfAiming() {
+        // The first in-game failure: a fixed two-second window expired while the player aimed.
+        // There is no timer any more, so this holds no matter how long it takes.
+        BedrockAbilityGesture gesture = new BedrockAbilityGesture();
+        gesture.sneakStart();
 
-        assertFalse(gesture.isOpen(105L, RELEASED));
-        assertEquals(Outcome.NONE, gesture.attack(105L, RELEASED),
-                "a player who stopped crouching is not holding the modifier any more");
+        assertTrue(gesture.isArmed(SNEAKING));
+        assertEquals(Outcome.SIGNATURE, gesture.attack(SNEAKING));
     }
 
     @Test
-    void firingClosesTheChordSoTheNextInputDoesNotFireAgain() {
-        BedrockAbilityGesture gesture = new BedrockAbilityGesture(MAX);
-        gesture.sneakStart(100L);
+    void releasingSneakDisarms() {
+        BedrockAbilityGesture gesture = new BedrockAbilityGesture();
+        gesture.sneakStart();
 
-        assertEquals(Outcome.SIGNATURE, gesture.attack(105L, SNEAKING));
-        assertEquals(Outcome.NONE, gesture.attack(106L, SNEAKING), "a closed chord must stay quiet");
-        assertFalse(gesture.isOpen(106L, SNEAKING));
+        assertFalse(gesture.isArmed(RELEASED));
+        assertEquals(Outcome.NONE, gesture.attack(RELEASED));
     }
 
     @Test
-    void mobilityAlsoClosesTheChord() {
-        // Same invariant as above, for the path that fires through sneakStart.
-        BedrockAbilityGesture gesture = new BedrockAbilityGesture(MAX);
-        gesture.sneakStart(100L);
+    void aReleaseIsRememberedEvenWithoutItsOwnEvent() {
+        // The listener does not get a "sneak end" of its own, so seeing sneaking == false once
+        // has to disarm for good — otherwise a later click would still fire.
+        BedrockAbilityGesture gesture = new BedrockAbilityGesture();
+        gesture.sneakStart();
+        gesture.isArmed(RELEASED);
 
-        assertEquals(Outcome.MOBILITY, gesture.sneakStart(110L));
-        assertFalse(gesture.isOpen(111L, SNEAKING));
-        assertEquals(Outcome.NONE, gesture.attack(111L, SNEAKING));
+        assertEquals(Outcome.NONE, gesture.attack(SNEAKING),
+                "crouching again must go through sneakStart, not sneak back in through a click");
     }
 
     @Test
-    void theSafetyNetStillExpiresAnEndlessCrouch() {
-        // Someone walking around crouched must not stay armed forever.
-        BedrockAbilityGesture gesture = new BedrockAbilityGesture(MAX);
-        gesture.sneakStart(100L);
+    void clicksBeforeAnySneakDoNothing() {
+        BedrockAbilityGesture gesture = new BedrockAbilityGesture();
 
-        assertEquals(Outcome.NONE, gesture.attack(301L, SNEAKING), "200 ticks is the cap");
-        assertFalse(gesture.isOpen(301L, SNEAKING));
+        assertEquals(Outcome.NONE, gesture.attack(SNEAKING));
+        assertEquals(Outcome.NONE, gesture.use(SNEAKING));
     }
 
     @Test
-    void theWindowBoundaryItselfStillCounts() {
-        BedrockAbilityGesture gesture = new BedrockAbilityGesture(MAX);
-        gesture.sneakStart(100L);
-
-        assertEquals(Outcome.SIGNATURE, gesture.attack(300L, SNEAKING), "tick 100+200 is inside");
-    }
-
-    @Test
-    void sneakingAgainAfterExpiryReopensRatherThanFiring() {
-        BedrockAbilityGesture gesture = new BedrockAbilityGesture(MAX);
-        gesture.sneakStart(100L);
-
-        assertEquals(Outcome.NONE, gesture.sneakStart(400L), "expired chord reopens, never fires");
-        assertTrue(gesture.isOpen(400L, SNEAKING));
-    }
-
-    @Test
-    void closeSilencesAnOpenChord() {
+    void closeDisarmsExplicitly() {
         // Used on death, world change and quit.
-        BedrockAbilityGesture gesture = new BedrockAbilityGesture(MAX);
-        gesture.sneakStart(100L);
+        BedrockAbilityGesture gesture = new BedrockAbilityGesture();
+        gesture.sneakStart();
 
         gesture.close();
 
-        assertFalse(gesture.isOpen(101L, SNEAKING));
-        assertEquals(Outcome.NONE, gesture.attack(101L, SNEAKING));
+        assertFalse(gesture.isArmed(SNEAKING));
+        assertEquals(Outcome.NONE, gesture.attack(SNEAKING));
+    }
+
+    @Test
+    void reArmingAfterAReleaseWorks() {
+        BedrockAbilityGesture gesture = new BedrockAbilityGesture();
+        gesture.sneakStart();
+        gesture.isArmed(RELEASED);
+
+        assertEquals(Outcome.NONE, gesture.sneakStart(), "a fresh crouch arms, it does not fire");
+        assertEquals(Outcome.SIGNATURE, gesture.attack(SNEAKING));
     }
 }

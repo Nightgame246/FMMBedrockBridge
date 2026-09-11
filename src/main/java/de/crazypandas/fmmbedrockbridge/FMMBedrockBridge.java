@@ -109,14 +109,13 @@ public class FMMBedrockBridge extends JavaPlugin {
                     de.crazypandas.fmmbedrockbridge.bridge.AdvancedCombatHook hook =
                             new de.crazypandas.fmmbedrockbridge.bridge.AdvancedCombatHook();
                     // The listener reads its config per event, like every other phase, instead
-                    // of freezing it here — so a chord-max-ticks change during the playtest only
-                    // needs the config reloaded, not the whole server restarted.
+                    // of freezing it here — so a switch flipped during the playtest only needs
+                    // the config reloaded, not the whole server restarted.
                     getServer().getPluginManager().registerEvents(
                             new de.crazypandas.fmmbedrockbridge.bridge.BedrockAbilityListener(hook),
                             this);
-                    log.info("Phase 7.4: Bedrock ability input registered (sneak chord, max "
-                            + getPhase74ChordMaxTicks() + " ticks, require-combat="
-                            + isPhase74RequireCombat() + ")");
+                    log.info("Phase 7.4: Bedrock ability input registered (sneak-held controls,"
+                            + " require-combat=" + isPhase74RequireCombat() + ")");
                 } catch (Throwable t) {
                     // Alpha package: this feature may break, the plugin must not.
                     log.warning("Phase 7.4: registration failed, Bedrock ability input disabled. Cause: " + t);
@@ -202,10 +201,6 @@ public class FMMBedrockBridge extends JavaPlugin {
         return plugin != null && plugin.getConfig().getBoolean("phase74.bedrock-abilities", true);
     }
 
-    public static long getPhase74ChordMaxTicks() {
-        FMMBedrockBridge plugin = instance;
-        return plugin != null ? plugin.getConfig().getLong("phase74.chord-max-ticks", 200L) : 200L;
-    }
 
     public static boolean isPhase74RequireCombat() {
         FMMBedrockBridge plugin = instance;

@@ -4,18 +4,27 @@ package de.crazypandas.fmmbedrockbridge.bridge;
  * Phase 7.4 — sneak-based replacement for EliteMobs' F-chord, which Bedrock clients cannot
  * produce (Bedrock has no offhand-swap control).
  *
- * <p><b>Sneak is held, not tapped.</b> EliteMobs' {@code CHORD_WINDOW_TICKS = 12} is tuned for a
- * key <i>press</i>; sneak is a <i>state</i>. The chord therefore stays open for as long as the
- * player keeps sneaking, and {@code maxOpenTicks} is only a safety net against someone walking
- * around crouched with the controls permanently armed.
+ * <p><b>Sneak is a modifier you hold, not a chord you spend.</b> EliteMobs opens a short window
+ * with a key <i>press</i> and consumes it with the next input — sensible for a keypress. Sneak is
+ * a <i>state</i>, and a state cannot be spent: a player who is still crouched still means it.
  *
- * <p>The first in-game test (11.09.2026) showed why this matters: with a fixed 2s window and no
- * sneak check, only "sneak, sneak" was reachable — sneaking, aiming and then striking regularly
- * takes longer than two seconds on a controller, so SIGNATURE and UTILITY never fired.
+ * <p>Two in-game runs on 11.09.2026 made that concrete. First a fixed two-second stopwatch let
+ * only "sneak, sneak" through, because aiming takes longer than that on a controller. Then, with
+ * the timer relaxed, the log showed six left clicks in a row rejected with
+ * {@code no open chord (sneaking=true)} — the player was still crouched, but an earlier UTILITY
+ * had already consumed the chord. Both times the cause was the same borrowed metaphor.
  *
- * <p>Sneak <i>end</i> is deliberately not an input of its own: closing on it would make
- * "sneak, sneak" impossible, since the second start requires releasing first. The chord simply
- * stops being open once {@code sneaking} is false.
+ * <p>So the rule is simply: while the player sneaks, the controls are armed.
+ *
+ * <table>
+ *   <tr><td>left click</td><td>SIGNATURE, as often as the player likes</td></tr>
+ *   <tr><td>right click</td><td>UTILITY, as often as the player likes</td></tr>
+ *   <tr><td>release and sneak again</td><td>MOBILITY</td></tr>
+ *   <tr><td>release</td><td>controls disarmed</td></tr>
+ * </table>
+ *
+ * <p>Firing no longer closes anything; EliteMobs enforces its own cooldowns and resource costs,
+ * so repeat presses cost nothing we would have to police here.
  *
  * <p>No Bukkit types here — tick and sneak state are passed in, so this is unit-testable
  * without a server.
@@ -24,62 +33,49 @@ public final class BedrockAbilityGesture {
 
     public enum Outcome { NONE, MOBILITY, SIGNATURE, UTILITY }
 
-    private final long maxOpenTicks;
-
-    private boolean open;
-    private long openedAtTick;
-
-    public BedrockAbilityGesture(long maxOpenTicks) {
-        this.maxOpenTicks = maxOpenTicks;
-    }
+    /** True between a sneak start and the moment the player is seen no longer sneaking. */
+    private boolean armed;
 
     /**
-     * Sneak start: opens the chord, or fires MOBILITY when one is already open.
+     * Sneak start: arms the controls, or fires MOBILITY when they are armed already.
      *
-     * <p>No sneak flag needed — a sneak start <i>is</i> the proof that the player is sneaking.
+     * <p>Staying armed afterwards is deliberate — releasing and crouching again is simply
+     * MOBILITY once more.
      */
-    public Outcome sneakStart(long tick) {
-        if (isOpen(tick, true)) {
-            close();
-            return Outcome.MOBILITY;
-        }
-        open = true;
-        openedAtTick = tick;
+    public Outcome sneakStart() {
+        if (armed) return Outcome.MOBILITY;
+        armed = true;
         return Outcome.NONE;
     }
 
     /** @param sneaking whether the player is still crouched at this moment */
-    public Outcome attack(long tick, boolean sneaking) {
-        return fire(tick, sneaking, Outcome.SIGNATURE);
+    public Outcome attack(boolean sneaking) {
+        return fire(sneaking, Outcome.SIGNATURE);
     }
 
     /** @param sneaking whether the player is still crouched at this moment */
-    public Outcome use(long tick, boolean sneaking) {
-        return fire(tick, sneaking, Outcome.UTILITY);
+    public Outcome use(boolean sneaking) {
+        return fire(sneaking, Outcome.UTILITY);
     }
 
-    private Outcome fire(long tick, boolean sneaking, Outcome outcome) {
-        if (!isOpen(tick, sneaking)) return Outcome.NONE;
-        close();
+    private Outcome fire(boolean sneaking, Outcome outcome) {
+        if (!isArmed(sneaking)) return Outcome.NONE;
         return outcome;
     }
 
-    /** The window this gesture was built with — lets the listener spot a config change. */
-    public long maxOpenTicks() {
-        return maxOpenTicks;
-    }
-
     /**
-     * A chord counts as open while the player still sneaks and the safety net has not run out.
+     * The controls are armed while the player crouches. Seeing {@code sneaking == false} also
+     * disarms them, so a release is noticed even without a dedicated event.
      *
      * @param sneaking whether the player is crouched right now
      */
-    public boolean isOpen(long tick, boolean sneaking) {
-        return open && sneaking && tick - openedAtTick <= maxOpenTicks;
+    public boolean isArmed(boolean sneaking) {
+        if (!sneaking) armed = false;
+        return armed;
     }
 
-    /** Drops an open chord — used on death, world change and quit. */
+    /** Disarms explicitly — used on death, world change and quit. */
     public void close() {
-        open = false;
+        armed = false;
     }
 }

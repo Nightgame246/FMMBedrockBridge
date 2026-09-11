@@ -1,7 +1,6 @@
 package de.crazypandas.fmmbedrockbridge.bridge;
 
 import de.crazypandas.fmmbedrockbridge.FMMBedrockBridge;
-import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
@@ -50,9 +49,9 @@ public final class BedrockAbilityListener implements Listener {
             return;
         }
 
-        BedrockAbilityGesture.Outcome outcome = gestureFor(player).sneakStart(Bukkit.getCurrentTick());
+        BedrockAbilityGesture.Outcome outcome = gestureFor(player).sneakStart();
         if (outcome == BedrockAbilityGesture.Outcome.NONE) {
-            FMMBedrockBridge.debugLog("[PHASE74] chord OPEN for " + player.getName());
+            FMMBedrockBridge.debugLog("[PHASE74] controls ARMED for " + player.getName());
         }
         dispatch(player, outcome, null);
     }
@@ -62,11 +61,10 @@ public final class BedrockAbilityListener implements Listener {
         if (!(event.getDamager() instanceof Player player)) return;
         if (!armed(player)) return;
 
-        BedrockAbilityGesture.Outcome outcome =
-                gestureFor(player).attack(Bukkit.getCurrentTick(), player.isSneaking());
+        BedrockAbilityGesture.Outcome outcome = gestureFor(player).attack(player.isSneaking());
         if (outcome == BedrockAbilityGesture.Outcome.NONE) {
-            FMMBedrockBridge.debugLog("[PHASE74] attack from " + player.getName()
-                    + " — no open chord (sneaking=" + player.isSneaking() + ")");
+            FMMBedrockBridge.debugLog("[PHASE74] hit from " + player.getName()
+                    + " — controls not armed (sneaking=" + player.isSneaking() + ")");
         }
         // Cancel the swing that opened the chord, otherwise the player also hits.
         dispatch(player, outcome, () -> event.setCancelled(true));
@@ -88,13 +86,13 @@ public final class BedrockAbilityListener implements Listener {
         // thin air has to work, exactly like UTILITY does. The EntityDamageByEntityEvent handler
         // stays as the second path, for the case where the swing actually connects with a mob.
         BedrockAbilityGesture gesture = gestureFor(player);
-        long tick = Bukkit.getCurrentTick();
         BedrockAbilityGesture.Outcome outcome = leftClick
-                ? gesture.attack(tick, player.isSneaking())
-                : gesture.use(tick, player.isSneaking());
+                ? gesture.attack(player.isSneaking())
+                : gesture.use(player.isSneaking());
         if (outcome == BedrockAbilityGesture.Outcome.NONE) {
             FMMBedrockBridge.debugLog("[PHASE74] " + (leftClick ? "left" : "right") + " click from "
-                    + player.getName() + " — no open chord (sneaking=" + player.isSneaking() + ")");
+                    + player.getName() + " — controls not armed (sneaking="
+                    + player.isSneaking() + ")");
         }
         // Cancel so the player does not also place a block or open a container.
         dispatch(player, outcome, () -> event.setCancelled(true));
@@ -131,18 +129,12 @@ public final class BedrockAbilityListener implements Listener {
     }
 
     /**
-     * Config is read per event like in every other phase, so a {@code chord-max-ticks} change
-     * takes effect on the next reload instead of the next server restart. A gesture keeps the
-     * value it was built with, so one whose window no longer matches the configured value is
-     * replaced — an open chord is dropped in that moment, which is the right call after a
-     * deliberate config change.
+     * One gesture per player, created on first use and dropped on quit. It holds no timing any
+     * more — arming follows the sneak state alone — so there is nothing here that a config
+     * change could invalidate.
      */
     private BedrockAbilityGesture gestureFor(Player player) {
-        long maxOpenTicks = FMMBedrockBridge.getPhase74ChordMaxTicks();
-        return gestures.compute(player.getUniqueId(), (uuid, existing) ->
-                existing != null && existing.maxOpenTicks() == maxOpenTicks
-                        ? existing
-                        : new BedrockAbilityGesture(maxOpenTicks));
+        return gestures.computeIfAbsent(player.getUniqueId(), uuid -> new BedrockAbilityGesture());
     }
 
     /**
