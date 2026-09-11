@@ -73,19 +73,28 @@ public final class BedrockAbilityListener implements Listener {
     }
 
     @EventHandler(priority = EventPriority.NORMAL, ignoreCancelled = true)
-    public void onUse(PlayerInteractEvent event) {
+    public void onInteract(PlayerInteractEvent event) {
         if (event.getHand() != EquipmentSlot.HAND) return;
         Action action = event.getAction();
-        if (action != Action.RIGHT_CLICK_AIR && action != Action.RIGHT_CLICK_BLOCK) return;
+        boolean leftClick = action == Action.LEFT_CLICK_AIR || action == Action.LEFT_CLICK_BLOCK;
+        boolean rightClick = action == Action.RIGHT_CLICK_AIR || action == Action.RIGHT_CLICK_BLOCK;
+        if (!leftClick && !rightClick) return;
 
         Player player = event.getPlayer();
         if (!armed(player)) return;
 
-        BedrockAbilityGesture.Outcome outcome =
-                gestureFor(player).use(Bukkit.getCurrentTick(), player.isSneaking());
+        // EliteMobs binds SIGNATURE to the left click itself, not to landing a hit: its
+        // onChordInteract routes LEFT_CLICK_AIR and LEFT_CLICK_BLOCK to leftClick(). Swinging at
+        // thin air has to work, exactly like UTILITY does. The EntityDamageByEntityEvent handler
+        // stays as the second path, for the case where the swing actually connects with a mob.
+        BedrockAbilityGesture gesture = gestureFor(player);
+        long tick = Bukkit.getCurrentTick();
+        BedrockAbilityGesture.Outcome outcome = leftClick
+                ? gesture.attack(tick, player.isSneaking())
+                : gesture.use(tick, player.isSneaking());
         if (outcome == BedrockAbilityGesture.Outcome.NONE) {
-            FMMBedrockBridge.debugLog("[PHASE74] use from " + player.getName()
-                    + " — no open chord (sneaking=" + player.isSneaking() + ")");
+            FMMBedrockBridge.debugLog("[PHASE74] " + (leftClick ? "left" : "right") + " click from "
+                    + player.getName() + " — no open chord (sneaking=" + player.isSneaking() + ")");
         }
         // Cancel so the player does not also place a block or open a container.
         dispatch(player, outcome, () -> event.setCancelled(true));

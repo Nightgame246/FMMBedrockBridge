@@ -53,9 +53,10 @@ public final class BedrockGlyphFilter {
         boolean pendingSpace = false;
         for (int i = 0; i < text.length(); i++) {
             char c = text.charAt(i);
-            if (isGlyph(c)) continue;
-            if (c == ' ') {
-                // Remember the space instead of writing it; a run of them collapses to one.
+            // A glyph run separated two readable parts — "56/60" and "92/100" sit either side of
+            // a bar with no space between them. Dropping the run outright glues them into
+            // "56/6092/100", so a run becomes exactly one space.
+            if (isGlyph(c) || c == ' ') {
                 pendingSpace = out.length() > 0;
                 continue;
             }
