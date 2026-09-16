@@ -14,24 +14,52 @@
 > Remote keinen Commit mehr und lässt sich nicht pullen — er muss weg und frisch geklont
 > werden. Anleitung und Grund: `../HANDOFF.md`, Kopfblock und „Sicherheitsvorfall".
 >
-> 🔵 **Neu seit 11.09.: Phase 7.4 + 7.5 auf eigenem Branch, deployt auf TestServer01,
+> 🔵 **Neu seit 11.09.: Phase 7.4 auf eigenem Branch, deployt auf TestServer01,
 > in-game noch NICHT final abgenommen.** Die älteren Phasen (BossBar + HP-Nametag) sind
 > unverändert live verifiziert: 7.1a am 14.08., 7.1b/7.1c am 16.08. per A/B-Test,
 > Boot-Gegenprobe am 09.09.
+>
+> 🔴 **Phase 7.5 ist am 16.09.2026 wieder ausgebaut worden — EliteMobs 10.9.1 macht das
+> selbst.** Details im Abschnitt unten.
 
 
-### Was Phase 7.4 und 7.5 sind
+### Was Phase 7.4 ist
 
 **7.4 — Bedrock-Eingabe für EMs Klassen-Fähigkeiten.** EliteMobs 10.9.0 bindet sie an einen
 F-Chord; `F` ist der Offhand-Tausch, den Bedrock auf keinem Gerät hat. Konsolenspieler können
 ohne die Bridge **keine einzige** aktive Fähigkeit auslösen. Wir übersetzen das auf Schleichen.
 
-**7.5 — Bedrock-HUD.** EMs Combat-HUD wird aus einer Java-Resource-Pack-Schrift gezeichnet;
-689 der 703 Glyphen liegen in der Private Use Area, wo Bedrock seine eigenen Item-Symbole hat.
-Ergebnis in-game: hunderte Rüstungs- und Karotten-Icons über dem halben Bildschirm, fünfmal pro
-Sekunde neu — der Client laggt sich fest. Screenshots: `../references/screenshots/`.
-Die Bridge ersetzt das für Bedrock durch eine eigene Textzeile aus EMs öffentlichen Snapshots.
-**Java-Spieler behalten das grafische HUD unverändert.**
+Das bleibt nötig: EliteMobs kennt das Problem (`fLayerSupported()` ist schlicht
+`!BedrockChecker.isBedrock(player)`, im Input-Router steht *„Bedrock has no F-key input"*),
+liefert aber **keinen** Ersatz.
+
+### Phase 7.5 — ausgebaut am 16.09.2026
+
+**Was sie war.** EMs Combat-HUD wird aus einer Java-Resource-Pack-Schrift gezeichnet; 689 der
+703 Glyphen liegen in der Private Use Area, wo Bedrock seine eigenen Item-Symbole hat. Ergebnis
+in-game: hunderte Rüstungs- und Karotten-Icons über dem halben Bildschirm, fünfmal pro Sekunde
+neu — der Client laggt sich fest. Screenshots: `../references/screenshots/`. Die Bridge fing
+deshalb Actionbar-Pakete ab, filterte die Glyphen und ersetzte das HUD durch eine eigene
+Textzeile aus EMs öffentlichen Snapshots.
+
+**Warum sie weg ist.** EliteMobs 10.9.1 hat genau das selbst eingebaut
+(*„Fixed … combat HUD fallback for Bedrock players"*). In `ActionBarCompositor.render()` steht
+die Bedingung für den grafischen HUD jetzt so, dass Bedrock gar nicht erst hineinläuft:
+
+```java
+// CLASS_HUD and ability feedback remain published below as the resource-pack-free fallback.
+if (isEnableCombatHud() && !BedrockChecker.isBedrock(player) && … ) { … grafisch …; return; }
+```
+
+Bedrock bekommt damit nie wieder Glyphen aus dem Combat-HUD. Unser Filter wäre ein reiner
+No-Op geworden — und kein billiger: er serialisierte **jedes** Actionbar-Paket an jeden
+Bedrock-Spieler auf dem Netty-Thread, bevor er überhaupt prüfen konnte, ob Glyphen drin sind.
+EM sendet rund fünfmal pro Sekunde.
+
+Entfernt wurden `BedrockGlyphFilter` (+ 18 Tests), `AdvancedCombatHook.hudLine()`, der
+Glyph-Zweig im `PacketInterceptor` samt Selbstabschaltung und der Config-Block `phase75`.
+Historie: dieser Branch vor dem Commit vom 16.09.2026 („Phase 7.5 ausgebaut, Rueckmeldung
+ueber EMs Compositor").
 
 Design: `docs/specs/2026-09-11-bedrock-ability-input-design.md` ·
 Plan: `docs/plans/2026-09-11-bedrock-ability-input.md` ·
@@ -94,11 +122,18 @@ EliteMobs die Steuerung nicht frei — dort ist Stille das korrekte Verhalten, k
 
 - `[PHASE74] interact from …: action=… hand=… sneaking=… cancelled=…` — was Geyser wirklich
   schickt, **vor** jeder Prüfung
-- `[PHASE75] raw: '§f##60/60##…'` — die Rohstruktur des HUD-Pakets, Glyphen als `#`
 - `[PHASE74] … failed: <GRUND>` — EliteMobs hat abgelehnt, nicht wir
+- `[PHASE74] compositor call failed, falling back to sendActionBar: …` — EMs
+  `ActionBarCompositor` war da, hat aber beim Aufruf geworfen; die Rückmeldung geht ab da
+  wieder direkt raus und wird vom Klassen-HUD überschrieben
 
-Diese drei Zeilen sind aus Fehlern entstanden: Ohne sie war jedes Mal unklar, ob ein Event
+Diese Zeilen sind aus Fehlern entstanden: Ohne sie war jedes Mal unklar, ob ein Event
 fehlt, verworfen wird oder EliteMobs ablehnt — und jede Vermutung darüber war falsch.
+
+Im Boot-Log steht außerdem, welchen Weg die Rückmeldung nimmt:
+`Phase 7.4: Bedrock ability input registered (…, feedback=true, compositor=ABILITY_INPUT)`.
+Steht dort `compositor=unavailable`, hat MagmaGuy die Klasse verschoben — dann schreibt die
+Bridge wieder direkt und das Feedback flackert.
 
 ### Danach: Branch abschließen
 

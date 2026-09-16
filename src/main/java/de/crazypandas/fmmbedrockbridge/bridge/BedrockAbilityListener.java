@@ -199,7 +199,9 @@ public final class BedrockAbilityListener implements Listener {
 
         if (consumeInput != null) consumeInput.run();
         if (FMMBedrockBridge.isPhase74FeedbackEnabled() && result.message() != null) {
-            player.sendActionBar(result.message());
+            // Through EliteMobs' compositor, not straight to the client — see EliteMobsActionBar
+            // for why a direct write loses against the permanently published class HUD.
+            EliteMobsActionBar.show(player, result.message());
         }
     }
 }

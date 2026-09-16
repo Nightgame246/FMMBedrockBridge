@@ -1771,3 +1771,89 @@ das des Zielsystems, verwandelt jede Eingabe in einen Verlust.
 `mvn -o clean test` grün, **37 Tests**. Deployment/Spieltest offen — die Phase ist bisher nur
 gebaut, nicht in-game verifiziert; wegen Punkt 2 bitte **in einem Dungeon** testen, im offenen
 Gelände ist Stille das erwartete Verhalten.
+
+---
+
+## Session: 2026-09-16 — Phase 7.5 ausgebaut, Feedback über EMs Compositor
+
+Anlass war die MagmaGuy-Welle vom 11.–15.09.: EliteMobs steht inzwischen bei **10.9.4**,
+FMM bei 2.12.2, RPM bei 2.4.3, BetterStructures bei 2.7.3. TestServer01 läuft noch auf der
+11.09.-Generation (EM 10.9.0 · FMM 2.12.0 · RPM 2.4.0 · BS 2.7.1).
+
+### 1. Phase 7.5 ist überflüssig geworden
+
+EliteMobs 10.9.1 hat den Bedrock-Fallback für sein Combat-HUD selbst eingebaut. In
+`ActionBarCompositor.render()` (Zeile 256 ff. im Master vom 16.09.) schließt die Bedingung für
+den grafischen HUD Bedrock explizit aus:
+
+```java
+// CLASS_HUD and ability feedback remain published below as the resource-pack-free fallback.
+if (isEnableCombatHud() && !BedrockChecker.isBedrock(player)
+        && isPluginEnabled("ResourcePackManager") && isActive(player)) { … return; }
+```
+
+Damit kommen bei Bedrock-Spielern keine Font-Glyphen mehr an, und unser Filter wäre ein reiner
+No-Op gewesen — allerdings kein kostenloser: `handleActionBarGlyphs` serialisierte **jedes**
+Actionbar-Paket auf dem Netty-Thread, bevor `containsGlyphs` überhaupt prüfen konnte. EM sendet
+rund fünfmal pro Sekunde.
+
+Entfernt: `BedrockGlyphFilter` (+ `BedrockGlyphFilterTest`, 18 Tests), `AdvancedCombatHook.hudLine()`,
+der Glyph-Zweig im `PacketInterceptor` samt `HUD_GLYPH_THRESHOLD`, Selbstabschaltung und
+`setAdvancedCombatHook`, dazu `isPhase75Enabled()` und der Config-Block `phase75`.
+
+### 2. Die eigentliche Kollision saß woanders
+
+`phase74.feedback` stand auf `false`, und die Begründung im Code war schon die richtige: „ein
+zweiter Schreiber im selben Tick flackert". Der Grund ist seit 10.9.0 struktureller, als er
+damals aussah — EliteMobs besitzt die Actionbar jetzt allein:
+
+- `AdvancedCombatRuntime` rendert über `runTaskTimer(…, 1L, 1L)`, also **jeden Tick**
+- `CLASS_HUD` ist mit `defaultDurationTicks = -1` **persistent** publiziert
+- Keepalive alle 40 Ticks, sofortiges Neu-Rendern bei jeder Vitals-Änderung
+
+Ein `player.sendActionBar()` verliert dagegen immer. Der Compositor schlichtet aber nach
+Priorität statt nach „wer schrieb zuletzt", und EM hat für genau unseren Fall eine Quelle:
+
+```java
+ABILITY_INPUT(310, 40, Encoding.LEGACY)   // gegen CLASS_HUD(100, -1, LEGACY)
+```
+
+Die Klassendoku nennt den Zweck ausdrücklich: *„combat feedback can cover it temporarily without
+destroying it."*
+
+Neu ist `bridge/EliteMobsActionBar` — auflösen per `Class.forName`, nie per Import, dieselbe
+Firewall wie in `AdvancedCombatSupport`. Fällt die Auflösung aus, geht die Meldung wieder direkt
+raus (falsch, aber harmlos) statt den Listener mitzureißen. Am **Artefakt** belegt statt am
+Master, siehe Punkt 4: `javap` auf `EliteMobs-10.9.0.jar` zeigt
+`public static void show(Player, Source, String)` und die Konstante `ABILITY_INPUT`.
+
+`phase74.feedback` steht damit auf **`true`**.
+
+### 3. Was die Tests jetzt absichern
+
+`EliteMobsActionBarTest` prüft nicht nur unsere Auflösung, sondern drei **Upstream-Verträge**:
+`ABILITY_INPUT` hat höhere Priorität als `CLASS_HUD`, ist nicht persistent, und lebt zwischen 1
+und 100 Ticks. Dreht MagmaGuy eine dieser Eigenschaften, bricht der Build — statt dass das
+Feedback in-game still gegen das HUD verliert, was von außen wie „die Geste hat nicht
+ausgelöst" aussieht.
+
+### 4. Was daraus zu lernen ist
+
+Wieder „am Artefakt belegen": Die Frage, ob `ActionBarCompositor` und `ABILITY_INPUT` schon in
+der Version existieren, gegen die das pom baut (10.9.0), war nicht aus dem GitHub-Master zu
+beantworten — der stand bei 10.9.4 plus WIP. `unzip -l` und `javap` auf die JAR im lokalen `.m2`
+haben es in einer Minute geklärt.
+
+Und: **wenn Upstream das Problem selbst löst, ist der eigene Workaround kein Gewinn mehr, sondern
+Wartungslast.** 7.5 hätte weiterlaufen können, ohne dass jemand etwas gemerkt hätte — als toter
+Code, der auf dem Netty-Thread Pakete serialisiert.
+
+### 5. Stand
+
+`bash verify-both-apis.sh` grün — **beide** API-Generationen (26.2 und 1.21.10), **43 Tests**,
+Class-File-Version 69. Artefakt: `target/FMMBedrockBridge-0.1.0-SNAPSHOT-20260916-1734.jar`.
+
+**Nicht verifiziert ist die Wirkung in-game.** Ob die Rückmeldung über den Compositor auf einem
+Bedrock-Client tatsächlich stehen bleibt, lässt sich nur dort sehen — wie bei jeder
+Bedrock-Frage. Sinnvolle Reihenfolge: erst TestServer01 auf EM 10.9.4 + FMM 2.12.2 heben, dann
+diese JAR deployen, dann im Dungeon testen.

@@ -153,11 +153,12 @@ phase71c:
 | `bridge/AdvancedCombatHook` | Phase 7.4: the ONLY class that imports EM's internal, [Alpha] `advancedcombat` package. Runtime gate (`canUseAbilities`) + `fire` into `useAbility`, everything wrapped against LinkageError |
 | `bridge/AdvancedCombatSupport` | Phase 7.4: startup probe for EM's Advanced Combat classes — by name via `Class.forName`, deliberately without an import, so a renamed package cannot take the bridge down at class-load time |
 | `bridge/AbilityFeedback` | Phase 7.4: pure mapper from an EM failure-reason name to the optional plain-text action-bar line (no custom fonts — Bedrock cannot resolve Java font providers) |
+| `bridge/EliteMobsActionBar` | Phase 7.4: publishes that line through EliteMobs' own `ActionBarCompositor` (source `ABILITY_INPUT`, priority 310 vs. the class HUD's 100) instead of writing to the client. Resolved by name like `AdvancedCombatSupport`; falls back to a direct `sendActionBar` when the compositor is gone |
 | `elite/QuestMenuContext` | Phase 7.3b: opaque carrier record for the recovered quest menu context |
 | `elite/EliteMobsHook` | Soft-dep wrapper around EliteMobs' stable API (`com.magmaguy.elitemobs.api.*`); since Phase 7.1c/7.4 no longer the only EM importer — `BedrockCombatTrigger` and `AdvancedCombatHook` import EM too; incl. Phase 7.3 reflection wrappers for EM's native status dialog, and Phase 7.3b `tryRecoverQuestMenu` + `openNativeQuestDialog` reflection into EM's `QuestInventoryMenu` static maps |
 | `commands/FMMBridgeCommand` | `/fmmbridge debug` — shows active controllers, ready Bedrock players, suppressed UUIDs |
 
-24 classes under `src/main/java`. The pre-refactor bridge was 27 classes + a Geyser Extension; both archived under the git tag mentioned above.
+25 classes under `src/main/java`. The pre-refactor bridge was 27 classes + a Geyser Extension; both archived under the git tag mentioned above.
 
 > **Phase 7.2b removed (2026-06-14):** EM 2D UI items (legacy `custom_model_data` overrides on `minecraft:emerald` and similar base items) are now handled natively by ResourcePackManager 2.0.2 via `GenericJavaScanner.scanLegacyCustomModelOverrides` (legacy `→` Bedrock conversion, 10 of 12 EM UI icons). The bridge no longer injects `item_model` or generates/ships an `em_bridge_pack.mcpack`. Known Bedrock/Geyser limitation: the 2 banner-based icons (`green_banner`+CMD31173→`boxinput`, `red_banner`+CMD31173→`boxoutput`, used in EM's enchantment/"Verzauberer" and elite-scroll menus) do **not** render on Bedrock — Geyser cannot apply custom-item-v2 to banner base items (block-entity/pattern-rendered). This is a known upstream-pending gap; see `docs/upstream-bugs/em-banner-ui-items-bedrock.md`.
 
@@ -209,9 +210,15 @@ Konfiguration: Block `phase74` in der `config.yml`. Der Startwert für `chord-ma
 werden **pro Event** aus der Config gelesen (wie in jeder anderen Phase), nicht beim Registrieren
 eingefroren — ein erneutes Laden der Config reicht also aus. Einen eigenen Reload-Befehl hat die
 Bridge noch nicht; bis dahin ist ein Plugin-Reload der Weg.
-`phase74.feedback` steht **standardmäßig auf `false`**: EliteMobs meldet Erfolg und die vier
-Fehlerfälle bereits über seine eigene Actionbar (`ActionBarCompositor` mit Keepalive-Loop), ein
-zweiter Schreiber im selben Tick flackert.
+`phase74.feedback` steht **seit 16.09.2026 standardmäßig auf `true`**. Vorher war es `false`,
+weil die Meldung per `player.sendActionBar()` direkt an den Client ging und dort binnen ein, zwei
+Ticks von EliteMobs' Klassen-HUD überschrieben wurde: EM hält die Actionbar seit 10.9.0 über
+`ActionBarCompositor` dauerhaft belegt (`CLASS_HUD` persistent, Keepalive alle 40 Ticks) und
+rendert bei jeder HP-Änderung sofort neu — im Kampf also praktisch jeden Tick. Die Rückmeldung
+geht jetzt durch denselben Compositor (`Source.ABILITY_INPUT`), der nach Priorität schlichtet
+statt nach „wer schrieb zuletzt": 310 gegen 100, Lebensdauer 40 Ticks. Genau der Fall, den EMs
+eigene Klassendoku beschreibt — *„combat feedback can cover it temporarily without destroying
+it"*. Siehe `bridge/EliteMobsActionBar`.
 
 - Design: `docs/specs/2026-09-11-bedrock-ability-input-design.md`
 - Upstream gemeldet: `docs/upstream-bugs/em-advanced-combat-bedrock-input-lockout.md`

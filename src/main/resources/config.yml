@@ -112,25 +112,13 @@ phase74:
   # gesetzt löst auch normales Schleichen beim Bauen Fähigkeiten aus — nicht empfohlen.
   require-combat: true
 
-  # Zusätzliche Rückmeldung in der Actionbar (reiner Text — EMs grafisches HUD nutzt
-  # Java-Font-Provider, die Bedrock nicht darstellen kann).
-  # Standardmäßig AUS: EliteMobs meldet Erfolg und die vier Fehlerfälle bereits selbst
-  # über seine eigene Actionbar (mit Keepalive-Loop). Einschalten kann deshalb mit EMs
-  # Anzeige kollidieren und im selben Tick flackern.
-  feedback: false
-
-# Phase 7.5 — Java-Font-Glyphen aus Bedrock-Actionbars entfernen
-#
-# EliteMobs 10.9.0 zeichnet sein Combat-HUD mit einer eigenen Java-Resource-Pack-Schrift:
-# Balken bestehen aus hunderten winziger Glyphen, die auf Java zu einem Bild verschmelzen.
-# Bedrock kennt die Schrift nicht und legt dieselben Zeichen auf sein EIGENES Symbolblatt —
-# aus jedem Balkenstueck wird ein volles Item-Icon. Gemessen am 11.09.2026: 689 der 703
-# HUD-Glyphen liegen in der Private Use Area (U+E000-U+F8FF). In-game fuellte das den halben
-# Bildschirm mit Ruestungs- und Karotten-Symbolen und hat den Client lahmgelegt.
-#
-# Diese Phase entfernt fuer Bedrock-Spieler genau diese Zeichen aus Actionbar-Paketen.
-# Uebrig bleibt der lesbare Text. Java-Spieler sind nicht betroffen und behalten ihr HUD.
-phase75:
-  # Auf false setzen, falls ResourcePackManager irgendwann Java-Fonts nach Bedrock
-  # konvertiert — dann wuerde der Filter funktionierende Glyphen wegwerfen.
-  strip-java-font-glyphs: true
+  # Zusätzliche Rückmeldung in der Actionbar: welche Fähigkeit ausgelöst hat, bzw. warum
+  # EliteMobs sie abgelehnt hat.
+  #
+  # Standardmäßig AN seit 16.09.2026. Vorher stand hier false, weil die Meldung direkt an
+  # den Client ging und dort von EliteMobs' Klassen-HUD binnen ein, zwei Ticks überschrieben
+  # wurde — EM hält seit 10.9.0 die Actionbar dauerhaft belegt und rendert bei jeder
+  # HP-Änderung neu. Die Rückmeldung läuft jetzt über EMs eigenen ActionBarCompositor
+  # (Quelle ABILITY_INPUT, Priorität 310 gegen 100 des HUD), deshalb verdrängen sich
+  # die beiden nicht mehr.
+  feedback: true

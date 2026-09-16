@@ -108,9 +108,6 @@ public class FMMBedrockBridge extends JavaPlugin {
                 try {
                     de.crazypandas.fmmbedrockbridge.bridge.AdvancedCombatHook hook =
                             new de.crazypandas.fmmbedrockbridge.bridge.AdvancedCombatHook();
-                    // Phase 7.5 needs the hook too: it replaces EliteMobs' glyph HUD for Bedrock
-                    // players with a line built from the same values.
-                    if (bridge != null) bridge.getPacketInterceptor().setAdvancedCombatHook(hook);
                     // The listener reads its config per event, like every other phase, instead
                     // of freezing it here — so a switch flipped during the playtest only needs
                     // the config reloaded, not the whole server restarted.
@@ -118,7 +115,13 @@ public class FMMBedrockBridge extends JavaPlugin {
                             new de.crazypandas.fmmbedrockbridge.bridge.BedrockAbilityListener(hook),
                             this);
                     log.info("Phase 7.4: Bedrock ability input registered (sneak-held controls,"
-                            + " require-combat=" + isPhase74RequireCombat() + ")");
+                            + " require-combat=" + isPhase74RequireCombat()
+                            + ", feedback=" + isPhase74FeedbackEnabled()
+                            + ", compositor=" + (de.crazypandas.fmmbedrockbridge.bridge.EliteMobsActionBar.isAvailable()
+                                    ? "ABILITY_INPUT"
+                                    : "unavailable, direct write ("
+                                        + de.crazypandas.fmmbedrockbridge.bridge.EliteMobsActionBar.unavailableReason() + ")")
+                            + ")");
                 } catch (Throwable t) {
                     // Alpha package: this feature may break, the plugin must not.
                     log.warning("Phase 7.4: registration failed, Bedrock ability input disabled. Cause: " + t);
@@ -210,16 +213,12 @@ public class FMMBedrockBridge extends JavaPlugin {
         return plugin != null && plugin.getConfig().getBoolean("phase74.require-combat", true);
     }
 
-    public static boolean isPhase75Enabled() {
-        FMMBedrockBridge plugin = instance;
-        return plugin != null && plugin.getConfig().getBoolean("phase75.strip-java-font-glyphs", true);
-    }
-
     public static boolean isPhase74FeedbackEnabled() {
         FMMBedrockBridge plugin = instance;
-        // Default OFF: EliteMobs reports ability failures itself through its ActionBarCompositor
-        // (with a keepalive re-render loop), so a second writer in the same tick flickers.
-        return plugin != null && plugin.getConfig().getBoolean("phase74.feedback", false);
+        // Default ON since 16.09.2026. It shipped disabled because a direct sendActionBar lost
+        // against EliteMobs' permanently published class HUD; the feedback now goes through that
+        // same compositor at a higher priority, so the two no longer fight. See EliteMobsActionBar.
+        return plugin != null && plugin.getConfig().getBoolean("phase74.feedback", true);
     }
 
 }
