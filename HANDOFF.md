@@ -1,6 +1,6 @@
 # HANDOFF — FMMBedrockBridge
 
-> Arbeitsstand **dieses Plugins**. Stand: **2026-09-11**  ·  Branch: **`phase-7.4-bedrock-ability-input`** (25 Commits, **nicht** gemerged)
+> Arbeitsstand **dieses Plugins**. Stand: **2026-09-20**  ·  Branch: **`phase-7.4-bedrock-ability-input`** (26 Commits, **nicht** gemerged)
 >
 > ⚠️ **Der Einstieg steht eine Ebene höher: `../HANDOFF.md`.**
 > Dort liegen Bootstrap, Session-Ende-Protokoll, Build-Vorbereitung am neuen PC und die
@@ -21,6 +21,37 @@
 >
 > 🔴 **Phase 7.5 ist am 16.09.2026 wieder ausgebaut worden — EliteMobs 10.9.1 macht das
 > selbst.** Details im Abschnitt unten.
+>
+> 🔵 **Neu am 20.09.: die Bedrock-Erkennung liegt jetzt auf EMs Stand** (`BedrockDetection`,
+> 10 neue Tests, 53 gesamt). Vorher konnte EliteMobs einen Spieler als Bedrock behandeln,
+> während die Bridge ihn für Java hielt — dann bekommt er **von keiner Seite** Eingabe.
+> Abschnitt „Bedrock-Erkennung" unten.
+
+### Bedrock-Erkennung — angeglichen am 20.09.2026
+
+`ViewerManager.isBedrockPlayer()` fragte nur Floodgate. Genau diese Form hat MagmaGuy in der
+Welle vom 16.09. ersetzt (*„Improved Bedrock player detection behind proxies"*, gleichlautend in
+EM 10.9.5, FMM 2.12.3 und RPM 2.4.4).
+
+**Warum das die Bridge trifft:** EMs `fLayerSupported()` ist `!BedrockChecker.isBedrock(player)`.
+Beide Seiten entscheiden anhand derselben Frage, ob ein Spieler Eingabe bekommt. Sagt EM
+„Bedrock" (F-Chord gesperrt) und die Bridge „Java" (Schleich-Geste nicht registriert), hat der
+Spieler **gar keine** Eingabe — die Aussperrung aus dem Upstream-Report vom 11.09., nur still
+und hausgemacht.
+
+Die Entscheidung liegt jetzt in **`BedrockDetection`** (rein, testbar ohne Bukkit, Muster wie
+`RerouteDecision`), Reihenfolge wie in EMs `BedrockChecker`:
+
+1. Floodgate-UUID (`getMostSignificantBits() == 0`) — trägt auch ohne installiertes Plugin
+2. Namensmuster `^\..*\d{4}$` — ein Java-Name kann nie mit `.` beginnen
+3. Floodgate, **dann** Geyser — ein `false` bricht die Kette nicht mehr ab (der eigentliche
+   „behind proxies"-Fix)
+
+Dazu: `isEnabled()` statt bloßer Anwesenheit, und eine fehlende API zählt als „nicht Bedrock",
+statt zu fliegen. Geyser wird reflektiv gefragt (API bewusst nicht im pom; in diesem Netz läuft
+Geyser auf dem Proxy, hier findet die Abfrage also normalerweise nichts).
+
+⚠️ **In-game nicht verifiziert** — wie jede Bedrock-Frage.
 
 
 ### Was Phase 7.4 ist

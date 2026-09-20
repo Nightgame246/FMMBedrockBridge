@@ -10,6 +10,7 @@ import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
+import org.bukkit.plugin.Plugin;
 import org.geysermc.floodgate.api.FloodgateApi;
 
 import java.util.Collections;
@@ -70,9 +71,49 @@ public class ViewerManager implements Listener {
         readyPlayers.removeIf(p -> !p.isOnline());
     }
 
+    /**
+     * Mirrors EliteMobs' own detection order (see {@link BedrockDetection}). Asking Floodgate
+     * alone was too narrow: where EliteMobs recognises a Bedrock player and we do not, it hands
+     * them its pack-free fallback HUD while we withhold ability input — the lockout we reported
+     * upstream, only silent and from our own code.
+     */
     public boolean isBedrockPlayer(Player player) {
+        if (player == null) return false;
+        return BedrockDetection.isBedrock(
+                player.getUniqueId(),
+                player.getName(),
+                () -> floodgateEnabled() && FloodgateApi.getInstance().isFloodgatePlayer(player.getUniqueId()),
+                () -> geyserSaysBedrock(player));
+    }
+
+    /** Present is not enough — a plugin that failed to enable has no usable API. */
+    private boolean floodgateEnabled() {
         if (!floodgateAvailable) return false;
-        return FloodgateApi.getInstance().isFloodgatePlayer(player.getUniqueId());
+        Plugin floodgate = Bukkit.getPluginManager().getPlugin("floodgate");
+        return floodgate != null && floodgate.isEnabled();
+    }
+
+    /**
+     * Geyser sits on the proxy in this network, so this normally finds nothing. It is asked
+     * anyway to stay level with EliteMobs on a setup that runs Geyser-Spigot on the backend.
+     * Reflective because the Geyser API is deliberately not on our classpath.
+     */
+    private boolean geyserSaysBedrock(Player player) {
+        for (String name : new String[]{"Geyser-Spigot", "Geyser-Bukkit", "Geyser"}) {
+            Plugin plugin = Bukkit.getPluginManager().getPlugin(name);
+            if (plugin == null || !plugin.isEnabled()) continue;
+            try {
+                Class<?> api = Class.forName("org.geysermc.geyser.api.GeyserApi");
+                Object instance = api.getMethod("api").invoke(null);
+                if (instance == null) return false;
+                Object connection = api.getMethod("connectionByUuid", java.util.UUID.class)
+                        .invoke(instance, player.getUniqueId());
+                return connection != null;
+            } catch (Throwable ignored) {
+                return false;
+            }
+        }
+        return false;
     }
 
     public static boolean isInRange(Player player, Entity entity) {

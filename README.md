@@ -136,7 +136,8 @@ phase71c:
 | `tracker/FMMEntityTracker` | Polls `ModeledEntityManager.getAllEntities()` every second; calls `bridge.onEntitySpawn/Despawn` |
 | `bridge/BedrockEntityBridge` | Holds the controller maps (BossBar + Nametag), `entityDataMap`, per-tick sync |
 | `bridge/FMMEntityData` | Per-mob holder for the BossBar + Nametag controllers (no rendering — FMM does that) |
-| `bridge/ViewerManager` | Bedrock player tracking via Floodgate, range checks |
+| `bridge/ViewerManager` | Bedrock player tracking, range checks; detection delegated to `BedrockDetection` |
+| `bridge/BedrockDetection` | Pure "is this a Bedrock player" decision, mirroring EliteMobs' own `BedrockChecker` order (Floodgate UUID → name pattern → Floodgate → Geyser). Kept in step with EM on purpose: EM's `fLayerSupported()` asks the same question, and a disagreement leaves the player with no input at all |
 | `bridge/PacketInterceptor` | PacketEvents listener: BossBar suppress, Java-TextDisplay suppress |
 | `bridge/BedrockBossBarController` | Bukkit BossBar lifecycle per boss × Bedrock viewer |
 | `bridge/BedrockNametagController` | TextDisplay lifecycle, combat-state, position/text sync |

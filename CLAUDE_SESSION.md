@@ -1857,3 +1857,67 @@ Class-File-Version 69. Artefakt: `target/FMMBedrockBridge-0.1.0-SNAPSHOT-2026091
 Bedrock-Client tatsächlich stehen bleibt, lässt sich nur dort sehen — wie bei jeder
 Bedrock-Frage. Sinnvolle Reihenfolge: erst TestServer01 auf EM 10.9.4 + FMM 2.12.2 heben, dann
 diese JAR deployen, dann im Dungeon testen.
+
+---
+
+## Session: 2026-09-20
+
+### 1. Was gemacht wurde
+
+**Die Bedrock-Erkennung der Bridge auf EliteMobs' Stand gehoben.** `ViewerManager.isBedrockPlayer()`
+fragte bis hierhin nur Floodgate:
+
+```java
+if (!floodgateAvailable) return false;
+return FloodgateApi.getInstance().isFloodgatePlayer(player.getUniqueId());
+```
+
+Genau diese Form hat MagmaGuy am 16.09. in EliteMobs 10.9.5 ersetzt — Änderungsliste:
+*„Improved Bedrock player detection behind proxies"*, in EM, FMM und RPM gleichlautend.
+Auswertung der Welle: `../server-tools/SERVER-STATE.md`, Änderungs-Log 20.09.
+
+### 2. Warum das mehr ist als Kosmetik
+
+EMs eigenes `fLayerSupported()` ist schlicht `!BedrockChecker.isBedrock(player)`. **Beide Seiten
+entscheiden also anhand derselben Frage, ob ein Spieler Eingabe bekommt** — bisher aber mit
+verschiedenen Antworten. Wo EliteMobs „Bedrock" sagt und die Bridge „Java", gilt:
+
+| | EliteMobs | Bridge | Ergebnis für den Spieler |
+|---|---|---|---|
+| F-Chord | gesperrt (kein F auf Bedrock) | — | keine Eingabe |
+| Schleich-Geste | — | nicht registriert (gilt als Java) | keine Eingabe |
+
+Das ist die Aussperrung, die wir am 11.09. upstream gemeldet haben — nur still und aus unserem
+eigenen Code. Mit gleicher Reihenfolge auf beiden Seiten schließt das Fenster.
+
+### 3. Wie es gebaut ist
+
+Neue Klasse **`BedrockDetection`** — reine Entscheidung, testbar ohne Bukkit/Floodgate/Geyser,
+nach dem Muster von `RerouteDecision`. Reihenfolge wie in EMs `BedrockChecker`:
+
+1. **Floodgate-UUID** (`getMostSignificantBits() == 0`) — trägt auch ohne installiertes Plugin
+2. **Namensmuster** `^\..*\d{4}$` — ein Java-Name kann nie mit `.` beginnen, also kollisionsfrei
+3. **Floodgate**, dann **Geyser** — und zwar *nacheinander*: ein `false` von Floodgate fällt jetzt
+   zu Geyser durch statt die Kette abzubrechen. **Das ist der eigentliche „behind proxies"-Fix.**
+
+Dazu in `ViewerManager`: `isEnabled()` statt bloßer Anwesenheit, und `LinkageError`/`RuntimeException`
+aus einer fehlenden API zählen als „nicht Bedrock" statt zu fliegen. Die Geyser-Abfrage ist
+reflektiv, weil die Geyser-API bewusst nicht im pom steht — in diesem Netz läuft Geyser ohnehin
+auf dem Proxy, die Abfrage findet hier also normalerweise nichts.
+
+### 4. Stand
+
+**10 neue Tests**, TDD gefahren (erst rot: 7 von 10 an den Assertions, dann grün).
+`bash verify-both-apis.sh` grün — beide API-Generationen (26.2 und 1.21.10), **53 Tests**,
+Class-File-Version 69.
+
+**Nicht verifiziert ist die Wirkung in-game** — wie bei jeder Bedrock-Frage. Die Erkennung ist
+jetzt breiter, nicht schmaler; ein Fehlverhalten wäre also ein Java-Spieler, der Bedrock-Eingabe
+bekommt, und dafür müsste er eine Floodgate-UUID oder einen `.`-Namen haben.
+
+### 5. Nebenbefund zur Werkzeugkette
+
+Auf diesem PC gibt es **kein `mvn`** und kein IntelliJ unter den Pfaden, die `verify-both-apis.sh`
+durchprobiert (`/usr/share/idea/...`, `/opt/idea/...`) — nur ein gefülltes `~/.m2`. Gebaut wurde
+mit einem portablen Maven 3.9.9 im Scratchpad. Wenn hier öfter gearbeitet wird, lohnt
+`sudo pacman -S maven`.
