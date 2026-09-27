@@ -76,8 +76,18 @@ public final class BedrockAbilityListener implements Listener {
      */
     @EventHandler(priority = EventPriority.NORMAL, ignoreCancelled = true)
     public void onHotbar(PlayerItemHeldEvent event) {
-        if (!FMMBedrockBridge.isPhase74HotbarKeysEnabled()) return;
         Player player = event.getPlayer();
+
+        // Diagnosis before any gate, same reason as in onInteract: without it a MOBILITY in the
+        // log cannot be told apart from a double crouch, nor a SIGNATURE from a swing.
+        if (FMMBedrockBridge.isDebugEnabled() && isBedrock(player)) {
+            FMMBedrockBridge.debugLog("[PHASE74] hotbar from " + player.getName()
+                    + ": slot " + (event.getPreviousSlot() + 1) + " -> " + (event.getNewSlot() + 1)
+                    + " sneaking=" + player.isSneaking()
+                    + " enabled=" + FMMBedrockBridge.isPhase74HotbarKeysEnabled());
+        }
+
+        if (!FMMBedrockBridge.isPhase74HotbarKeysEnabled()) return;
         if (!armed(player)) return;
 
         BedrockAbilityGesture.Outcome outcome =
