@@ -93,9 +93,14 @@ public final class BedrockAbilityListener implements Listener {
 
         BedrockAbilityGesture.Outcome outcome =
                 gestureFor(player).hotbar(player.isSneaking(), event.getNewSlot());
-        // Cancelled only when EliteMobs took it: the player keeps the item they held, exactly
-        // like EliteMobs does for Java's chord.
-        dispatch(player, outcome, () -> event.setCancelled(true));
+        if (outcome == BedrockAbilityGesture.Outcome.NONE) return;
+        // Unlike a click, the key is consumed even when EliteMobs rejects the ability. Measured
+        // on 27.09.2026: with the stamina empty, EliteMobs answers INVALID_PLAYER ("Not enough
+        // Stamina"), and a switch consumed only on success swapped the item instead. EliteMobs
+        // does the same for Java's chord — its consumesInput() holds for every ability outcome,
+        // successful or not. A key meant as an ability never doubles as an item switch.
+        event.setCancelled(true);
+        dispatch(player, outcome, null);
     }
 
     @EventHandler(priority = EventPriority.NORMAL, ignoreCancelled = true)

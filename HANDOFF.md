@@ -181,8 +181,13 @@ in den Artefakten 10.9.0 und 10.9.5 per `javap` belegt).
    (geleert auf Quit, MONITOR): der `PacketInterceptor` fragt bei jedem Entity-Paket auf dem
    Netty-Thread, und ein Java-Spieler liefe sonst jedes Mal bis zur Geyser-Reflection durch.
    Phasen 7.3 und 7.4 registrieren sich weiter nur, wenn Floodgate installiert ist.
-4. `INVALID_PLAYER` kam im Test dreimal binnen sechs Sekunden — EliteMobs' Ablehnung, nicht
-   unsere. Vermutlich kurz außerhalb des freigegebenen Bereichs; nicht weiter verfolgt.
+4. ~~`INVALID_PLAYER` … vermutlich kurz außerhalb des freigegebenen Bereichs~~ — **widerlegt am
+   27.09.:** EliteMobs meldet `INVALID_PLAYER` auch bei **zu wenig Ausdauer**
+   (`AdvancedCombatModule.useAbility`, „Not enough Stamina (x/y required)"), außerdem bei Transport,
+   inaktiven Klassen-Controls und ohne gewählte Klasse. Aus dem Grund allein ist also nicht ablesbar,
+   warum abgelehnt wurde — EMs eigene Chat-/Actionbar-Meldung sagt es.
+   Folge-Fix: Hotbar-Tasten werden seitdem **immer** verbraucht, wenn sie eine Fähigkeit meinen —
+   vorher wechselte bei leerer Ausdauer das Item.
 
 ### Wenn etwas nicht stimmt
 
