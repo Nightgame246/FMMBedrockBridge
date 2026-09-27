@@ -1,6 +1,6 @@
 # HANDOFF — FMMBedrockBridge
 
-> Arbeitsstand **dieses Plugins**. Stand: **2026-09-20**  ·  Branch: **`phase-7.4-bedrock-ability-input`** (26 Commits, **nicht** gemerged)
+> Arbeitsstand **dieses Plugins**. Stand: **2026-09-27**  ·  Branch: **`phase-7.4-bedrock-ability-input`** (31 Commits vor `main`, **nicht** gemerged)
 >
 > ⚠️ **Der Einstieg steht eine Ebene höher: `../HANDOFF.md`.**
 > Dort liegen Bootstrap, Session-Ende-Protokoll, Build-Vorbereitung am neuen PC und die
@@ -26,6 +26,11 @@
 > 10 neue Tests, 53 gesamt). Vorher konnte EliteMobs einen Spieler als Bedrock behandeln,
 > während die Bridge ihn für Java hielt — dann bekommt er **von keiner Seite** Eingabe.
 > Abschnitt „Bedrock-Erkennung" unten.
+
+> 🟢 **Neu am 27.09.: Phase 7.4 ist in-game abgenommen** — Schleichen + Hotbar-Taste
+> (1/7 · 2/8 · 3/9) als zweite Geste, weil Rechtsklick in die Luft mit leerer Hand gar kein
+> Paket schickt. Dazu pom auf FMM 2.12.3 / EM 10.9.5 / PacketEvents 2.14.0. Abschnitt
+> „HIER WEITERMACHEN" unten.
 
 ### Bedrock-Erkennung — angeglichen am 20.09.2026
 
@@ -121,31 +126,58 @@ Klassen setzen ohne Instructor-Trial: `/em class test set <player> <class> <leve
 
 ---
 
-## ▶ HIER WEITERMACHEN (Stand 11.09.2026, Sitzungsende)
+## ▶ HIER WEITERMACHEN (Stand 27.09.2026, Sitzungsende)
 
-**Als Allererstes:** TestServer01 **neu starten** — die JAR von 23:34 liegt drauf, der
-laufende Server hat sie noch nicht geladen. Danach in-game testen.
+### Stand: Phase 7.4 in-game abgenommen ✅
 
-### Was zu testen ist
+Spieltest von Fabi am 27.09. im Dungeon, mit leerer Hand, auf dem Test-JAR `c080ed5`:
+17 × `handled=true` (Utility 4, Signature 3, Mobility 10), **keine** `interact`-Zeile — Utility
+kam also nachweislich über die Hotbar-Taste. Actionbar-Hinweis laut Fabi „hat gepasst".
 
-| Geste | erwartet |
+| Geste (geduckt) | löst aus |
 |---|---|
-| Schleichen halten + **Linksklick** | Signature |
-| Schleichen halten + **Rechtsklick** | Utility |
-| Ducken, kurz loslassen, wieder ducken | Mobility |
+| **Linksklick** (Luft oder Block) | Signature |
+| **Rechtsklick auf einen Block** | Utility |
+| **Ducken, loslassen, wieder ducken** | Mobility |
+| **Hotbar-Taste 1 / 7** | Mobility |
+| **Hotbar-Taste 2 / 8** | Signature |
+| **Hotbar-Taste 3 / 9** | Utility |
+| Hotbar-Taste 4–6 | nichts, normaler Item-Wechsel |
 
-Dazu die Bar ansehen: Klassenname · Level · ♥ HP · Ressource, und dahinter EMs eigene
-Meldungen **mit ihren Zahlen** (z. B. `Dodge! -20 Stamina`, `Not enough Stamina (20/100
-required)`).
+Beim bewussten Ducken steht die Belegung in der Actionbar, mit den Fähigkeitsnamen der Klasse:
+`[1/2×Ducken] Dash  [2/Links] Wirbel  [3/Rechts] Schild`. Hält der Spieler gerade Slot 1–3,
+wird die Spiegeltaste 7–9 angezeigt — **von EliteMobs übernommen** (`openGesture()`), weil ein
+Client für den bereits gehaltenen Slot keinen Wechsel meldet.
 
-⚠️ **Der Test muss in einer EliteMobs-Welt oder einem Dungeon stattfinden.** Draußen gibt
-EliteMobs die Steuerung nicht frei — dort ist Stille das korrekte Verhalten, kein Fehler.
+### Der fünfte Irrweg: Rechtsklick in die Luft
 
-### Stand der letzten Rückmeldung (Fabi, 11.09. ~23:40)
+Utility ging bis zum 27.09. nur mit einem Block im Fadenkreuz. Im Log kam Rechtsklick
+**ausschließlich** als `RIGHT_CLICK_BLOCK` an. Grund: Ein Rechtsklick in die Luft ist im Protokoll
+nur ein „Item benutzen"-Paket, und das schickt der Client mit leerer Hand gar nicht (Java genauso).
+Geyser würde es weiterleiten, bekommt es aber nie. **Nicht in der Bridge reparierbar** — deshalb
+die Hotbar-Tasten, nach EliteMobs' eigener Zweitbelegung (`ClassAbilityGestureState.selectHotbar`,
+in den Artefakten 10.9.0 und 10.9.5 per `javap` belegt).
 
-- **Auslösen:** lief gut, „alles hat ausgelöst"
-- **Bar:** gut, bis auf abgeschnittene Meldungen (`required`) — dafür ist die neue
-  Trennung hinter dem Klassennamen da, noch ungetestet
+### Deploy-Stand TestServer01
+
+- Läuft: **Test-JAR `c080ed5`, gegen PacketEvents 2.13.0 gebaut** (sha256 `bc47e341…`), seit
+  27.09. 18:47. Backup des 20.09.-Builds: `FMMBedrockBridge.jar.bak-20260927`.
+- **Noch nicht drauf:** `36ebc6c` (nur die Diagnose-Zeile `[PHASE74] hotbar from …`).
+- ⚠️ **Der Repo-Stand baut gegen PacketEvents 2.14.0** und darf erst auf eine Instanz, die
+  mindestens 2.14.0 hat — TestServer01 und Survival01 haben 2.13.0. Für einen Zwischen-Deploy
+  wie am 27.09. die Version im pom kurz auf 2.13.0 setzen, bauen, pom zurücksetzen.
+
+### Noch offen
+
+1. **Hotbar-Tasten auf Handy/Konsole** — dort blättert LB/RB Slot für Slot; wer dabei schleicht,
+   löst jede Fähigkeit auf dem Weg aus. Nicht getestet. Notfalls `phase74.hotbar-keys: false`.
+2. **Server auf PacketEvents 2.14.0 + EM 10.9.5 / FMM 2.12.3 / BS 2.7.4** — Server-Claude-Sache,
+   PacketEvents läuft über PluginPortal (Tausch-Verfahren vom 09.08. in SERVER-STATE).
+3. **`BedrockAbilityListener.isBedrock()` fragt noch nur Floodgate**, nicht `BedrockDetection`
+   vom 20.09. Hinter dem Proxy mit Floodgate überall unkritisch, aber dieselbe Asymmetrie, die
+   der 20.09.-Fix in `ViewerManager` geschlossen hat.
+4. `INVALID_PLAYER` kam im Test dreimal binnen sechs Sekunden — EliteMobs' Ablehnung, nicht
+   unsere. Vermutlich kurz außerhalb des freigegebenen Bereichs; nicht weiter verfolgt.
 
 ### Wenn etwas nicht stimmt
 
@@ -153,6 +185,8 @@ EliteMobs die Steuerung nicht frei — dort ist Stille das korrekte Verhalten, k
 
 - `[PHASE74] interact from …: action=… hand=… sneaking=… cancelled=…` — was Geyser wirklich
   schickt, **vor** jeder Prüfung
+- `[PHASE74] hotbar from …: slot a -> b sneaking=… enabled=…` — jeder Slot-Wechsel eines
+  Bedrock-Spielers, ebenfalls vor jeder Prüfung (ab `36ebc6c`)
 - `[PHASE74] … failed: <GRUND>` — EliteMobs hat abgelehnt, nicht wir
 - `[PHASE74] compositor call failed, falling back to sendActionBar: …` — EMs
   `ActionBarCompositor` war da, hat aber beim Aufruf geworfen; die Rückmeldung geht ab da
@@ -168,8 +202,8 @@ Bridge wieder direkt und das Feedback flackert.
 
 ### Danach: Branch abschließen
 
-`phase-7.4-bedrock-ability-input` hat 25 Commits und ist **nicht** gemerged. Nach
-erfolgreicher Abnahme: mergen nach `main` oder PR — die Entscheidung steht noch aus.
+`phase-7.4-bedrock-ability-input` hat 31 Commits vor `main` und ist **nicht** gemerged. Die
+Abnahme ist da (27.09.) — mergen nach `main` oder PR, **die Entscheidung steht noch aus**.
 ⚠️ Commit `4dbfe52` hat eine kaputte Message (Trailer ohne Leerzeile am Betreff);
 ein Squash-Merge räumt das mit auf.
 

@@ -1921,3 +1921,54 @@ Auf diesem PC gibt es **kein `mvn`** und kein IntelliJ unter den Pfaden, die `ve
 durchprobiert (`/usr/share/idea/...`, `/opt/idea/...`) — nur ein gefülltes `~/.m2`. Gebaut wurde
 mit einem portablen Maven 3.9.9 im Scratchpad. Wenn hier öfter gearbeitet wird, lohnt
 `sudo pacman -S maven`.
+
+## Session: 2026-09-27
+
+### 1. Versionen und pom (`3801d7f`)
+
+Live gegen Modrinth, GeyserMC und PaperMC abgefragt: die MagmaGuy-Plugins stehen seit der Welle vom
+16.09. still (EM 10.9.5, FMM 2.12.3, RPM 2.4.4, BS 2.7.4). Neu sind PacketEvents **2.14.0** (23.09.,
+26.3-Support), Geyser 2.11.3-b1247, Floodgate b141, Paper 26.2-129, Velocity 4.2.0; Paper 26.3 nur
+als Alpha. pom auf FMM 2.12.3 / EM 10.9.5 / PacketEvents 2.14.0 gehoben — FMM und EM direkt von
+Modrinth, SHA-512 gegen die API geprüft, per `install:install-file` ins `.m2`. Beide API-Generationen
+grün. Geprüfter Stack in `../CLAUDE.md` nachgezogen.
+
+### 2. Spieltest: Utility nur mit Block im Fadenkreuz
+
+Fabi, leere Hand, Schleichen + Rechtsklick: Utility löste nur aus, wenn ein Block anvisiert war.
+Das Debug-Log war eindeutig: Linksklick kam als `LEFT_CLICK_AIR` **und** `LEFT_CLICK_BLOCK`,
+Rechtsklick **nur** als `RIGHT_CLICK_BLOCK`, kein einziges `RIGHT_CLICK_AIR`. Kam einer an, lief
+`UTILITY (handled=true)` — die Bridge wertete richtig aus, bekam aber nichts.
+
+Ursache: Rechtsklick in die Luft ist nur ein „Item benutzen"-Paket, und das schickt der Client mit
+leerer Hand nicht (Java genauso). Geyser (`BedrockInventoryTransactionTranslator`, CLICK_AIR →
+`session.useItem`) würde es weiterleiten. **Auf dem Backend nicht reparierbar.**
+
+### 3. Lösung: Hotbar-Tasten nach EliteMobs' Vorbild (`c080ed5`, `36ebc6c`)
+
+EliteMobs hat im F-Fenster selbst eine Zweitbelegung: Hotbar 1/7 Mobility, 2/8 Signature, 3/9
+Utility (`ClassAbilityGestureState.selectHotbar`, in 10.9.0 und 10.9.5 per `javap` belegt, nicht nur
+am GitHub-Master). Fabi entschied sich gegen eine eigene Gruppierung 1–3/4–6/7–9 und für EMs Zahlen.
+
+- `BedrockAbilityGesture.hotbar(sneaking, slot)` — die Zuordnung, 4–6 bleiben Item-Wechsel
+- `BedrockAbilityListener.onHotbar(PlayerItemHeldEvent)` — Slot-Wechsel wird nur verbraucht, wenn
+  EliteMobs die Eingabe angenommen hat; Diagnose-Zeile `[PHASE74] hotbar from …` vor jedem Gate
+- Hinweis in der Actionbar beim bewussten Ducken (`AbilityFeedback.controlsHint`), mit EMs
+  Spiegeltaste 7/8/9 für den gehaltenen Slot (abgeschaut aus `ClassAbilityInputRouter.openGesture`).
+  `isDeliberateCrouch` verhindert, dass Geysers Flattern ihn neu zeigt und so die Bestätigung
+  einer eben ausgelösten Fähigkeit überdeckt
+- `AdvancedCombatHook.abilityName` — Fähigkeitsnamen für den Hinweis
+- Neuer Schalter `phase74.hotbar-keys` (Standard `true`), wegen Konsole: LB/RB blättert Slot für Slot
+
+TDD: 9 neue Tests, erst rot, dann grün; 62 gesamt, beide API-Generationen.
+
+### 4. Deploy und Abnahme
+
+Test-JAR gegen PacketEvents **2.13.0** gebaut (Serverstand), auf TestServer01 kopiert, Backup
+`FMMBedrockBridge.jar.bak-20260927`, in SERVER-STATE eingetragen. Fabi hat bei der Gelegenheit ein
+AMP-Update gefahren und alle Instanzen neu gestartet; TestServer01 hatte Autostart aus und kam erst
+von Hand hoch. Boot sauber: `hotbar-keys=true, feedback=true, compositor=ABILITY_INPUT`, 0 Bridge-WARN.
+
+Spieltest: 17 × `handled=true` (Utility 4, Signature 3, Mobility 10), keine `interact`-Zeile —
+Utility kam nachweislich über die Taste. Actionbar-Hinweis laut Fabi korrekt.
+**Phase 7.4 ist damit in-game abgenommen.** Offen: Handy/Konsole, Merge-Entscheidung.
