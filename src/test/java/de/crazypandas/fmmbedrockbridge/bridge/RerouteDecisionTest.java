@@ -4,6 +4,8 @@ import org.junit.jupiter.api.Test;
 
 import static de.crazypandas.fmmbedrockbridge.bridge.RerouteDecision.Action;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class RerouteDecisionTest {
 
@@ -34,5 +36,41 @@ class RerouteDecisionTest {
     void noMatchOrBothDisabledIsNone() {
         assertEquals(Action.NONE, RerouteDecision.resolve(true, false, true, false));
         assertEquals(Action.NONE, RerouteDecision.resolve(false, true, false, true));
+    }
+
+    // --- Phase 7.3c: class menu ------------------------------------------------------------------
+    // EliteMobs' MenuPresentation.supportsDialogs is
+    //   useBookMenus && !isBedrock && !onlyUseBedrockMenus && mc >= 1.21.6
+    // The class menu gets its dialog when Bedrock is the ONLY reason it would be a chest.
+
+    @Test
+    void bedrockPlayerGetsTheClassDialog() {
+        assertTrue(RerouteDecision.classMenuUsesDialog(true, true, true, false, true));
+    }
+
+    @Test
+    void javaPlayersAreNeverRerouted() {
+        // They already get what EliteMobs decided for them — dialog or their chosen chest.
+        assertFalse(RerouteDecision.classMenuUsesDialog(true, false, true, false, true));
+    }
+
+    @Test
+    void aPlayerWhoChoseChestMenusKeepsThem() {
+        assertFalse(RerouteDecision.classMenuUsesDialog(true, true, false, false, true));
+    }
+
+    @Test
+    void theServerWideChestSettingIsRespected() {
+        assertFalse(RerouteDecision.classMenuUsesDialog(true, true, true, true, true));
+    }
+
+    @Test
+    void noDialogsBeforeMinecraft1216() {
+        assertFalse(RerouteDecision.classMenuUsesDialog(true, true, true, false, false));
+    }
+
+    @Test
+    void classRerouteSwitchedOff() {
+        assertFalse(RerouteDecision.classMenuUsesDialog(false, true, true, false, true));
     }
 }

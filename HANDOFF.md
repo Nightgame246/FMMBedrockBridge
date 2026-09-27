@@ -158,6 +158,26 @@ Geyser würde es weiterleiten, bekommt es aber nie. **Nicht in der Bridge repari
 die Hotbar-Tasten, nach EliteMobs' eigener Zweitbelegung (`ClassAbilityGestureState.selectHotbar`,
 in den Artefakten 10.9.0 und 10.9.5 per `javap` belegt).
 
+### Phase 7.3c — Classes-Menü als Formular (27.09., in-game offen)
+
+Befund aus dem Spieltest: `/em` kam als Formular, der Klassen-Knopf darin als **Kiste**.
+EliteMobs baut jede Seite des Klassenmenüs zweimal (Dialog + Kiste) und wählt pro Aufruf in
+`ClassMenuCoordinator.renderer(player)` — für Bedrock immer die Kiste
+(`MenuPresentation.supportsDialogs` enthält `!BedrockChecker.isBedrock`).
+
+Lösung `ClassMenuReroute`: ersetzt beim Start den Kisten-Renderer im Coordinator durch einen
+Stellvertreter (Dynamic Proxy), der Bedrock-Spieler an EMs Dialog-Renderer gibt. Deckt Übersicht,
+Klassenseiten, Steuerungsseite, Trainer-NPC und jede Button-Aktion ab — ohne Titelvergleich, ohne
+aufblitzende Kiste. Nur wenn Bedrock der **einzige** Grund für die Kiste ist. Beim Disable wird
+der Original-Renderer zurückgesetzt. Mechanik (Proxy auf package-private Interface + `private
+final`-Feld tauschen) an einem Nachbau unter Java 25.0.4 geprüft; Feldnamen per `javap` in
+EM 10.9.0 und 10.9.5 identisch.
+
+**Bestandsaufnahme aller Bedrock→Kiste-Stellen in EM (Master 16.09.):** Status (7.3) · Quests
+(7.3b) · **Classes (7.3c)** — das waren alle mit Dialog-Alternative. Party-Menüs haben für Java
+nur klickbare Chat-Buttons, keinen Dialog; dort ist die Kiste für Bedrock die bessere Wahl.
+Quest-Dialog-BossBar, Patrol-Editor, HUD, Wormhole-Marker sind keine Menüs.
+
 ### Deploy-Stand TestServer01
 
 - Läuft: **Test-JAR `c080ed5`, gegen PacketEvents 2.13.0 gebaut** (sha256 `bc47e341…`), seit
