@@ -73,7 +73,7 @@
         <dependency>
             <groupId>com.magmaguy</groupId>
             <artifactId>FreeMinecraftModels</artifactId>
-            <version>2.11.1</version>
+            <version>2.12.3</version>
             <scope>provided</scope>
             <exclusions>
                 <!-- These are shaded into the FMM jar at build time but still
@@ -133,7 +133,7 @@
         <dependency>
             <groupId>com.magmaguy</groupId>
             <artifactId>EliteMobs</artifactId>
-            <version>10.9.0</version>
+            <version>10.9.5</version>
             <scope>provided</scope>
         </dependency>
 
@@ -153,14 +153,13 @@
             <scope>provided</scope>
         </dependency>
 
-        <!-- PacketEvents — 2.13.0 is the first release with Minecraft 26.2 support.
-             Still ships the older protocol versions, so it stays usable on 1.21.x.
-             NOTE: the server must run >= 2.13.0 too before moving to 26.2; the
-             deployed build is 2.12.1 (see HANDOFF). -->
+        <!-- PacketEvents — 2.13.0 was the first release with Minecraft 26.2 support,
+             2.14.0 adds 26.3. Still ships the older protocol versions, so it stays
+             usable on 1.21.x. The server must run at least the version compiled against. -->
         <dependency>
             <groupId>com.github.retrooper</groupId>
             <artifactId>packetevents-spigot</artifactId>
-            <version>2.13.0</version>
+            <version>2.14.0</version>
             <scope>provided</scope>
         </dependency>
 

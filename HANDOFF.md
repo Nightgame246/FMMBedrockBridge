@@ -179,12 +179,9 @@ ein Squash-Merge räumt das mit auf.
 
 - **Der geprüfte Stack steht in `../CLAUDE.md`** („Geprüfter Stack") — nicht hier, damit es
   nur eine Quelle gibt.
-- ⚠️ **Der pom hängt bewusst eine Patch-Version zurück:** FMM **2.11.1** / EM **10.8.0**,
-  während live **2.11.2** / **10.8.1** läuft. `provided`-Deps auf Patch-Level, seit dem
-  14.08.-Build kein Code-Change, also kein Redeploy-Anlass — **Fabis Entscheidung vom 09.09.**
-  Am 09.09. 15:33 live gegengeprüft: die 14.08.-JAR läuft gegen 2.11.2 / 10.8.1 **bruchfrei**
-  (null Bridge-WARN/Exception, netzwerkweit kein `NoSuchMethodError`/`NoSuchFieldError`/
-  `NoClassDefFoundError`). Beim nächsten echten Build-Anlass mitziehen.
+- **Der pom steht seit 27.09.2026 auf dem aktuellen Upstream-Stand:** FMM **2.12.3** /
+  EM **10.9.5** / PacketEvents **2.14.0**. Beide API-Generationen grün, 53 Tests.
+  ⚠️ Das JAR braucht auf dem Server **PacketEvents ≥ 2.14.0**.
 - **`api-version` in `plugin.yml` bleibt `'1.21'`** — Mindestangabe, keine Zielangabe.
   **Nicht „korrigieren".** (Begründung in `../CLAUDE.md`.)
 - **Bedrock-Rendering ist nie im Log verifizierbar**, nur in-game.
@@ -509,10 +506,8 @@ Was von der Bridge **vielleicht** noch übrig bleibt (zu prüfen!):
    ~~Case-Sensitivity im RPM-Geyser-Bridge-Pfad~~ ✅ **von MagmaGuy in RPM 2.3.1 gefixt**
    (`BEDROCK_PACK_PATHS` probiert beide Schreibweisen, Kommentar *„Velocity's default data
    directory is lowercase"*) — Entwurf als erledigt markiert, nicht mehr einreichen.
-4. **Beim nächsten echten Build-Anlass: pom auf FMM 2.11.2 / EM 10.8.1 mitziehen.** Aktuell
-   bewusst eine Patch-Version zurück (s. Abschnitt 0). Kein eigener Anlass — der 09.09.-Boot
-   belegt, dass die 14.08.-JAR gegen 2.11.2 / 10.8.1 bruchfrei läuft. Nur nicht vergessen,
-   wenn ohnehin gebaut wird.
+4. ~~**pom auf aktuellen Stand ziehen**~~ ✅ **erledigt 27.09.** — FMM 2.12.3 / EM 10.9.5 /
+   PacketEvents 2.14.0.
 5. ~~**Symlink-Test**~~ ✅ **erledigt 16.08. — der Workaround ist weg und bleibt weg.**
    Symlink deaktiviert, Proxy-Boot 17:51 ohne ihn:
    `Preloaded 316 … from …/plugins/`**`resourcepackmanager`**`/work/merged/Bedrock.zip`,
