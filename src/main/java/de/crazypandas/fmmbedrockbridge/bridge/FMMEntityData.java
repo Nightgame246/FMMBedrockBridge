@@ -47,6 +47,33 @@ public class FMMEntityData {
         this.bridge = bridge;
         this.bossBarController = createBossBarControllerIfElite();
         this.bedrockNametagController = createNametagControllerIfNamed();
+        refreshBedrockName();
+    }
+
+    /**
+     * Phase 7.1d — keeps {@link BedrockNameFix} on the FMM display name and pushes it to Bedrock
+     * players who already see the mob: on registration (the tracker polls, so they got the spawn
+     * metadata first) and whenever EliteMobs renames the model later.
+     */
+    private void refreshBedrockName() {
+        if (!(realEntity instanceof LivingEntity living)) return;
+        String desired;
+        try {
+            desired = modeledEntity.getDisplayName();
+        } catch (Throwable t) {
+            return;
+        }
+        BedrockNameFix nameFix = bridge.getPacketInterceptor().getNameFix();
+        if (!nameFix.update(living.getEntityId(), desired)) return;
+        Component customName = living.customName();
+        String current = customName == null ? null
+                : net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer.legacySection()
+                        .serialize(customName);
+        for (Player viewer : living.getTrackedBy()) {
+            if (bridge.getViewerManager().isBedrockPlayer(viewer)) {
+                nameFix.sendTo(viewer, living.getEntityId(), current);
+            }
+        }
     }
 
     private BedrockBossBarController createBossBarControllerIfElite() {
@@ -162,6 +189,7 @@ public class FMMEntityData {
         if (destroyed) return;
         if (bossBarController != null) bossBarController.tickUpdate();
         if (bedrockNametagController != null) bedrockNametagController.tickUpdate();
+        refreshBedrockName();
     }
 
     public boolean isAlive() {
@@ -180,6 +208,8 @@ public class FMMEntityData {
             bossBarController.cleanup();
             bridge.getActiveControllers().remove(realEntity.getUniqueId());
         }
+
+        bridge.getPacketInterceptor().getNameFix().unregister(realEntity.getEntityId());
 
         if (bedrockNametagController != null) {
             bridge.getPacketInterceptor().unhideFromJava(bedrockNametagController.getTextDisplayEntityId());

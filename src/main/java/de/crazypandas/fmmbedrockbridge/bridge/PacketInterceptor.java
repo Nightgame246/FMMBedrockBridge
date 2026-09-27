@@ -39,6 +39,8 @@ public class PacketInterceptor {
 
     private PacketListenerAbstract listener;
     private BedrockEntityBridge bridge;
+    // Phase 7.1d — removable in one piece, see BedrockNameFix.
+    private final BedrockNameFix nameFix = new BedrockNameFix();
 
     public void setBridge(BedrockEntityBridge bridge) {
         this.bridge = bridge;
@@ -82,6 +84,12 @@ public class PacketInterceptor {
                     }
                 }
 
+                // Phase 7.1d — real boss name on the Bedrock nametag
+                if (event.getPacketType() == PacketType.Play.Server.ENTITY_METADATA
+                        && Boolean.TRUE.equals(isBedrock(playerObj))) {
+                    nameFix.onMetadata(event);
+                }
+
                 // Phase 7.1a — BOSS_EVENT suppress for Bedrock players
                 if (event.getPacketType() == PacketType.Play.Server.BOSS_BAR) {
                     handleBossEvent(event, playerObj);
@@ -107,8 +115,13 @@ public class PacketInterceptor {
         javaHiddenEntityIds.remove(entityId);
     }
 
+    public BedrockNameFix getNameFix() {
+        return nameFix;
+    }
+
     public void clear() {
         javaHiddenEntityIds.clear();
+        nameFix.clear();
     }
 
     /**

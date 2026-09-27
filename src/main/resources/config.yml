@@ -70,6 +70,18 @@ phase71c:
   # Set a positive tick value to override only the Bedrock overlay timeout.
   damage-timeout-ticks: 0
 
+# Phase 7.1d — echter Boss-Name im Bedrock-Nametag statt "Evoker"
+#
+# EliteMobs gibt Custom-Bossen mit FMM-Modell den richtigen Namen nur ans Modell; das Mob
+# darunter behält den allgemeinen Namen aus dem Mob-Typ. Bedrock sieht dieses Mob und zeigt
+# deshalb z. B. "Evoker". Die Bridge tauscht den Namen nur für Bedrock-Spieler gegen den
+# FMM-Anzeigenamen (dieselbe Quelle wie der BossBar-Titel). Java sieht nichts davon.
+#
+# Schaltet sich selbst still, sobald EliteMobs den richtigen Namen aufs Mob schreibt.
+# Ausbauen: siehe Klassenkommentar von BedrockNameFix.
+phase71d:
+  bedrock-name-fix: true
+
 # Phase 7.3 / 7.3b — Bedrock menu dialog-reroute
 phase73:
   # Reroute the Bedrock /em status menu to EliteMobs' native MC dialog so Geyser

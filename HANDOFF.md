@@ -178,6 +178,21 @@ EM 10.9.0 und 10.9.5 identisch.
 nur klickbare Chat-Buttons, keinen Dialog; dort ist die Kiste für Bedrock die bessere Wahl.
 Quest-Dialog-BossBar, Patrol-Editor, HUD, Wormhole-Marker sind keine Menüs.
 
+### Phase 7.1d — echter Boss-Name im Bedrock-Nametag (27.09., in-game offen)
+
+Bedrock zeigte über Evoker-Bossen „Evoker" statt „『13』 Eis-Elementar". Ursache (EM-Code):
+EliteMobs setzt beim Spawn einen allgemeinen Namen aus dem Mob-Typ (`setDefaultName`) und gibt
+den YAML-Namen bei Custom-Bossen mit FMM-Modell **nur ans Modell** (`setName(name, false)`).
+FMM bindet das Bedrock-Modell ans echte Mob darunter (`bindToUnderlyingEntity`) — Bedrock zeigt
+also dessen allgemeinen Namen. Eigentlich ein EM-Upstream-Thema.
+
+`BedrockNameFix` tauscht im Metadaten-Paket (Index 2, Custom-Name) den Namen **nur für Bedrock**
+gegen den FMM-Anzeigenamen und schickt ihn beim Registrieren einmal an Bedrock-Spieler, die das
+Mob schon sehen (der Tracker pollt, sie hatten die Spawn-Metadaten also vorher). **Baut sich
+selbst ab:** stimmt der Text schon (EM-Fix), wird nichts getauscht. Abschalten:
+`phase71d.bedrock-name-fix: false`. Ausbauen: Klassenkommentar von `BedrockNameFix`.
+Debug: `[PHASE71D] entity … : '…' -> '…'` einmal pro Mob.
+
 ### Deploy-Stand TestServer01
 
 - Läuft: **Test-JAR `c080ed5`, gegen PacketEvents 2.13.0 gebaut** (sha256 `bc47e341…`), seit
