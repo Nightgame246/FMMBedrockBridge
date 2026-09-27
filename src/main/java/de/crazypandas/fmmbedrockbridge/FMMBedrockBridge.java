@@ -116,6 +116,7 @@ public class FMMBedrockBridge extends JavaPlugin {
                             this);
                     log.info("Phase 7.4: Bedrock ability input registered (sneak-held controls,"
                             + " require-combat=" + isPhase74RequireCombat()
+                            + ", hotbar-keys=" + isPhase74HotbarKeysEnabled()
                             + ", feedback=" + isPhase74FeedbackEnabled()
                             + ", compositor=" + (de.crazypandas.fmmbedrockbridge.bridge.EliteMobsActionBar.isAvailable()
                                     ? "ABILITY_INPUT"
@@ -211,6 +212,11 @@ public class FMMBedrockBridge extends JavaPlugin {
     public static boolean isPhase74RequireCombat() {
         FMMBedrockBridge plugin = instance;
         return plugin != null && plugin.getConfig().getBoolean("phase74.require-combat", true);
+    }
+
+    public static boolean isPhase74HotbarKeysEnabled() {
+        FMMBedrockBridge plugin = instance;
+        return plugin != null && plugin.getConfig().getBoolean("phase74.hotbar-keys", true);
     }
 
     public static boolean isPhase74FeedbackEnabled() {

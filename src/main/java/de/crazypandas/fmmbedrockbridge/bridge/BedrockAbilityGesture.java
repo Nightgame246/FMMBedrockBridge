@@ -66,6 +66,38 @@ public final class BedrockAbilityGesture {
         return sneaking ? Outcome.UTILITY : Outcome.NONE;
     }
 
+    /**
+     * Hotbar key while crouched, with EliteMobs' own numbers: 1/7 mobility, 2/8 signature,
+     * 3/9 utility (its {@code ClassAbilityGestureState.selectHotbar}). 4-6 stay ordinary item
+     * switches.
+     *
+     * <p>Needed because a right click into the air sends no packet at all with an empty hand —
+     * measured in-game on 27.09.2026, only RIGHT_CLICK_BLOCK ever arrived. A slot change arrives
+     * from every Bedrock device.
+     *
+     * @param sneaking {@code player.isSneaking()} at the moment of the switch
+     * @param newSlot  zero-based hotbar slot the player switched to
+     */
+    public Outcome hotbar(boolean sneaking, int newSlot) {
+        if (!sneaking) return Outcome.NONE;
+        return switch (newSlot) {
+            case 0, 6 -> Outcome.MOBILITY;
+            case 1, 7 -> Outcome.SIGNATURE;
+            case 2, 8 -> Outcome.UTILITY;
+            default -> Outcome.NONE;
+        };
+    }
+
+    /**
+     * Whether a sneak start at {@code tick} is a crouch the player meant, as opposed to Geyser's
+     * flutter. Decides when the controls hint is shown: re-showing it on flutter would paint over
+     * the confirmation of an ability that just fired. Call BEFORE {@link #sneakStart}, which may
+     * spend the release.
+     */
+    public boolean isDeliberateCrouch(long tick) {
+        return releasedAtTick == Long.MIN_VALUE || tick - releasedAtTick >= MIN_RELEASE_TICKS;
+    }
+
     /** Forgets a pending release — used on death, world change and quit. */
     public void close() {
         releasedAtTick = Long.MIN_VALUE;

@@ -4,6 +4,8 @@ import org.junit.jupiter.api.Test;
 
 import static de.crazypandas.fmmbedrockbridge.bridge.BedrockAbilityGesture.Outcome;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * EliteMobs binds its three ability slots to an F-chord that Bedrock clients cannot produce.
@@ -127,5 +129,69 @@ class BedrockAbilityGestureTest {
         gesture.close();
 
         assertEquals(Outcome.NONE, gesture.sneakStart(110L));
+    }
+
+    // --- Hotbar keys (27.09.2026) -------------------------------------------------------------
+    // Right click into the air sends no packet at all with an empty hand — measured in-game: only
+    // RIGHT_CLICK_BLOCK ever arrived, so UTILITY needed a block in the crosshair. EliteMobs itself
+    // has a second binding for the chord window, and we copy its numbers exactly:
+    // 1/7 mobility, 2/8 signature, 3/9 utility (ClassAbilityGestureState.selectHotbar, 10.9.x).
+
+    @Test
+    void hotbarKeysWhileCrouchedFollowEliteMobs() {
+        BedrockAbilityGesture gesture = new BedrockAbilityGesture();
+
+        assertEquals(Outcome.MOBILITY, gesture.hotbar(SNEAKING, 0));
+        assertEquals(Outcome.SIGNATURE, gesture.hotbar(SNEAKING, 1));
+        assertEquals(Outcome.UTILITY, gesture.hotbar(SNEAKING, 2));
+        // 7/8/9 mirror 1/2/3: a client reports no slot change for the slot already held.
+        assertEquals(Outcome.MOBILITY, gesture.hotbar(SNEAKING, 6));
+        assertEquals(Outcome.SIGNATURE, gesture.hotbar(SNEAKING, 7));
+        assertEquals(Outcome.UTILITY, gesture.hotbar(SNEAKING, 8));
+    }
+
+    @Test
+    void middleSlotsStayOrdinaryItemSwitches() {
+        BedrockAbilityGesture gesture = new BedrockAbilityGesture();
+
+        assertEquals(Outcome.NONE, gesture.hotbar(SNEAKING, 3));
+        assertEquals(Outcome.NONE, gesture.hotbar(SNEAKING, 4));
+        assertEquals(Outcome.NONE, gesture.hotbar(SNEAKING, 5));
+    }
+
+    @Test
+    void hotbarKeysUprightDoNothing() {
+        BedrockAbilityGesture gesture = new BedrockAbilityGesture();
+
+        for (int slot = 0; slot < 9; slot++) {
+            assertEquals(Outcome.NONE, gesture.hotbar(UPRIGHT, slot), "slot " + slot);
+        }
+    }
+
+    // --- Controls hint ------------------------------------------------------------------------
+    // Shown once per deliberate crouch. Geyser's flutter must not re-show it, or it would paint
+    // over the "▶ ability" confirmation right after a click.
+
+    @Test
+    void firstCrouchShowsTheHint() {
+        BedrockAbilityGesture gesture = new BedrockAbilityGesture();
+
+        assertTrue(gesture.isDeliberateCrouch(100L));
+    }
+
+    @Test
+    void crouchAfterARealReleaseShowsTheHint() {
+        BedrockAbilityGesture gesture = new BedrockAbilityGesture();
+        gesture.sneakEnd(100L);
+
+        assertTrue(gesture.isDeliberateCrouch(100L + BedrockAbilityGesture.MIN_RELEASE_TICKS));
+    }
+
+    @Test
+    void flutterDoesNotShowTheHintAgain() {
+        BedrockAbilityGesture gesture = new BedrockAbilityGesture();
+        gesture.sneakEnd(100L);
+
+        assertFalse(gesture.isDeliberateCrouch(101L));
     }
 }

@@ -13,6 +13,7 @@ import org.bukkit.event.player.PlayerAnimationEvent;
 import org.bukkit.event.player.PlayerAnimationType;
 import org.bukkit.event.player.PlayerChangedWorldEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
+import org.bukkit.event.player.PlayerItemHeldEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.event.player.PlayerToggleSneakEvent;
 import org.bukkit.inventory.EquipmentSlot;
@@ -55,7 +56,35 @@ public final class BedrockAbilityListener implements Listener {
 
         if (!armed(player)) return;
 
-        dispatch(player, gestureFor(player).sneakStart(Bukkit.getCurrentTick()), null);
+        BedrockAbilityGesture gesture = gestureFor(player);
+        long tick = Bukkit.getCurrentTick();
+        // Asked before sneakStart, which may spend the release.
+        boolean deliberate = gesture.isDeliberateCrouch(tick);
+        BedrockAbilityGesture.Outcome outcome = gesture.sneakStart(tick);
+        if (outcome == BedrockAbilityGesture.Outcome.NONE) {
+            if (deliberate) showControlsHint(player);
+            return;
+        }
+        dispatch(player, outcome, null);
+    }
+
+    /**
+     * Hotbar keys while crouched — EliteMobs' own numbers, 1/7 mobility, 2/8 signature,
+     * 3/9 utility. Exists because a right click into the air with an empty hand sends no packet
+     * at all: on 27.09.2026 only RIGHT_CLICK_BLOCK ever arrived, so UTILITY needed a block in the
+     * crosshair. A slot change arrives from every device.
+     */
+    @EventHandler(priority = EventPriority.NORMAL, ignoreCancelled = true)
+    public void onHotbar(PlayerItemHeldEvent event) {
+        if (!FMMBedrockBridge.isPhase74HotbarKeysEnabled()) return;
+        Player player = event.getPlayer();
+        if (!armed(player)) return;
+
+        BedrockAbilityGesture.Outcome outcome =
+                gestureFor(player).hotbar(player.isSneaking(), event.getNewSlot());
+        // Cancelled only when EliteMobs took it: the player keeps the item they held, exactly
+        // like EliteMobs does for Java's chord.
+        dispatch(player, outcome, () -> event.setCancelled(true));
     }
 
     @EventHandler(priority = EventPriority.NORMAL, ignoreCancelled = true)
@@ -183,6 +212,19 @@ public final class BedrockAbilityListener implements Listener {
      */
     private BedrockAbilityGesture gestureFor(Player player) {
         return gestures.computeIfAbsent(player.getUniqueId(), uuid -> new BedrockAbilityGesture());
+    }
+
+    /**
+     * The counterpart of the line EliteMobs shows Java players when F opens its chord. Bedrock
+     * has no chord, so it appears on a deliberate crouch instead.
+     */
+    private void showControlsHint(Player player) {
+        if (!FMMBedrockBridge.isPhase74FeedbackEnabled()) return;
+        EliteMobsActionBar.show(player, AbilityFeedback.controlsHint(
+                player.getInventory().getHeldItemSlot(),
+                hook.abilityName(player, BedrockAbilityGesture.Outcome.MOBILITY),
+                hook.abilityName(player, BedrockAbilityGesture.Outcome.SIGNATURE),
+                hook.abilityName(player, BedrockAbilityGesture.Outcome.UTILITY)));
     }
 
     /**

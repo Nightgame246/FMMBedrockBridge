@@ -112,8 +112,21 @@ phase74:
   # gesetzt löst auch normales Schleichen beim Bauen Fähigkeiten aus — nicht empfohlen.
   require-combat: true
 
+  # Schleichen + Hotbar-Taste löst die Fähigkeit aus, mit EliteMobs' eigenen Zahlen:
+  # 1/7 Mobility, 2/8 Signature, 3/9 Utility (4-6 bleiben normaler Item-Wechsel).
+  #
+  # Nötig seit dem Spieltest am 27.09.2026: Rechtsklick in die Luft schickt mit leerer Hand
+  # gar kein Paket, Utility ging nur mit einem Block im Fadenkreuz. Ein Slot-Wechsel kommt
+  # von jedem Gerät an.
+  #
+  # Auf false setzen, wenn Konsolenspieler stören: dort blättert LB/RB Slot für Slot, und
+  # wer dabei schleicht, löst jede Fähigkeit aus, an der er vorbeikommt.
+  hotbar-keys: true
+
   # Zusätzliche Rückmeldung in der Actionbar: welche Fähigkeit ausgelöst hat, bzw. warum
-  # EliteMobs sie abgelehnt hat.
+  # EliteMobs sie abgelehnt hat. Dazu beim Ducken die Belegung, z. B.
+  # "[1/2×Ducken] Dash  [2/Links] Wirbel  [3/Rechts] Schild" — das Gegenstück zu der Zeile,
+  # die EliteMobs Java-Spielern nach F zeigt.
   #
   # Standardmäßig AN seit 16.09.2026. Vorher stand hier false, weil die Meldung direkt an
   # den Client ging und dort von EliteMobs' Klassen-HUD binnen ein, zwei Ticks überschrieben

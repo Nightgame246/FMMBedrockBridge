@@ -21,6 +21,26 @@ public final class AbilityFeedback {
     }
 
     /**
+     * Controls line shown when a Bedrock player crouches — the counterpart of the line EliteMobs
+     * shows Java players when F opens its chord ({@code ClassAbilityInputRouter.openGesture}),
+     * with the same hotbar numbers and our gestures instead of F/LMB/RMB.
+     *
+     * <p>Like EliteMobs, advertises the mirror key (7/8/9) for the slot already held: pressing
+     * that slot's own digit sends no slot change, so it could not work.
+     *
+     * @param heldSlot zero-based hotbar slot currently held
+     */
+    public static String controlsHint(int heldSlot, String mobility, String signature, String utility) {
+        return "§7[" + (heldSlot == 0 ? "7" : "1") + "/2×Ducken] §f" + orElse(mobility, "Mobility")
+                + "  §7[" + (heldSlot == 1 ? "8" : "2") + "/Links] §f" + orElse(signature, "Signature")
+                + "  §7[" + (heldSlot == 2 ? "9" : "3") + "/Rechts] §f" + orElse(utility, "Utility");
+    }
+
+    private static String orElse(String name, String fallback) {
+        return name == null || name.isBlank() ? fallback : name;
+    }
+
+    /**
      * Text for a failed attempt, or {@code null} when the player should see nothing —
      * technical and unknown reasons stay silent rather than leaking enum names.
      */

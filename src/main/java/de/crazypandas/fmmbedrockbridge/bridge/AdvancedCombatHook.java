@@ -89,6 +89,21 @@ public final class AdvancedCombatHook {
         }
     }
 
+    /**
+     * The class's name for the ability bound to {@code outcome}, or {@code null} when EliteMobs
+     * cannot say — the hint then falls back to the slot name.
+     */
+    public String abilityName(Player player, BedrockAbilityGesture.Outcome outcome) {
+        try {
+            AbilitySlot slot = toSlot(outcome);
+            if (slot == null || !AdvancedCombatModule.isInitialized()) return null;
+            return AdvancedCombatModule.get().abilityName(player, slot);
+        } catch (Throwable t) {
+            FMMBedrockBridge.debugLog("[PHASE74] abilityName failed: " + t);
+            return null;
+        }
+    }
+
     private static AbilitySlot toSlot(BedrockAbilityGesture.Outcome outcome) {
         return switch (outcome) {
             case MOBILITY -> AbilitySlot.MOBILITY;
