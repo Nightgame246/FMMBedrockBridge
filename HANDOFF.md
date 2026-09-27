@@ -1,6 +1,6 @@
 # HANDOFF — FMMBedrockBridge
 
-> Arbeitsstand **dieses Plugins**. Stand: **2026-09-27**  ·  Branch: **`phase-7.4-bedrock-ability-input`** (31 Commits vor `main`, **nicht** gemerged)
+> Arbeitsstand **dieses Plugins**. Stand: **2026-09-27**  ·  Branch: **`main`** — Phase 7.4 am 27.09. per Squash gemerged (`d2444bd`)
 >
 > ⚠️ **Der Einstieg steht eine Ebene höher: `../HANDOFF.md`.**
 > Dort liegen Bootstrap, Session-Ende-Protokoll, Build-Vorbereitung am neuen PC und die
@@ -202,10 +202,10 @@ Bridge wieder direkt und das Feedback flackert.
 
 ### Danach: Branch abschließen
 
-`phase-7.4-bedrock-ability-input` hat 31 Commits vor `main` und ist **nicht** gemerged. Die
-Abnahme ist da (27.09.) — mergen nach `main` oder PR, **die Entscheidung steht noch aus**.
-⚠️ Commit `4dbfe52` hat eine kaputte Message (Trailer ohne Leerzeile am Betreff);
-ein Squash-Merge räumt das mit auf.
+✅ **Erledigt am 27.09.2026:** `phase-7.4-bedrock-ability-input` (36 Commits) per **Squash** nach
+`main` gemerged — `d2444bd`. Die Einzelhistorie (inkl. der vier Irrwege) bleibt auf dem Branch
+erhalten, der deshalb **nicht gelöscht** wird. Das lokale `main` stand vorher auf vier nie
+gepushten Doku-Commits; die waren alle im Branch enthalten und sind im Squash drin.
 
 ---
 
