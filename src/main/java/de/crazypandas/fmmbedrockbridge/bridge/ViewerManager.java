@@ -14,7 +14,9 @@ import org.bukkit.plugin.Plugin;
 import org.geysermc.floodgate.api.FloodgateApi;
 
 import java.util.Collections;
+import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
 import java.util.logging.Logger;
@@ -28,6 +30,13 @@ public class ViewerManager implements Listener {
 
     private final boolean floodgateAvailable;
     private final Set<Player> readyPlayers = ConcurrentHashMap.newKeySet();
+    /**
+     * One answer per player and session. Whether someone plays Bedrock does not change while they
+     * are online, and {@link PacketInterceptor} asks for every entity packet to every player on
+     * the Netty thread — a Java player would otherwise run through all four detection steps,
+     * Geyser reflection included, per packet.
+     */
+    private final Map<UUID, Boolean> bedrockByPlayer = new ConcurrentHashMap<>();
     private Consumer<Player> onPlayerReady;
     private Consumer<Player> onPlayerLeave;
 
@@ -63,6 +72,15 @@ public class ViewerManager implements Listener {
         if (onPlayerLeave != null) onPlayerLeave.accept(player);
     }
 
+    /**
+     * MONITOR, after every other quit handler: one that asks {@link #isBedrockPlayer} later in
+     * the same event would otherwise put the entry straight back.
+     */
+    @EventHandler(priority = EventPriority.MONITOR)
+    public void forgetDetection(PlayerQuitEvent event) {
+        bedrockByPlayer.remove(event.getPlayer().getUniqueId());
+    }
+
     public Set<Player> getReadyPlayers() {
         return Collections.unmodifiableSet(readyPlayers);
     }
@@ -79,6 +97,10 @@ public class ViewerManager implements Listener {
      */
     public boolean isBedrockPlayer(Player player) {
         if (player == null) return false;
+        return bedrockByPlayer.computeIfAbsent(player.getUniqueId(), uuid -> detect(player));
+    }
+
+    private boolean detect(Player player) {
         return BedrockDetection.isBedrock(
                 player.getUniqueId(),
                 player.getName(),

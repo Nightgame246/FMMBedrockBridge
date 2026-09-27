@@ -16,9 +16,7 @@ import de.crazypandas.fmmbedrockbridge.FMMBedrockBridge;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
-import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
-import org.geysermc.floodgate.api.FloodgateApi;
 
 import java.util.Set;
 import java.util.UUID;
@@ -41,11 +39,18 @@ public class PacketInterceptor {
 
     private PacketListenerAbstract listener;
     private BedrockEntityBridge bridge;
-    private boolean floodgateAvailable = false;
 
     public void setBridge(BedrockEntityBridge bridge) {
         this.bridge = bridge;
-        this.floodgateAvailable = Bukkit.getPluginManager().getPlugin("floodgate") != null;
+    }
+
+    /**
+     * The same detection EliteMobs uses, via {@link ViewerManager} (cached per player — this runs
+     * for every entity packet). {@code null} while no bridge is set: then nobody is classified,
+     * and both suppressions stay off, as they did before without Floodgate.
+     */
+    private Boolean isBedrock(Player player) {
+        return bridge == null ? null : bridge.getViewerManager().isBedrockPlayer(player);
     }
 
     public void register() {
@@ -56,8 +61,7 @@ public class PacketInterceptor {
                 if (!(eventPlayer instanceof Player playerObj)) return;
 
                 // Phase 7.1b — Java-only suppress for our auxiliary TextDisplay nametags
-                if (!javaHiddenEntityIds.isEmpty() && floodgateAvailable
-                        && !FloodgateApi.getInstance().isFloodgatePlayer(playerObj.getUniqueId())) {
+                if (!javaHiddenEntityIds.isEmpty() && Boolean.FALSE.equals(isBedrock(playerObj))) {
                     int entityId = -1;
                     if (event.getPacketType() == PacketType.Play.Server.SPAWN_ENTITY) {
                         entityId = new WrapperPlayServerSpawnEntity(event).getEntityId();
@@ -130,8 +134,7 @@ public class PacketInterceptor {
     private void handleBossEvent(PacketSendEvent event, Player playerObj) {
         if (bridge == null) return;
         if (!isSuppressEnabled()) return;
-        if (!floodgateAvailable) return;
-        if (!FloodgateApi.getInstance().isFloodgatePlayer(playerObj.getUniqueId())) return;
+        if (!Boolean.TRUE.equals(isBedrock(playerObj))) return;
 
         WrapperPlayServerBossBar wrapper;
         try {

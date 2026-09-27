@@ -9,7 +9,6 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.inventory.InventoryOpenEvent;
-import org.geysermc.floodgate.api.FloodgateApi;
 
 import java.util.Optional;
 import java.util.function.Consumer;
@@ -37,9 +36,11 @@ public final class BedrockMenuRerouteListener implements Listener {
     private final FMMBedrockBridge plugin;
     private final Logger log;
     private final MenuRerouteRegistry registry = new MenuRerouteRegistry();
+    private final ViewerManager viewers;
 
-    public BedrockMenuRerouteListener(FMMBedrockBridge plugin) {
+    public BedrockMenuRerouteListener(FMMBedrockBridge plugin, ViewerManager viewers) {
         this.plugin = plugin;
+        this.viewers = viewers;
         this.log = plugin.getLogger();
         // Phase 7.3 ships one entry: EM's /em status index menu.
         registry.register(EliteMobsHook::statusIndexMenuTitle,
@@ -49,7 +50,8 @@ public final class BedrockMenuRerouteListener implements Listener {
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onInventoryOpen(InventoryOpenEvent event) {
         if (!(event.getPlayer() instanceof Player player)) return;
-        if (!FloodgateApi.getInstance().isFloodgatePlayer(player.getUniqueId())) return;
+        // Same detection as EliteMobs: it forces exactly these players onto the chest menu.
+        if (!viewers.isBedrockPlayer(player)) return;
 
         String title = safeTitle(event);
 

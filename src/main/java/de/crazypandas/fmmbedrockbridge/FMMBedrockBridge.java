@@ -92,7 +92,8 @@ public class FMMBedrockBridge extends JavaPlugin {
         boolean anyReroute = statusReroute || questReroute;
         if (floodgateAvailable && elitemobsAvailable && mc1216 && anyReroute) {
             getServer().getPluginManager().registerEvents(
-                    new de.crazypandas.fmmbedrockbridge.bridge.BedrockMenuRerouteListener(this), this);
+                    new de.crazypandas.fmmbedrockbridge.bridge.BedrockMenuRerouteListener(
+                            this, bridge.getViewerManager()), this);
             log.info("Phase 7.3: Bedrock menu dialog-reroute registered (status=" + statusReroute
                     + ", quest=" + questReroute + ")");
         } else {
