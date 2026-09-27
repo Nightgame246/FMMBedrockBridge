@@ -173,9 +173,11 @@ in den Artefakten 10.9.0 und 10.9.5 per `javap` belegt).
    löst jede Fähigkeit auf dem Weg aus. Nicht getestet. Notfalls `phase74.hotbar-keys: false`.
 2. **Server auf PacketEvents 2.14.0 + EM 10.9.5 / FMM 2.12.3 / BS 2.7.4** — Server-Claude-Sache,
    PacketEvents läuft über PluginPortal (Tausch-Verfahren vom 09.08. in SERVER-STATE).
-3. **`BedrockAbilityListener.isBedrock()` fragt noch nur Floodgate**, nicht `BedrockDetection`
-   vom 20.09. Hinter dem Proxy mit Floodgate überall unkritisch, aber dieselbe Asymmetrie, die
-   der 20.09.-Fix in `ViewerManager` geschlossen hat.
+3. ~~**`BedrockAbilityListener.isBedrock()` fragt noch nur Floodgate**~~ ✅ **erledigt 27.09.** —
+   fragt jetzt `ViewerManager.isBedrockPlayer()`, also dieselbe Reihenfolge wie EliteMobs.
+   **Noch direkt auf Floodgate:** `BedrockMenuRerouteListener` (Z. 52) und `PacketInterceptor`
+   (Z. 60, 134). Dort ohne Eingabe-Folgen (Menü bzw. BossBar), deshalb nicht mitgezogen.
+   Phase 7.4 registriert sich außerdem weiter nur, wenn Floodgate installiert ist.
 4. `INVALID_PLAYER` kam im Test dreimal binnen sechs Sekunden — EliteMobs' Ablehnung, nicht
    unsere. Vermutlich kurz außerhalb des freigegebenen Bereichs; nicht weiter verfolgt.
 

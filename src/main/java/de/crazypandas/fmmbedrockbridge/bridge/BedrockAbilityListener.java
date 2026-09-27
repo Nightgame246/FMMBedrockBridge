@@ -17,7 +17,6 @@ import org.bukkit.event.player.PlayerItemHeldEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.event.player.PlayerToggleSneakEvent;
 import org.bukkit.inventory.EquipmentSlot;
-import org.geysermc.floodgate.api.FloodgateApi;
 
 import java.util.Map;
 import java.util.UUID;
@@ -34,11 +33,13 @@ import java.util.concurrent.ConcurrentHashMap;
 public final class BedrockAbilityListener implements Listener {
 
     private final AdvancedCombatHook hook;
+    private final ViewerManager viewers;
 
     private final Map<UUID, BedrockAbilityGesture> gestures = new ConcurrentHashMap<>();
 
-    public BedrockAbilityListener(AdvancedCombatHook hook) {
+    public BedrockAbilityListener(AdvancedCombatHook hook, ViewerManager viewers) {
         this.hook = hook;
+        this.viewers = viewers;
     }
 
     @EventHandler(priority = EventPriority.NORMAL, ignoreCancelled = true)
@@ -202,12 +203,13 @@ public final class BedrockAbilityListener implements Listener {
     }
 
     /**
-     * Bedrock-only, and only while EliteMobs itself would act on the input — see
-     * {@link AdvancedCombatHook#canUseAbilities(Player)}. Floodgate first: it is the cheapest
-     * gate and rules out every Java player before EliteMobs is touched at all.
+     * The same answer EliteMobs gets. Its {@code fLayerSupported()} is
+     * {@code !BedrockChecker.isBedrock(player)}: whoever it locks out of the F-chord must get our
+     * input, or they get none at all. Asking Floodgate alone was narrower than EliteMobs since
+     * 10.9.5 — see {@link BedrockDetection}. Still the first gate, before EliteMobs is touched.
      */
     private boolean isBedrock(Player player) {
-        return FloodgateApi.getInstance().isFloodgatePlayer(player.getUniqueId());
+        return viewers.isBedrockPlayer(player);
     }
 
     private boolean armed(Player player) {

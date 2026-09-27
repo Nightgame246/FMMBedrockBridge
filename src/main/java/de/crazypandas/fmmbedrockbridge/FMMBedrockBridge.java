@@ -112,7 +112,8 @@ public class FMMBedrockBridge extends JavaPlugin {
                     // of freezing it here — so a switch flipped during the playtest only needs
                     // the config reloaded, not the whole server restarted.
                     getServer().getPluginManager().registerEvents(
-                            new de.crazypandas.fmmbedrockbridge.bridge.BedrockAbilityListener(hook),
+                            new de.crazypandas.fmmbedrockbridge.bridge.BedrockAbilityListener(
+                                    hook, bridge.getViewerManager()),
                             this);
                     log.info("Phase 7.4: Bedrock ability input registered (sneak-held controls,"
                             + " require-combat=" + isPhase74RequireCombat()
