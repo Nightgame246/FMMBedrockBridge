@@ -10,10 +10,14 @@ import org.bukkit.entity.Player;
 import java.util.logging.Logger;
 
 /**
- * Soft-dependency wrapper around EliteMobs API. The only class in this codebase
- * that imports {@code com.magmaguy.elitemobs.*}. All public methods return null
+ * Soft-dependency wrapper around the stable EliteMobs API ({@code api.*} plus
+ * {@code entitytracker}/{@code mobconstructor}). All public methods return null
  * (or false) when EliteMobs is not installed or its API broke between versions —
  * callers must null-check rather than relying on exceptions.
+ *
+ * <p>Not the only EliteMobs importer any more: {@code bridge.BedrockCombatTrigger} listens to
+ * EM's combat events, and {@code bridge.AdvancedCombatHook} (Phase 7.4) is the single class
+ * allowed to touch the internal, [Alpha] {@code advancedcombat} package.
  */
 public final class EliteMobsHook {
 

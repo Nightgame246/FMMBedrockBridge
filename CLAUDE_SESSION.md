@@ -1682,3 +1682,293 @@ Mob**, nicht durch den Render-Mechanismus.
 `install-skills.sh` musste neu laufen: das Superpowers-Update auf 6.3.0 (14.08.) hat den
 `skills/`-Ordner im Plugin-Cache ersetzt und damit die 7 Minecraft-Custom-Skills entfernt.
 **Nach jedem Superpowers-Update erneut ausführen.**
+
+---
+
+## Session: 2026-09-11 — Phase 7.4 (Bedrock-Eingabe für EMs Klassen-Fähigkeiten) + Abschluss-Review
+
+Branch `phase-7.4-bedrock-ability-input`. Fünf neue Klassen, danach ein Whole-Branch-Review, dessen
+Befunde in einem Durchgang eingearbeitet sind. Die interessanten Punkte sind die Befunde, nicht die
+Klassen.
+
+### 1. Das Problem
+
+EliteMobs 10.9.0 bindet seine drei Fähigkeits-Slots an einen F-Chord (`F,F` / `F+LMB` / `F+RMB`).
+`F` ist der Offhand-Tausch — **den gibt es auf Bedrock auf keinem Gerät**, weder Controller noch
+Touch. Bedrock- und Konsolenspieler können damit keine einzige aktive Fähigkeit auslösen. Die
+Bridge übersetzt den Chord auf Schleichen (`Schleichen,Schleichen` / `+Angriff` / `+Benutzen`) und
+ruft EMs `useAbility` direkt. Upstream gemeldet:
+`docs/upstream-bugs/em-advanced-combat-bedrock-input-lockout.md`.
+
+Genau **eine** Klasse darf EMs internes, als `[Alpha]` markiertes Paket
+`com.magmaguy.elitemobs.advancedcombat` importieren: `AdvancedCombatHook`. Die Startprüfung
+(`AdvancedCombatSupport`) geht bewusst über `Class.forName` auf Strings, ohne Import — Lehre aus
+dem GeyserUtils-Vorfall vom 08.08.2026.
+
+### 2. Zwei falsche Annahmen über EliteMobs — am Artefakt 10.9.0 nachgeprüft
+
+- **`AdvancedCombatModule.get()` liefert nie `null`**, sondern wirft
+  `IllegalStateException("[Alpha] Advanced Combat System is not initialized")`. Der `module ==
+  null`-Zweig in `fire(...)` war toter Code — und Plan wie Spec haben ihn als die Stelle
+  ausgegeben, an der die beiden Laufzeitprüfungen stattfinden. Sie fanden gar nicht statt.
+  Richtig ist `AdvancedCombatModule.isInitialized()` (`public static`, vorhanden) **vor** `get()`.
+- **Unser Kampf-Gate war breiter als EMs eigenes.** `useAbility` beginnt mit
+  `mechanicsActive(player)` — verlangt `hasActiveClass` **und** `controlModeEnabled`. Außerhalb
+  von Dungeons/Matches heißt Letzteres Mitgliedschaft in `ClassControlMode.outsideEnabled`, einer
+  Menge, der man **nur per F-Doppeltipp beim Schleichen** beitritt. Wir haben stattdessen den
+  allgemeinen Kampf-Tag benutzt, der im gewöhnlichen Elite-Kampf im offenen Gelände true ist.
+
+  **Kombinierter Fehlerfall:** Bedrock-Spieler schleicht und schlägt im offenen Gelände einen
+  Elite — wir canceln den Schaden, `useAbility` tut nichts (oder `get()` wirft). Schlag weg, keine
+  Fähigkeit, eine Warnzeile pro Eingabe im Log.
+
+  ⇒ Beides ersetzt durch **ein** Gate `AdvancedCombatHook.canUseAbilities(Player)`:
+  `isInitialized()` → `mechanicsActive(player)` → Dungeon/Match **oder** Kampf-Tag. EM baut das
+  Modul nur bei eingeschaltetem `AdvancedCombatSystemConfig`, startet `DungeonCombatRuntime` aber
+  bedingungslos — der Kampf-Tag beweist also nichts über das Modul.
+
+  ⚠️ **Konsequenz für den Betrieb: Phase 7.4 wirkt faktisch nur in Dungeons und Matches.** Der
+  Opt-in außerhalb ist für Bedrock unerreichbar; im offenen Gelände bleibt die Steuerung stumm —
+  korrekt, aber wirkungslos. Steht so in README und Spec.
+
+### 3. Weitere Review-Befunde
+
+- **Eingabe wurde verbraucht, bevor der Hook gefragt war.** `dispatch(...)` hat erst gecancelt,
+  dann gefeuert. `fire(...)` liefert jetzt `FireResult(handled, message)`; gecancelt wird **nur**
+  bei `handled == true`. Eine von EM abgelehnte Fähigkeit zählt dabei als `handled` — EM hat die
+  Eingabe gesehen.
+- **Enum-Zugriff lag außerhalb von `try`.** `toSlot(outcome)` liest `AbilitySlot.MOBILITY/…`; eine
+  upstream umbenannte Konstante wirft `NoSuchFieldError` — der wäre in den Bukkit-Handler
+  entkommen, **nachdem** das Event schon gecancelt war. Aufruf in den bestehenden `try` gezogen.
+- **Unsere Actionbar kämpfte gegen EMs eigene.** EM schreibt Skill-Feedback über den
+  `ActionBarCompositor` mit Keepalive-Re-Render und meldet dieselben vier Fehlerfälle. Zwei
+  Schreiber im selben Tick flackern ⇒ **`phase74.feedback` steht jetzt default auf `false`**
+  (Config **und** Getter-Default). Der Code-Pfad bleibt, falls EMs Anzeige auf Bedrock doch nicht
+  ankommt.
+- **Config war bei der Registrierung eingefroren.** Der Listener nahm seine vier Werte im
+  Konstruktor; ausgerechnet `chord-max-ticks` ist der Wert, den der Spieltest justieren soll.
+  Jetzt liest er die Statics pro Event wie jede andere Phase. Die Geste hält ihr Fenster ab
+  Erzeugung — deshalb gibt `BedrockAbilityGesture.maxOpenTicks()` den Wert heraus und
+  `gestureFor(...)` ersetzt eine Geste, deren Fenster nicht mehr zum konfigurierten Wert passt.
+- **Doku-Inventur:** README-Klassentabelle um die fünf neuen Klassen ergänzt und die Zählung
+  korrigiert (jetzt **24** Dateien unter `src/main/java`, nicht „roughly 18"). Die Behauptung
+  „EliteMobs nur in `EliteMobsHook` importiert" stand in `pom.xml`, in `EliteMobsHook` selbst und
+  in der README-Tabelle — sie ist seit `BedrockCombatTrigger` falsch und jetzt an allen drei
+  Stellen korrigiert.
+
+### 4. Was daraus zu lernen ist
+
+**„Null zurück" ist eine Annahme, kein Vertrag** — bei einem `[Alpha]`-Paket erst recht. Die
+Begründung im Plan stützte sich auf einen Zweig, den es im Artefakt nie gab; ein `javap` hätte das
+in einer Minute gezeigt. Dasselbe Muster wie bei „Commit ≠ Artefakt" (RPM 2.3.1): **am laufenden
+Artefakt belegen, nicht am erinnerten Verhalten.**
+
+Und: **wer ein Event cancelt, schuldet dem Spieler eine Wirkung.** Ein Gate, das breiter ist als
+das des Zielsystems, verwandelt jede Eingabe in einen Verlust.
+
+### 5. Stand
+
+`mvn -o clean test` grün, **37 Tests**. Deployment/Spieltest offen — die Phase ist bisher nur
+gebaut, nicht in-game verifiziert; wegen Punkt 2 bitte **in einem Dungeon** testen, im offenen
+Gelände ist Stille das erwartete Verhalten.
+
+---
+
+## Session: 2026-09-16 — Phase 7.5 ausgebaut, Feedback über EMs Compositor
+
+Anlass war die MagmaGuy-Welle vom 11.–15.09.: EliteMobs steht inzwischen bei **10.9.4**,
+FMM bei 2.12.2, RPM bei 2.4.3, BetterStructures bei 2.7.3. TestServer01 läuft noch auf der
+11.09.-Generation (EM 10.9.0 · FMM 2.12.0 · RPM 2.4.0 · BS 2.7.1).
+
+### 1. Phase 7.5 ist überflüssig geworden
+
+EliteMobs 10.9.1 hat den Bedrock-Fallback für sein Combat-HUD selbst eingebaut. In
+`ActionBarCompositor.render()` (Zeile 256 ff. im Master vom 16.09.) schließt die Bedingung für
+den grafischen HUD Bedrock explizit aus:
+
+```java
+// CLASS_HUD and ability feedback remain published below as the resource-pack-free fallback.
+if (isEnableCombatHud() && !BedrockChecker.isBedrock(player)
+        && isPluginEnabled("ResourcePackManager") && isActive(player)) { … return; }
+```
+
+Damit kommen bei Bedrock-Spielern keine Font-Glyphen mehr an, und unser Filter wäre ein reiner
+No-Op gewesen — allerdings kein kostenloser: `handleActionBarGlyphs` serialisierte **jedes**
+Actionbar-Paket auf dem Netty-Thread, bevor `containsGlyphs` überhaupt prüfen konnte. EM sendet
+rund fünfmal pro Sekunde.
+
+Entfernt: `BedrockGlyphFilter` (+ `BedrockGlyphFilterTest`, 18 Tests), `AdvancedCombatHook.hudLine()`,
+der Glyph-Zweig im `PacketInterceptor` samt `HUD_GLYPH_THRESHOLD`, Selbstabschaltung und
+`setAdvancedCombatHook`, dazu `isPhase75Enabled()` und der Config-Block `phase75`.
+
+### 2. Die eigentliche Kollision saß woanders
+
+`phase74.feedback` stand auf `false`, und die Begründung im Code war schon die richtige: „ein
+zweiter Schreiber im selben Tick flackert". Der Grund ist seit 10.9.0 struktureller, als er
+damals aussah — EliteMobs besitzt die Actionbar jetzt allein:
+
+- `AdvancedCombatRuntime` rendert über `runTaskTimer(…, 1L, 1L)`, also **jeden Tick**
+- `CLASS_HUD` ist mit `defaultDurationTicks = -1` **persistent** publiziert
+- Keepalive alle 40 Ticks, sofortiges Neu-Rendern bei jeder Vitals-Änderung
+
+Ein `player.sendActionBar()` verliert dagegen immer. Der Compositor schlichtet aber nach
+Priorität statt nach „wer schrieb zuletzt", und EM hat für genau unseren Fall eine Quelle:
+
+```java
+ABILITY_INPUT(310, 40, Encoding.LEGACY)   // gegen CLASS_HUD(100, -1, LEGACY)
+```
+
+Die Klassendoku nennt den Zweck ausdrücklich: *„combat feedback can cover it temporarily without
+destroying it."*
+
+Neu ist `bridge/EliteMobsActionBar` — auflösen per `Class.forName`, nie per Import, dieselbe
+Firewall wie in `AdvancedCombatSupport`. Fällt die Auflösung aus, geht die Meldung wieder direkt
+raus (falsch, aber harmlos) statt den Listener mitzureißen. Am **Artefakt** belegt statt am
+Master, siehe Punkt 4: `javap` auf `EliteMobs-10.9.0.jar` zeigt
+`public static void show(Player, Source, String)` und die Konstante `ABILITY_INPUT`.
+
+`phase74.feedback` steht damit auf **`true`**.
+
+### 3. Was die Tests jetzt absichern
+
+`EliteMobsActionBarTest` prüft nicht nur unsere Auflösung, sondern drei **Upstream-Verträge**:
+`ABILITY_INPUT` hat höhere Priorität als `CLASS_HUD`, ist nicht persistent, und lebt zwischen 1
+und 100 Ticks. Dreht MagmaGuy eine dieser Eigenschaften, bricht der Build — statt dass das
+Feedback in-game still gegen das HUD verliert, was von außen wie „die Geste hat nicht
+ausgelöst" aussieht.
+
+### 4. Was daraus zu lernen ist
+
+Wieder „am Artefakt belegen": Die Frage, ob `ActionBarCompositor` und `ABILITY_INPUT` schon in
+der Version existieren, gegen die das pom baut (10.9.0), war nicht aus dem GitHub-Master zu
+beantworten — der stand bei 10.9.4 plus WIP. `unzip -l` und `javap` auf die JAR im lokalen `.m2`
+haben es in einer Minute geklärt.
+
+Und: **wenn Upstream das Problem selbst löst, ist der eigene Workaround kein Gewinn mehr, sondern
+Wartungslast.** 7.5 hätte weiterlaufen können, ohne dass jemand etwas gemerkt hätte — als toter
+Code, der auf dem Netty-Thread Pakete serialisiert.
+
+### 5. Stand
+
+`bash verify-both-apis.sh` grün — **beide** API-Generationen (26.2 und 1.21.10), **43 Tests**,
+Class-File-Version 69. Artefakt: `target/FMMBedrockBridge-0.1.0-SNAPSHOT-20260916-1734.jar`.
+
+**Nicht verifiziert ist die Wirkung in-game.** Ob die Rückmeldung über den Compositor auf einem
+Bedrock-Client tatsächlich stehen bleibt, lässt sich nur dort sehen — wie bei jeder
+Bedrock-Frage. Sinnvolle Reihenfolge: erst TestServer01 auf EM 10.9.4 + FMM 2.12.2 heben, dann
+diese JAR deployen, dann im Dungeon testen.
+
+---
+
+## Session: 2026-09-20
+
+### 1. Was gemacht wurde
+
+**Die Bedrock-Erkennung der Bridge auf EliteMobs' Stand gehoben.** `ViewerManager.isBedrockPlayer()`
+fragte bis hierhin nur Floodgate:
+
+```java
+if (!floodgateAvailable) return false;
+return FloodgateApi.getInstance().isFloodgatePlayer(player.getUniqueId());
+```
+
+Genau diese Form hat MagmaGuy am 16.09. in EliteMobs 10.9.5 ersetzt — Änderungsliste:
+*„Improved Bedrock player detection behind proxies"*, in EM, FMM und RPM gleichlautend.
+Auswertung der Welle: `../server-tools/SERVER-STATE.md`, Änderungs-Log 20.09.
+
+### 2. Warum das mehr ist als Kosmetik
+
+EMs eigenes `fLayerSupported()` ist schlicht `!BedrockChecker.isBedrock(player)`. **Beide Seiten
+entscheiden also anhand derselben Frage, ob ein Spieler Eingabe bekommt** — bisher aber mit
+verschiedenen Antworten. Wo EliteMobs „Bedrock" sagt und die Bridge „Java", gilt:
+
+| | EliteMobs | Bridge | Ergebnis für den Spieler |
+|---|---|---|---|
+| F-Chord | gesperrt (kein F auf Bedrock) | — | keine Eingabe |
+| Schleich-Geste | — | nicht registriert (gilt als Java) | keine Eingabe |
+
+Das ist die Aussperrung, die wir am 11.09. upstream gemeldet haben — nur still und aus unserem
+eigenen Code. Mit gleicher Reihenfolge auf beiden Seiten schließt das Fenster.
+
+### 3. Wie es gebaut ist
+
+Neue Klasse **`BedrockDetection`** — reine Entscheidung, testbar ohne Bukkit/Floodgate/Geyser,
+nach dem Muster von `RerouteDecision`. Reihenfolge wie in EMs `BedrockChecker`:
+
+1. **Floodgate-UUID** (`getMostSignificantBits() == 0`) — trägt auch ohne installiertes Plugin
+2. **Namensmuster** `^\..*\d{4}$` — ein Java-Name kann nie mit `.` beginnen, also kollisionsfrei
+3. **Floodgate**, dann **Geyser** — und zwar *nacheinander*: ein `false` von Floodgate fällt jetzt
+   zu Geyser durch statt die Kette abzubrechen. **Das ist der eigentliche „behind proxies"-Fix.**
+
+Dazu in `ViewerManager`: `isEnabled()` statt bloßer Anwesenheit, und `LinkageError`/`RuntimeException`
+aus einer fehlenden API zählen als „nicht Bedrock" statt zu fliegen. Die Geyser-Abfrage ist
+reflektiv, weil die Geyser-API bewusst nicht im pom steht — in diesem Netz läuft Geyser ohnehin
+auf dem Proxy, die Abfrage findet hier also normalerweise nichts.
+
+### 4. Stand
+
+**10 neue Tests**, TDD gefahren (erst rot: 7 von 10 an den Assertions, dann grün).
+`bash verify-both-apis.sh` grün — beide API-Generationen (26.2 und 1.21.10), **53 Tests**,
+Class-File-Version 69.
+
+**Nicht verifiziert ist die Wirkung in-game** — wie bei jeder Bedrock-Frage. Die Erkennung ist
+jetzt breiter, nicht schmaler; ein Fehlverhalten wäre also ein Java-Spieler, der Bedrock-Eingabe
+bekommt, und dafür müsste er eine Floodgate-UUID oder einen `.`-Namen haben.
+
+### 5. Nebenbefund zur Werkzeugkette
+
+Auf diesem PC gibt es **kein `mvn`** und kein IntelliJ unter den Pfaden, die `verify-both-apis.sh`
+durchprobiert (`/usr/share/idea/...`, `/opt/idea/...`) — nur ein gefülltes `~/.m2`. Gebaut wurde
+mit einem portablen Maven 3.9.9 im Scratchpad. Wenn hier öfter gearbeitet wird, lohnt
+`sudo pacman -S maven`.
+
+## Session: 2026-09-27
+
+### 1. Versionen und pom (`3801d7f`)
+
+Live gegen Modrinth, GeyserMC und PaperMC abgefragt: die MagmaGuy-Plugins stehen seit der Welle vom
+16.09. still (EM 10.9.5, FMM 2.12.3, RPM 2.4.4, BS 2.7.4). Neu sind PacketEvents **2.14.0** (23.09.,
+26.3-Support), Geyser 2.11.3-b1247, Floodgate b141, Paper 26.2-129, Velocity 4.2.0; Paper 26.3 nur
+als Alpha. pom auf FMM 2.12.3 / EM 10.9.5 / PacketEvents 2.14.0 gehoben — FMM und EM direkt von
+Modrinth, SHA-512 gegen die API geprüft, per `install:install-file` ins `.m2`. Beide API-Generationen
+grün. Geprüfter Stack in `../CLAUDE.md` nachgezogen.
+
+### 2. Spieltest: Utility nur mit Block im Fadenkreuz
+
+Fabi, leere Hand, Schleichen + Rechtsklick: Utility löste nur aus, wenn ein Block anvisiert war.
+Das Debug-Log war eindeutig: Linksklick kam als `LEFT_CLICK_AIR` **und** `LEFT_CLICK_BLOCK`,
+Rechtsklick **nur** als `RIGHT_CLICK_BLOCK`, kein einziges `RIGHT_CLICK_AIR`. Kam einer an, lief
+`UTILITY (handled=true)` — die Bridge wertete richtig aus, bekam aber nichts.
+
+Ursache: Rechtsklick in die Luft ist nur ein „Item benutzen"-Paket, und das schickt der Client mit
+leerer Hand nicht (Java genauso). Geyser (`BedrockInventoryTransactionTranslator`, CLICK_AIR →
+`session.useItem`) würde es weiterleiten. **Auf dem Backend nicht reparierbar.**
+
+### 3. Lösung: Hotbar-Tasten nach EliteMobs' Vorbild (`c080ed5`, `36ebc6c`)
+
+EliteMobs hat im F-Fenster selbst eine Zweitbelegung: Hotbar 1/7 Mobility, 2/8 Signature, 3/9
+Utility (`ClassAbilityGestureState.selectHotbar`, in 10.9.0 und 10.9.5 per `javap` belegt, nicht nur
+am GitHub-Master). Fabi entschied sich gegen eine eigene Gruppierung 1–3/4–6/7–9 und für EMs Zahlen.
+
+- `BedrockAbilityGesture.hotbar(sneaking, slot)` — die Zuordnung, 4–6 bleiben Item-Wechsel
+- `BedrockAbilityListener.onHotbar(PlayerItemHeldEvent)` — Slot-Wechsel wird nur verbraucht, wenn
+  EliteMobs die Eingabe angenommen hat; Diagnose-Zeile `[PHASE74] hotbar from …` vor jedem Gate
+- Hinweis in der Actionbar beim bewussten Ducken (`AbilityFeedback.controlsHint`), mit EMs
+  Spiegeltaste 7/8/9 für den gehaltenen Slot (abgeschaut aus `ClassAbilityInputRouter.openGesture`).
+  `isDeliberateCrouch` verhindert, dass Geysers Flattern ihn neu zeigt und so die Bestätigung
+  einer eben ausgelösten Fähigkeit überdeckt
+- `AdvancedCombatHook.abilityName` — Fähigkeitsnamen für den Hinweis
+- Neuer Schalter `phase74.hotbar-keys` (Standard `true`), wegen Konsole: LB/RB blättert Slot für Slot
+
+TDD: 9 neue Tests, erst rot, dann grün; 62 gesamt, beide API-Generationen.
+
+### 4. Deploy und Abnahme
+
+Test-JAR gegen PacketEvents **2.13.0** gebaut (Serverstand), auf TestServer01 kopiert, Backup
+`FMMBedrockBridge.jar.bak-20260927`, in SERVER-STATE eingetragen. Fabi hat bei der Gelegenheit ein
+AMP-Update gefahren und alle Instanzen neu gestartet; TestServer01 hatte Autostart aus und kam erst
+von Hand hoch. Boot sauber: `hotbar-keys=true, feedback=true, compositor=ABILITY_INPUT`, 0 Bridge-WARN.
+
+Spieltest: 17 × `handled=true` (Utility 4, Signature 3, Mobility 10), keine `interact`-Zeile —
+Utility kam nachweislich über die Taste. Actionbar-Hinweis laut Fabi korrekt.
+**Phase 7.4 ist damit in-game abgenommen.** Offen: Handy/Konsole, Merge-Entscheidung.

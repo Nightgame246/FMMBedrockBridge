@@ -80,3 +80,58 @@ phase73:
   # Reroute Bedrock EliteMobs NPC quest menus (single quest + multi-quest list) to
   # EM's native quest dialog. Same requirements/behaviour as above; toggle separately.
   bedrock-quest-reroute: true
+
+# Phase 7.4 — Bedrock-Eingabe für EliteMobs' Advanced Combat System
+#
+# EliteMobs 10.9.0 bindet seine drei Fähigkeits-Slots an einen F-Chord
+# (F,F / F+LMB / F+RMB). F ist der Offhand-Tausch — den gibt es auf Bedrock nicht,
+# weder auf Controller noch auf Touch. Bedrock-Spieler können damit KEINE aktive
+# Fähigkeit auslösen. Details: docs/upstream-bugs/em-advanced-combat-bedrock-input-lockout.md
+#
+# Diese Phase übersetzt das auf Schleichen — als GEHALTENEN Modifikator, nicht als
+# Zeitfenster. Solange geschlichen wird, ist die Steuerung scharf:
+#   Linksklick              -> Signature (beliebig oft)
+#   Rechtsklick             -> Utility   (beliebig oft)
+#   Loslassen + neu ducken  -> Mobility
+#   Loslassen               -> Steuerung aus
+#
+# Frühere Fassungen hatten hier ein Zeitfenster nach EliteMobs' Vorbild. Das passt zu einem
+# Tastendruck, nicht zu einem Zustand: im Spieltest am 11.09. lief es beim Zielen ab, und nach
+# der ersten Fähigkeit war es verbraucht, obwohl der Spieler noch geduckt war.
+#
+# Java-Spieler sind nicht betroffen und behalten EMs Originalsteuerung.
+phase74:
+  # Gesamtschalter. Die Phase registriert sich beim Start, sobald EliteMobs' Klassen
+  # vorhanden sind. Ob die Schleich-Steuerung dann tatsächlich etwas auslöst, entscheidet
+  # EliteMobs zur Laufzeit: Sie bleibt stumm, solange EM selbst nicht handeln würde —
+  # Advanced Combat System aus, keine Klasse gewählt, oder außerhalb von Dungeon/Match.
+  bedrock-abilities: true
+
+
+  # Wenn true, ist die Steuerung nur im Kampf bzw. in Dungeons scharf. Auf false
+  # gesetzt löst auch normales Schleichen beim Bauen Fähigkeiten aus — nicht empfohlen.
+  require-combat: true
+
+  # Schleichen + Hotbar-Taste löst die Fähigkeit aus, mit EliteMobs' eigenen Zahlen:
+  # 1/7 Mobility, 2/8 Signature, 3/9 Utility (4-6 bleiben normaler Item-Wechsel).
+  #
+  # Nötig seit dem Spieltest am 27.09.2026: Rechtsklick in die Luft schickt mit leerer Hand
+  # gar kein Paket, Utility ging nur mit einem Block im Fadenkreuz. Ein Slot-Wechsel kommt
+  # von jedem Gerät an.
+  #
+  # Auf false setzen, wenn Konsolenspieler stören: dort blättert LB/RB Slot für Slot, und
+  # wer dabei schleicht, löst jede Fähigkeit aus, an der er vorbeikommt.
+  hotbar-keys: true
+
+  # Zusätzliche Rückmeldung in der Actionbar: welche Fähigkeit ausgelöst hat, bzw. warum
+  # EliteMobs sie abgelehnt hat. Dazu beim Ducken die Belegung, z. B.
+  # "[1/2×Ducken] Dash  [2/Links] Wirbel  [3/Rechts] Schild" — das Gegenstück zu der Zeile,
+  # die EliteMobs Java-Spielern nach F zeigt.
+  #
+  # Standardmäßig AN seit 16.09.2026. Vorher stand hier false, weil die Meldung direkt an
+  # den Client ging und dort von EliteMobs' Klassen-HUD binnen ein, zwei Ticks überschrieben
+  # wurde — EM hält seit 10.9.0 die Actionbar dauerhaft belegt und rendert bei jeder
+  # HP-Änderung neu. Die Rückmeldung läuft jetzt über EMs eigenen ActionBarCompositor
+  # (Quelle ABILITY_INPUT, Priorität 310 gegen 100 des HUD), deshalb verdrängen sich
+  # die beiden nicht mehr.
+  feedback: true

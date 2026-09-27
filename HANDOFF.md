@@ -1,6 +1,6 @@
 # HANDOFF — FMMBedrockBridge
 
-> Arbeitsstand **dieses Plugins**. Stand: **2026-09-10**  ·  Branch: **`main`**
+> Arbeitsstand **dieses Plugins**. Stand: **2026-09-27**  ·  Branch: **`phase-7.4-bedrock-ability-input`** (31 Commits vor `main`, **nicht** gemerged)
 >
 > ⚠️ **Der Einstieg steht eine Ebene höher: `../HANDOFF.md`.**
 > Dort liegen Bootstrap, Session-Ende-Protokoll, Build-Vorbereitung am neuen PC und die
@@ -14,10 +14,198 @@
 > Remote keinen Commit mehr und lässt sich nicht pullen — er muss weg und frisch geklont
 > werden. Anleitung und Grund: `../HANDOFF.md`, Kopfblock und „Sicherheitsvorfall".
 >
-> ✅ **Auf der Entwicklungs-Seite ist nichts offen.** Der Rest-Scope (Combat-BossBar +
-> HP-Nametag) ist auf dem 26.2-Stack vollständig live verifiziert: 7.1a am 14.08.,
-> 7.1b/7.1c am 16.08. per A/B-Test, Boot-Gegenprobe am 09.09. Was übrig ist, liegt bei Fabi
-> (Upstream-Report) oder auf der Server-Seite — Abschnitt 3.
+> 🔵 **Neu seit 11.09.: Phase 7.4 auf eigenem Branch, deployt auf TestServer01,
+> in-game noch NICHT final abgenommen.** Die älteren Phasen (BossBar + HP-Nametag) sind
+> unverändert live verifiziert: 7.1a am 14.08., 7.1b/7.1c am 16.08. per A/B-Test,
+> Boot-Gegenprobe am 09.09.
+>
+> 🔴 **Phase 7.5 ist am 16.09.2026 wieder ausgebaut worden — EliteMobs 10.9.1 macht das
+> selbst.** Details im Abschnitt unten.
+>
+> 🔵 **Neu am 20.09.: die Bedrock-Erkennung liegt jetzt auf EMs Stand** (`BedrockDetection`,
+> 10 neue Tests, 53 gesamt). Vorher konnte EliteMobs einen Spieler als Bedrock behandeln,
+> während die Bridge ihn für Java hielt — dann bekommt er **von keiner Seite** Eingabe.
+> Abschnitt „Bedrock-Erkennung" unten.
+
+> 🟢 **Neu am 27.09.: Phase 7.4 ist in-game abgenommen** — Schleichen + Hotbar-Taste
+> (1/7 · 2/8 · 3/9) als zweite Geste, weil Rechtsklick in die Luft mit leerer Hand gar kein
+> Paket schickt. Dazu pom auf FMM 2.12.3 / EM 10.9.5 / PacketEvents 2.14.0. Abschnitt
+> „HIER WEITERMACHEN" unten.
+
+### Bedrock-Erkennung — angeglichen am 20.09.2026
+
+`ViewerManager.isBedrockPlayer()` fragte nur Floodgate. Genau diese Form hat MagmaGuy in der
+Welle vom 16.09. ersetzt (*„Improved Bedrock player detection behind proxies"*, gleichlautend in
+EM 10.9.5, FMM 2.12.3 und RPM 2.4.4).
+
+**Warum das die Bridge trifft:** EMs `fLayerSupported()` ist `!BedrockChecker.isBedrock(player)`.
+Beide Seiten entscheiden anhand derselben Frage, ob ein Spieler Eingabe bekommt. Sagt EM
+„Bedrock" (F-Chord gesperrt) und die Bridge „Java" (Schleich-Geste nicht registriert), hat der
+Spieler **gar keine** Eingabe — die Aussperrung aus dem Upstream-Report vom 11.09., nur still
+und hausgemacht.
+
+Die Entscheidung liegt jetzt in **`BedrockDetection`** (rein, testbar ohne Bukkit, Muster wie
+`RerouteDecision`), Reihenfolge wie in EMs `BedrockChecker`:
+
+1. Floodgate-UUID (`getMostSignificantBits() == 0`) — trägt auch ohne installiertes Plugin
+2. Namensmuster `^\..*\d{4}$` — ein Java-Name kann nie mit `.` beginnen
+3. Floodgate, **dann** Geyser — ein `false` bricht die Kette nicht mehr ab (der eigentliche
+   „behind proxies"-Fix)
+
+Dazu: `isEnabled()` statt bloßer Anwesenheit, und eine fehlende API zählt als „nicht Bedrock",
+statt zu fliegen. Geyser wird reflektiv gefragt (API bewusst nicht im pom; in diesem Netz läuft
+Geyser auf dem Proxy, hier findet die Abfrage also normalerweise nichts).
+
+⚠️ **In-game nicht verifiziert** — wie jede Bedrock-Frage.
+
+
+### Was Phase 7.4 ist
+
+**7.4 — Bedrock-Eingabe für EMs Klassen-Fähigkeiten.** EliteMobs 10.9.0 bindet sie an einen
+F-Chord; `F` ist der Offhand-Tausch, den Bedrock auf keinem Gerät hat. Konsolenspieler können
+ohne die Bridge **keine einzige** aktive Fähigkeit auslösen. Wir übersetzen das auf Schleichen.
+
+Das bleibt nötig: EliteMobs kennt das Problem (`fLayerSupported()` ist schlicht
+`!BedrockChecker.isBedrock(player)`, im Input-Router steht *„Bedrock has no F-key input"*),
+liefert aber **keinen** Ersatz.
+
+### Phase 7.5 — ausgebaut am 16.09.2026
+
+**Was sie war.** EMs Combat-HUD wird aus einer Java-Resource-Pack-Schrift gezeichnet; 689 der
+703 Glyphen liegen in der Private Use Area, wo Bedrock seine eigenen Item-Symbole hat. Ergebnis
+in-game: hunderte Rüstungs- und Karotten-Icons über dem halben Bildschirm, fünfmal pro Sekunde
+neu — der Client laggt sich fest. Screenshots: `../references/screenshots/`. Die Bridge fing
+deshalb Actionbar-Pakete ab, filterte die Glyphen und ersetzte das HUD durch eine eigene
+Textzeile aus EMs öffentlichen Snapshots.
+
+**Warum sie weg ist.** EliteMobs 10.9.1 hat genau das selbst eingebaut
+(*„Fixed … combat HUD fallback for Bedrock players"*). In `ActionBarCompositor.render()` steht
+die Bedingung für den grafischen HUD jetzt so, dass Bedrock gar nicht erst hineinläuft:
+
+```java
+// CLASS_HUD and ability feedback remain published below as the resource-pack-free fallback.
+if (isEnableCombatHud() && !BedrockChecker.isBedrock(player) && … ) { … grafisch …; return; }
+```
+
+Bedrock bekommt damit nie wieder Glyphen aus dem Combat-HUD. Unser Filter wäre ein reiner
+No-Op geworden — und kein billiger: er serialisierte **jedes** Actionbar-Paket an jeden
+Bedrock-Spieler auf dem Netty-Thread, bevor er überhaupt prüfen konnte, ob Glyphen drin sind.
+EM sendet rund fünfmal pro Sekunde.
+
+Entfernt wurden `BedrockGlyphFilter` (+ 18 Tests), `AdvancedCombatHook.hudLine()`, der
+Glyph-Zweig im `PacketInterceptor` samt Selbstabschaltung und der Config-Block `phase75`.
+Historie: dieser Branch vor dem Commit vom 16.09.2026 („Phase 7.5 ausgebaut, Rueckmeldung
+ueber EMs Compositor").
+
+Design: `docs/specs/2026-09-11-bedrock-ability-input-design.md` ·
+Plan: `docs/plans/2026-09-11-bedrock-ability-input.md` ·
+Upstream: `docs/upstream-bugs/em-advanced-combat-bedrock-input-lockout.md`
+(am 11.09. von Fabi im Discord gepostet, Thread-Link steht drin; **Nachtrag 4 ist noch nicht
+gepostet** — er beschreibt die zweite Sperre und ist durch die Arbeit an 7.4 belegt).
+
+### Vier Irrwege, die nicht noch einmal nötig sind
+
+Die Gesten-Erkennung hat vier Anläufe gebraucht. Alle vier scheiterten am selben
+Missverständnis — EliteMobs' Chord-Metapher ist für einen **Tastendruck** gemacht, Schleichen
+ist ein **Zustand**:
+
+1. Festes 2-Sekunden-Fenster → lief beim Zielen ab
+2. Chord wird von der ersten Fähigkeit verbraucht → zweite Fähigkeit unmöglich
+3. Arming über Sneak-Events → **Geyser liefert Bedrocks Ducken als Flatter-Folge**
+   (gemessen: 5 × „armed" gegen 20 × „disarmed" in Sekunden)
+4. Jetzt: Klicks lesen `player.isSneaking()` direkt; nur Mobility wertet noch Events aus,
+   mit 4-Tick-Untergrenze gegen das Flattern
+
+⚠️ **Merksatz:** Bei Bedrock-Eingaben den **Zustand** abfragen, nicht dem Eventstrom trauen.
+
+### Die EliteMobs-Seite, die uns nicht gehört
+
+`INVALID_PLAYER` im Log heißt „Class controls are not active here" — das kommt von EliteMobs,
+nicht von uns. Tritt es **in** einer EM-Welt mit aktiver Klasse auf, ist es ein Upstream-Thema.
+Klassen setzen ohne Instructor-Trial: `/em class test set <player> <class> <level>`.
+
+---
+
+## ▶ HIER WEITERMACHEN (Stand 27.09.2026, Sitzungsende)
+
+### Stand: Phase 7.4 in-game abgenommen ✅
+
+Spieltest von Fabi am 27.09. im Dungeon, mit leerer Hand, auf dem Test-JAR `c080ed5`:
+17 × `handled=true` (Utility 4, Signature 3, Mobility 10), **keine** `interact`-Zeile — Utility
+kam also nachweislich über die Hotbar-Taste. Actionbar-Hinweis laut Fabi „hat gepasst".
+
+| Geste (geduckt) | löst aus |
+|---|---|
+| **Linksklick** (Luft oder Block) | Signature |
+| **Rechtsklick auf einen Block** | Utility |
+| **Ducken, loslassen, wieder ducken** | Mobility |
+| **Hotbar-Taste 1 / 7** | Mobility |
+| **Hotbar-Taste 2 / 8** | Signature |
+| **Hotbar-Taste 3 / 9** | Utility |
+| Hotbar-Taste 4–6 | nichts, normaler Item-Wechsel |
+
+Beim bewussten Ducken steht die Belegung in der Actionbar, mit den Fähigkeitsnamen der Klasse:
+`[1/2×Ducken] Dash  [2/Links] Wirbel  [3/Rechts] Schild`. Hält der Spieler gerade Slot 1–3,
+wird die Spiegeltaste 7–9 angezeigt — **von EliteMobs übernommen** (`openGesture()`), weil ein
+Client für den bereits gehaltenen Slot keinen Wechsel meldet.
+
+### Der fünfte Irrweg: Rechtsklick in die Luft
+
+Utility ging bis zum 27.09. nur mit einem Block im Fadenkreuz. Im Log kam Rechtsklick
+**ausschließlich** als `RIGHT_CLICK_BLOCK` an. Grund: Ein Rechtsklick in die Luft ist im Protokoll
+nur ein „Item benutzen"-Paket, und das schickt der Client mit leerer Hand gar nicht (Java genauso).
+Geyser würde es weiterleiten, bekommt es aber nie. **Nicht in der Bridge reparierbar** — deshalb
+die Hotbar-Tasten, nach EliteMobs' eigener Zweitbelegung (`ClassAbilityGestureState.selectHotbar`,
+in den Artefakten 10.9.0 und 10.9.5 per `javap` belegt).
+
+### Deploy-Stand TestServer01
+
+- Läuft: **Test-JAR `c080ed5`, gegen PacketEvents 2.13.0 gebaut** (sha256 `bc47e341…`), seit
+  27.09. 18:47. Backup des 20.09.-Builds: `FMMBedrockBridge.jar.bak-20260927`.
+- **Noch nicht drauf:** `36ebc6c` (nur die Diagnose-Zeile `[PHASE74] hotbar from …`).
+- ⚠️ **Der Repo-Stand baut gegen PacketEvents 2.14.0** und darf erst auf eine Instanz, die
+  mindestens 2.14.0 hat — TestServer01 und Survival01 haben 2.13.0. Für einen Zwischen-Deploy
+  wie am 27.09. die Version im pom kurz auf 2.13.0 setzen, bauen, pom zurücksetzen.
+
+### Noch offen
+
+1. **Hotbar-Tasten auf Handy/Konsole** — dort blättert LB/RB Slot für Slot; wer dabei schleicht,
+   löst jede Fähigkeit auf dem Weg aus. Nicht getestet. Notfalls `phase74.hotbar-keys: false`.
+2. **Server auf PacketEvents 2.14.0 + EM 10.9.5 / FMM 2.12.3 / BS 2.7.4** — Server-Claude-Sache,
+   PacketEvents läuft über PluginPortal (Tausch-Verfahren vom 09.08. in SERVER-STATE).
+3. **`BedrockAbilityListener.isBedrock()` fragt noch nur Floodgate**, nicht `BedrockDetection`
+   vom 20.09. Hinter dem Proxy mit Floodgate überall unkritisch, aber dieselbe Asymmetrie, die
+   der 20.09.-Fix in `ViewerManager` geschlossen hat.
+4. `INVALID_PLAYER` kam im Test dreimal binnen sechs Sekunden — EliteMobs' Ablehnung, nicht
+   unsere. Vermutlich kurz außerhalb des freigegebenen Bereichs; nicht weiter verfolgt.
+
+### Wenn etwas nicht stimmt
+
+`debug: true` steht in der Instanz-Config. Im Log stehen dann:
+
+- `[PHASE74] interact from …: action=… hand=… sneaking=… cancelled=…` — was Geyser wirklich
+  schickt, **vor** jeder Prüfung
+- `[PHASE74] hotbar from …: slot a -> b sneaking=… enabled=…` — jeder Slot-Wechsel eines
+  Bedrock-Spielers, ebenfalls vor jeder Prüfung (ab `36ebc6c`)
+- `[PHASE74] … failed: <GRUND>` — EliteMobs hat abgelehnt, nicht wir
+- `[PHASE74] compositor call failed, falling back to sendActionBar: …` — EMs
+  `ActionBarCompositor` war da, hat aber beim Aufruf geworfen; die Rückmeldung geht ab da
+  wieder direkt raus und wird vom Klassen-HUD überschrieben
+
+Diese Zeilen sind aus Fehlern entstanden: Ohne sie war jedes Mal unklar, ob ein Event
+fehlt, verworfen wird oder EliteMobs ablehnt — und jede Vermutung darüber war falsch.
+
+Im Boot-Log steht außerdem, welchen Weg die Rückmeldung nimmt:
+`Phase 7.4: Bedrock ability input registered (…, feedback=true, compositor=ABILITY_INPUT)`.
+Steht dort `compositor=unavailable`, hat MagmaGuy die Klasse verschoben — dann schreibt die
+Bridge wieder direkt und das Feedback flackert.
+
+### Danach: Branch abschließen
+
+`phase-7.4-bedrock-ability-input` hat 31 Commits vor `main` und ist **nicht** gemerged. Die
+Abnahme ist da (27.09.) — mergen nach `main` oder PR, **die Entscheidung steht noch aus**.
+⚠️ Commit `4dbfe52` hat eine kaputte Message (Trailer ohne Leerzeile am Betreff);
+ein Squash-Merge räumt das mit auf.
 
 ---
 
@@ -25,12 +213,9 @@
 
 - **Der geprüfte Stack steht in `../CLAUDE.md`** („Geprüfter Stack") — nicht hier, damit es
   nur eine Quelle gibt.
-- ⚠️ **Der pom hängt bewusst eine Patch-Version zurück:** FMM **2.11.1** / EM **10.8.0**,
-  während live **2.11.2** / **10.8.1** läuft. `provided`-Deps auf Patch-Level, seit dem
-  14.08.-Build kein Code-Change, also kein Redeploy-Anlass — **Fabis Entscheidung vom 09.09.**
-  Am 09.09. 15:33 live gegengeprüft: die 14.08.-JAR läuft gegen 2.11.2 / 10.8.1 **bruchfrei**
-  (null Bridge-WARN/Exception, netzwerkweit kein `NoSuchMethodError`/`NoSuchFieldError`/
-  `NoClassDefFoundError`). Beim nächsten echten Build-Anlass mitziehen.
+- **Der pom steht seit 27.09.2026 auf dem aktuellen Upstream-Stand:** FMM **2.12.3** /
+  EM **10.9.5** / PacketEvents **2.14.0**. Beide API-Generationen grün, 53 Tests.
+  ⚠️ Das JAR braucht auf dem Server **PacketEvents ≥ 2.14.0**.
 - **`api-version` in `plugin.yml` bleibt `'1.21'`** — Mindestangabe, keine Zielangabe.
   **Nicht „korrigieren".** (Begründung in `../CLAUDE.md`.)
 - **Bedrock-Rendering ist nie im Log verifizierbar**, nur in-game.
@@ -355,10 +540,8 @@ Was von der Bridge **vielleicht** noch übrig bleibt (zu prüfen!):
    ~~Case-Sensitivity im RPM-Geyser-Bridge-Pfad~~ ✅ **von MagmaGuy in RPM 2.3.1 gefixt**
    (`BEDROCK_PACK_PATHS` probiert beide Schreibweisen, Kommentar *„Velocity's default data
    directory is lowercase"*) — Entwurf als erledigt markiert, nicht mehr einreichen.
-4. **Beim nächsten echten Build-Anlass: pom auf FMM 2.11.2 / EM 10.8.1 mitziehen.** Aktuell
-   bewusst eine Patch-Version zurück (s. Abschnitt 0). Kein eigener Anlass — der 09.09.-Boot
-   belegt, dass die 14.08.-JAR gegen 2.11.2 / 10.8.1 bruchfrei läuft. Nur nicht vergessen,
-   wenn ohnehin gebaut wird.
+4. ~~**pom auf aktuellen Stand ziehen**~~ ✅ **erledigt 27.09.** — FMM 2.12.3 / EM 10.9.5 /
+   PacketEvents 2.14.0.
 5. ~~**Symlink-Test**~~ ✅ **erledigt 16.08. — der Workaround ist weg und bleibt weg.**
    Symlink deaktiviert, Proxy-Boot 17:51 ohne ihn:
    `Preloaded 316 … from …/plugins/`**`resourcepackmanager`**`/work/merged/Bedrock.zip`,

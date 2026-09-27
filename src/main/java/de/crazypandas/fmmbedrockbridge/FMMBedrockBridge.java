@@ -1,5 +1,6 @@
 package de.crazypandas.fmmbedrockbridge;
 
+import de.crazypandas.fmmbedrockbridge.bridge.AdvancedCombatSupport;
 import de.crazypandas.fmmbedrockbridge.bridge.BedrockEntityBridge;
 import de.crazypandas.fmmbedrockbridge.commands.FMMBridgeCommand;
 import de.crazypandas.fmmbedrockbridge.tracker.FMMEntityTracker;
@@ -100,6 +101,41 @@ public class FMMBedrockBridge extends JavaPlugin {
                     + ", status=" + statusReroute + ", quest=" + questReroute + ")");
         }
 
+        // Phase 7.4 — sneak-based ability input for Bedrock players.
+        // EliteMobs' F-chord cannot be produced by Bedrock clients; see the upstream report.
+        if (floodgateAvailable && elitemobsAvailable && isPhase74Enabled()) {
+            if (AdvancedCombatSupport.isPresent()) {
+                try {
+                    de.crazypandas.fmmbedrockbridge.bridge.AdvancedCombatHook hook =
+                            new de.crazypandas.fmmbedrockbridge.bridge.AdvancedCombatHook();
+                    // The listener reads its config per event, like every other phase, instead
+                    // of freezing it here — so a switch flipped during the playtest only needs
+                    // the config reloaded, not the whole server restarted.
+                    getServer().getPluginManager().registerEvents(
+                            new de.crazypandas.fmmbedrockbridge.bridge.BedrockAbilityListener(hook),
+                            this);
+                    log.info("Phase 7.4: Bedrock ability input registered (sneak-held controls,"
+                            + " require-combat=" + isPhase74RequireCombat()
+                            + ", hotbar-keys=" + isPhase74HotbarKeysEnabled()
+                            + ", feedback=" + isPhase74FeedbackEnabled()
+                            + ", compositor=" + (de.crazypandas.fmmbedrockbridge.bridge.EliteMobsActionBar.isAvailable()
+                                    ? "ABILITY_INPUT"
+                                    : "unavailable, direct write ("
+                                        + de.crazypandas.fmmbedrockbridge.bridge.EliteMobsActionBar.unavailableReason() + ")")
+                            + ")");
+                } catch (Throwable t) {
+                    // Alpha package: this feature may break, the plugin must not.
+                    log.warning("Phase 7.4: registration failed, Bedrock ability input disabled. Cause: " + t);
+                }
+            } else {
+                log.info("Phase 7.4: EliteMobs Advanced Combat System not available ("
+                        + AdvancedCombatSupport.missingReason() + ") — Bedrock ability input off");
+            }
+        } else {
+            log.info("Phase 7.4: NOT registered (floodgate=" + floodgateAvailable
+                    + ", em=" + elitemobsAvailable + ", enabled=" + isPhase74Enabled() + ")");
+        }
+
         FMMBridgeCommand cmd = new FMMBridgeCommand(this);
         getCommand("fmmbridge").setExecutor(cmd);
         getCommand("fmmbridge").setTabCompleter(cmd);
@@ -165,6 +201,30 @@ public class FMMBedrockBridge extends JavaPlugin {
     public static long getPhase71cDamageTimeoutTicks() {
         FMMBedrockBridge plugin = instance;
         return plugin != null ? plugin.getConfig().getLong("phase71c.damage-timeout-ticks", 0L) : 0L;
+    }
+
+    public static boolean isPhase74Enabled() {
+        FMMBedrockBridge plugin = instance;
+        return plugin != null && plugin.getConfig().getBoolean("phase74.bedrock-abilities", true);
+    }
+
+
+    public static boolean isPhase74RequireCombat() {
+        FMMBedrockBridge plugin = instance;
+        return plugin != null && plugin.getConfig().getBoolean("phase74.require-combat", true);
+    }
+
+    public static boolean isPhase74HotbarKeysEnabled() {
+        FMMBedrockBridge plugin = instance;
+        return plugin != null && plugin.getConfig().getBoolean("phase74.hotbar-keys", true);
+    }
+
+    public static boolean isPhase74FeedbackEnabled() {
+        FMMBedrockBridge plugin = instance;
+        // Default ON since 16.09.2026. It shipped disabled because a direct sendActionBar lost
+        // against EliteMobs' permanently published class HUD; the feedback now goes through that
+        // same compositor at a higher priority, so the two no longer fight. See EliteMobsActionBar.
+        return plugin != null && plugin.getConfig().getBoolean("phase74.feedback", true);
     }
 
 }
