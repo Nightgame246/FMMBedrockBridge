@@ -202,6 +202,13 @@ Debug: `[PHASE71D] entity … : '…' -> '…'` einmal pro Mob.
   mindestens 2.14.0 hat — TestServer01 und Survival01 haben 2.13.0. Für einen Zwischen-Deploy
   wie am 27.09. die Version im pom kurz auf 2.13.0 setzen, bauen, pom zurücksetzen.
 
+### ▶ Nächste Sitzung
+
+Reihenfolge von Fabi, Details in `../HANDOFF.md` („NÄCHSTE SITZUNG"): **1.** Spieltest des JARs
+`ab5914f` (7.1d Nametag, 7.3c Klassenmenü, 7.4 leere Ausdauer) · **2.** Upgrade inkl.
+PacketEvents 2.14.0, dann Bridge gegen 2.14.0 bauen · **3.** Plan für Custom-GUIs auf Bedrock
+(Vorbild NitroSetups).
+
 ### Noch offen
 
 1. **Hotbar-Tasten auf Handy/Konsole** — dort blättert LB/RB Slot für Slot; wer dabei schleicht,

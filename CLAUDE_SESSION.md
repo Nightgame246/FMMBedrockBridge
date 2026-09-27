@@ -1972,3 +1972,16 @@ von Hand hoch. Boot sauber: `hotbar-keys=true, feedback=true, compositor=ABILITY
 Spieltest: 17 × `handled=true` (Utility 4, Signature 3, Mobility 10), keine `interact`-Zeile —
 Utility kam nachweislich über die Taste. Actionbar-Hinweis laut Fabi korrekt.
 **Phase 7.4 ist damit in-game abgenommen.** Offen: Handy/Konsole, Merge-Entscheidung.
+
+### 5. Nachtrag am Abend (27.09.)
+
+- **Bedrock-Erkennung überall gleich:** Fähigkeiten-Listener, Menü-Umleitung und PacketInterceptor
+  fragen `ViewerManager` (Reihenfolge wie EliteMobs), mit Cache pro Spieler (`f95efb2`, `8075c8a`).
+- **Hotbar-Taste bei leerer Ausdauer** wechselt nicht mehr das Item (`745228a`). EliteMobs meldet
+  zu wenig Ausdauer als `INVALID_PLAYER` — frühere Deutung „außerhalb des Bereichs" war falsch.
+- **Phase 7.3c** Klassenmenü als Formular (`4c7458a`): Stellvertreter im `ClassMenuCoordinator`.
+  Bestandsaufnahme: Status, Quests, Classes waren alle EM-Menüs mit Dialog-Alternative.
+- **Phase 7.1d** echter Boss-Name im Bedrock-Nametag (`ab5914f`): EM gibt den YAML-Namen bei
+  FMM-Bossen nur ans Modell, Bedrock sieht das Mob darunter. Selbst-abbauend, abschaltbar.
+- Java-BossBar fehlte im Test: EliteMobs zeigt sie nur dem aktuellen Ziel des Bosses — kein Bridge-Thema.
+- Deployt auf TestServer01: `ab5914f` (gegen PacketEvents 2.13.0). **Spieltest steht aus.**
