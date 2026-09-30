@@ -218,6 +218,11 @@ Reflection-Ziele** unverändert da sind: `PlayerStatusScreenDialog.showPlayerSta
 
 ### ▶ Nächste Sitzung
 
+**Neu 30.09.: zwei HP-Balken auf Bedrock** — unklar, ob EMs Overhead-HP (FakeText) Bedrock jetzt
+erreicht und unser 7.1b damit doppelt ist. Screenshot + A/B mit `phase71b.nametag-enabled: false`.
+Details in `../HANDOFF.md`.
+
+
 Reihenfolge von Fabi, Details in `../HANDOFF.md` („NÄCHSTE SITZUNG"): **1.** Spieltest des JARs
 `ab5914f` (7.1d Nametag, 7.3c Klassenmenü, 7.4 leere Ausdauer) · **2.** Upgrade inkl.
 PacketEvents 2.14.0, dann Bridge gegen 2.14.0 bauen · **3.** Plan für Custom-GUIs auf Bedrock
