@@ -202,6 +202,19 @@ Debug: `[PHASE71D] entity … : '…' -> '…'` einmal pro Mob.
   mindestens 2.14.0 hat — TestServer01 und Survival01 haben 2.13.0. Für einen Zwischen-Deploy
   wie am 27.09. die Version im pom kurz auf 2.13.0 setzen, bauen, pom zurücksetzen.
 
+### MagmaGuy-Welle vom 29.09.2026 — geprüft am 30.09.
+
+EM **10.9.7** · FMM **2.12.5** · RPM **2.4.5** · BS **2.7.6**. pom auf EM 10.9.7 / FMM 2.12.5 gehoben,
+beide API-Generationen grün (73 Tests). Am 10.9.7-Artefakt per `javap` geprüft, dass **alle
+Reflection-Ziele** unverändert da sind: `PlayerStatusScreenDialog.showPlayerStatusDialog`,
+`PlayerStatusMenuConfig.getIndexChestMenuName`, `QuestInventoryMenu`-Maps + `QuestMenu.generateDialogMenu`
+(7.3/7.3b), `ClassSelectionMenu.COORDINATOR` + `dialogs`/`inventories` + 4-Methoden-`ClassMenuRenderer`,
+`PlayerData.getUseBookMenus`, `DefaultConfig.isOnlyUseBedrockMenus` (7.3c), `ActionBarCompositor.show`
++ `Source.ABILITY_INPUT`, `AdvancedCombatModule` (7.4).
+**Kein Fix wird überflüssig:** `CustomBossEntity.setPluginName` ruft weiter `setName(name, false)`
+(7.1d bleibt nötig); keine neue Bedrock-Eingabe und keine neue Bedrock-Kisten-Stelle (die Klassen mit
+`BedrockChecker`-Bezug sind bis auf EM-interne Umbenennungen dieselben wie in 10.9.5).
+
 ### ▶ Nächste Sitzung
 
 Reihenfolge von Fabi, Details in `../HANDOFF.md` („NÄCHSTE SITZUNG"): **1.** Spieltest des JARs
