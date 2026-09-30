@@ -2,44 +2,45 @@ package de.crazypandas.fmmbedrockbridge.bridge;
 
 import org.junit.jupiter.api.Test;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Phase 7.1d. EliteMobs gives a custom boss with an FMM model its real name only through the
- * model; the mob underneath keeps the generic one ("Evoker"). Bedrock sees that mob, so the
- * bridge swaps the name for Bedrock viewers — and must step aside by itself the day EliteMobs
- * writes the right name onto the mob.
+ * Phase 7.1d. FMM draws its own nameplate above the model for Bedrock viewers too, and Bedrock
+ * additionally shows the custom name of the mob underneath. Measured on 30.09.2026: renaming the
+ * mob only turned "Evoker" + real name into the real name twice. So the mob's own name is hidden
+ * for Bedrock whenever the model carries a real name of its own.
  */
 class BedrockNameFixTest {
 
-    private static final String REAL = "§4『§c13§4』§f §9Eis-Elementar";
+    private static final String MODEL_NAME = "§4『§c13§4』§f §9Eis-Elementar";
 
     @Test
-    void theGenericNameIsReplaced() {
-        assertEquals(REAL, BedrockNameFix.replacement("§fLvl §213 §fElite §2Evoker", REAL));
-        assertEquals(REAL, BedrockNameFix.replacement("Evoker | 2", REAL));
+    void theMobNameGoesWhenTheModelShowsItsOwn() {
+        assertTrue(BedrockNameFix.hideMobName("§fEvoker §7| §b2", MODEL_NAME));
     }
 
     @Test
-    void stepsAsideOnceEliteMobsSendsTheRightName() {
-        // The upstream fix: nothing left to do.
-        assertNull(BedrockNameFix.replacement(REAL, REAL));
+    void itAlsoGoesWhenBothSayTheSame() {
+        // Two identical nametags are exactly what the Bedrock player saw on 30.09.
+        assertTrue(BedrockNameFix.hideMobName(MODEL_NAME, MODEL_NAME));
     }
 
     @Test
-    void onlyTheTextCountsNotTheColours() {
-        assertNull(BedrockNameFix.replacement("§c『13』 Eis-Elementar", "§4『§c13§4』 §9Eis-Elementar"));
+    void fmmsPlaceholderIsNotARealName() {
+        // A model nobody named: FMM reports "Default Name" — the mob name must stay.
+        assertFalse(BedrockNameFix.hideMobName("§fHusk §7| §b1", "Default Name"));
+        assertFalse(BedrockNameFix.hideMobName("§fHusk §7| §b1", "§7Default Name"));
     }
 
     @Test
-    void neverAddsANameWhereThereIsNone() {
-        assertNull(BedrockNameFix.replacement(null, REAL));
+    void withoutAModelNameTheMobKeepsItsName() {
+        assertFalse(BedrockNameFix.hideMobName("§fHusk §7| §b1", null));
+        assertFalse(BedrockNameFix.hideMobName("§fHusk §7| §b1", "  "));
     }
 
     @Test
-    void withoutAModelNameThereIsNothingToSwapIn() {
-        assertNull(BedrockNameFix.replacement("Evoker | 2", null));
-        assertNull(BedrockNameFix.replacement("Evoker | 2", "  "));
+    void aMobWithoutANameNeedsNothing() {
+        assertFalse(BedrockNameFix.hideMobName(null, MODEL_NAME));
     }
 }

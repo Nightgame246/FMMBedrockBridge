@@ -18,50 +18,53 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Pattern;
 
 /**
- * Phase 7.1d — the real boss name on the Bedrock nametag instead of "Evoker".
+ * Phase 7.1d — one name above a modelled boss on Bedrock, not two.
  *
- * <p><b>The gap.</b> EliteMobs spawns every elite with a generic custom name derived from its
- * type ({@code setDefaultName}). For a custom boss with an FMM model it then hands the real YAML
- * name to the model only — {@code setName(name, false)}, the {@code false} meaning "not onto the
- * mob". Java players read it off the model's nametag bone. FMM binds the Bedrock model to the
- * mob underneath ({@code bindToUnderlyingEntity}), so Bedrock shows that mob's custom name, which
- * is still the generic one. Same root as the BossBar title, which the bridge already builds from
- * the FMM display name.
+ * <p><b>The duplicate.</b> FMM draws its own nameplate above the model, and its {@code
+ * StackedText} does so for Bedrock viewers as well (per-viewer rows, Bedrock only gets a different
+ * scale). FMM also binds the Bedrock model to the mob underneath ({@code bindToUnderlyingEntity}),
+ * and Bedrock shows that mob's custom name on top. For an EliteMobs custom boss that name is the
+ * generic one from the mob type ("Evoker | 2"), because EliteMobs hands the real name to the model
+ * only ({@code setName(name, false)}).
  *
- * <p><b>The fix.</b> Rewrites the custom-name entry (index 2) of the mob's metadata packets for
- * Bedrock viewers only, and sends the name once when a mob is registered — the tracker polls,
- * so players already nearby received the spawn metadata before we knew the mob.
+ * <p>The first version of this fix (27.09.2026) renamed the mob — and turned "real name + Evoker"
+ * into the real name twice, measured in-game on 30.09. The mob name is therefore <b>hidden</b>
+ * for Bedrock viewers whenever the model carries a real name of its own; FMM's nameplate is then
+ * the only one left, exactly as on Java, where the mob itself is invisible.
  *
- * <p><b>Built to be removed.</b> Once EliteMobs writes the right name onto the mob, {@link
- * #replacement} sees matching text and changes nothing, so the fix goes quiet by itself. It can
- * also be switched off ({@code phase71d.bedrock-name-fix}). Removing it for good: delete this
- * class, the {@code nameFix} field and its one call in {@link PacketInterceptor}, and the
- * register/update/unregister lines in {@link FMMEntityData}.
+ * <p>This stays right if EliteMobs ever writes the real name onto the mob too: both would still
+ * show. It becomes wrong only if FMM stops drawing its nameplate for Bedrock — then switch it off
+ * ({@code phase71d.bedrock-name-fix: false}) or remove it: delete this class, the {@code nameFix}
+ * field and its one call in {@link PacketInterceptor}, and the {@code refreshBedrockName} lines in
+ * {@link FMMEntityData}.
  */
 public final class BedrockNameFix {
 
     /** Entity base metadata: custom name, {@code Optional<Component>}. */
     static final int CUSTOM_NAME_INDEX = 2;
 
+    /** What FMM reports for a model nobody named ({@code SkeletonBlueprint.modelName}). */
+    static final String FMM_PLACEHOLDER = "Default Name";
+
     private static final Pattern FORMATTING = Pattern.compile("(?i)§[0-9a-fk-orx]");
     private static final LegacyComponentSerializer LEGACY = LegacyComponentSerializer.legacySection();
 
-    /** Entity id → the name Bedrock should see. Written on the main thread, read on Netty. */
-    private final Map<Integer, String> names = new ConcurrentHashMap<>();
+    /** Entity id → the model's name. Written on the main thread, read on Netty. */
+    private final Map<Integer, String> modelNames = new ConcurrentHashMap<>();
     /** Debug: one line per mob, not one per packet. */
     private final Set<Integer> logged = ConcurrentHashMap.newKeySet();
 
     /**
-     * Pure decision: what to put on the nametag, or {@code null} to leave the packet alone.
+     * Pure decision: hide the mob's own name for Bedrock?
      *
-     * @param current the custom name in the packet (legacy §-format), {@code null} if none
-     * @param desired the FMM display name, i.e. what Java players see
+     * @param mobName   the mob's custom name (legacy §-format), {@code null} if none
+     * @param modelName the FMM display name, i.e. what FMM's nameplate shows
      */
-    static String replacement(String current, String desired) {
-        if (current == null) return null;              // never add a name that is not there
-        if (desired == null || desired.isBlank()) return null;
-        if (plain(current).equals(plain(desired))) return null; // right already — upstream fixed
-        return desired;
+    static boolean hideMobName(String mobName, String modelName) {
+        if (mobName == null) return false;             // nothing there, nothing doubled
+        if (modelName == null) return false;
+        String model = plain(modelName);
+        return !model.isEmpty() && !model.equals(FMM_PLACEHOLDER);
     }
 
     private static String plain(String legacy) {
@@ -74,35 +77,35 @@ public final class BedrockNameFix {
     }
 
     /**
-     * Records the name for a mob; returns true when it changed, so the caller can push it to
-     * players who already see the mob.
+     * Records the model name for a mob; returns true when it changed, so the caller can push the
+     * result to players who already see the mob.
      */
-    public boolean update(int entityId, String desired) {
-        if (desired == null || desired.isBlank()) return names.remove(entityId) != null;
-        return !desired.equals(names.put(entityId, desired));
+    public boolean update(int entityId, String modelName) {
+        if (modelName == null || modelName.isBlank()) return modelNames.remove(entityId) != null;
+        return !modelName.equals(modelNames.put(entityId, modelName));
     }
 
     public void unregister(int entityId) {
-        names.remove(entityId);
+        modelNames.remove(entityId);
         logged.remove(entityId);
     }
 
     public void clear() {
-        names.clear();
+        modelNames.clear();
         logged.clear();
     }
 
     /** Netty thread. Only called for Bedrock viewers. */
     void onMetadata(PacketSendEvent event) {
-        if (names.isEmpty() || !isEnabled()) return;
+        if (modelNames.isEmpty() || !isEnabled()) return;
         WrapperPlayServerEntityMetadata wrapper;
         try {
             wrapper = new WrapperPlayServerEntityMetadata(event);
         } catch (Throwable t) {
             return;
         }
-        String desired = names.get(wrapper.getEntityId());
-        if (desired == null) return;
+        String modelName = modelNames.get(wrapper.getEntityId());
+        if (modelName == null) return;
 
         List<EntityData<?>> data = wrapper.getEntityMetadata();
         boolean changed = false;
@@ -110,15 +113,15 @@ public final class BedrockNameFix {
             if (entry.getIndex() != CUSTOM_NAME_INDEX) continue;
             if (!(entry.getValue() instanceof Optional<?> value)) continue;
             if (value.isEmpty() || !(value.get() instanceof Component name)) continue;
-            String replacement = replacement(LEGACY.serialize(name), desired);
-            if (replacement == null) continue;
+            String mobName = LEGACY.serialize(name);
+            if (!hideMobName(mobName, modelName)) continue;
             @SuppressWarnings("unchecked")
             EntityData<Optional<Component>> nameEntry = (EntityData<Optional<Component>>) entry;
-            nameEntry.setValue(Optional.of(LEGACY.deserialize(replacement)));
+            nameEntry.setValue(Optional.empty());
             changed = true;
             if (logged.add(wrapper.getEntityId())) {
-                FMMBedrockBridge.debugLog("[PHASE71D] entity " + wrapper.getEntityId() + ": '"
-                        + LEGACY.serialize(name) + "' -> '" + replacement + "' for Bedrock");
+                FMMBedrockBridge.debugLog("[PHASE71D] entity " + wrapper.getEntityId() + ": hid '"
+                        + mobName + "' for Bedrock (model shows '" + modelName + "')");
             }
         }
         if (changed) {
@@ -128,23 +131,23 @@ public final class BedrockNameFix {
     }
 
     /**
-     * Sends the name to one Bedrock viewer directly. For viewers who got the spawn metadata before
-     * the mob was registered, and after the name changes; the packet then passes {@link
-     * #onMetadata} like any other, so the upstream check still applies there.
+     * Clears the mob name for one Bedrock viewer directly — for viewers who got the spawn metadata
+     * before the tracker registered the mob. The packet then passes {@link #onMetadata} like any
+     * other.
      */
-    public void sendTo(Player player, int entityId, String currentCustomName) {
-        String desired = names.get(entityId);
-        if (desired == null || !isEnabled()) return;
-        if (replacement(currentCustomName, desired) == null) return;
+    public void sendTo(Player player, int entityId, String mobName) {
+        String modelName = modelNames.get(entityId);
+        if (modelName == null || !isEnabled()) return;
+        if (!hideMobName(mobName, modelName)) return;
         try {
             WrapperPlayServerEntityMetadata packet = new WrapperPlayServerEntityMetadata(entityId,
                     List.of(new EntityData<>(CUSTOM_NAME_INDEX, EntityDataTypes.OPTIONAL_ADV_COMPONENT,
-                            Optional.of(LEGACY.deserialize(desired)))));
+                            Optional.<Component>empty())));
             PacketEvents.getAPI().getPlayerManager().sendPacket(player, packet);
-            FMMBedrockBridge.debugLog("[PHASE71D] sent '" + desired + "' for entity " + entityId
-                    + " to " + player.getName());
+            FMMBedrockBridge.debugLog("[PHASE71D] hid mob name of entity " + entityId
+                    + " for " + player.getName());
         } catch (Throwable t) {
-            FMMBedrockBridge.debugLog("[PHASE71D] name send failed: " + t);
+            FMMBedrockBridge.debugLog("[PHASE71D] clear failed: " + t);
         }
     }
 }

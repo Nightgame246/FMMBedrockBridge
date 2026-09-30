@@ -178,20 +178,21 @@ EM 10.9.0 und 10.9.5 identisch.
 nur klickbare Chat-Buttons, keinen Dialog; dort ist die Kiste für Bedrock die bessere Wahl.
 Quest-Dialog-BossBar, Patrol-Editor, HUD, Wormhole-Marker sind keine Menüs.
 
-### Phase 7.1d — echter Boss-Name im Bedrock-Nametag (27.09., in-game offen)
+### Phase 7.1d — nur EIN Name über Bossen auf Bedrock (umgebaut 30.09., in-game offen)
 
-Bedrock zeigte über Evoker-Bossen „Evoker" statt „『13』 Eis-Elementar". Ursache (EM-Code):
-EliteMobs setzt beim Spawn einen allgemeinen Namen aus dem Mob-Typ (`setDefaultName`) und gibt
-den YAML-Namen bei Custom-Bossen mit FMM-Modell **nur ans Modell** (`setName(name, false)`).
-FMM bindet das Bedrock-Modell ans echte Mob darunter (`bindToUnderlyingEntity`) — Bedrock zeigt
-also dessen allgemeinen Namen. Eigentlich ein EM-Upstream-Thema.
+Bedrock zeigte über Evoker-Bossen „Evoker". Erste Fassung (27.09., `ab5914f`) hat den Namen des
+Mobs umbenannt — Spieltest 30.09.: danach stand der richtige Name **zweimal** über dem Boss.
+**Falsche Annahme:** Bedrock sehe nur den Mob-Namen. Tatsächlich zeichnet FMM sein Namensschild
+(`StackedText`, Zeilen pro Zuschauer, Bedrock nur anders skaliert) **auch für Bedrock**; Bedrock
+zeigt zusätzlich den Custom-Namen des Mobs darunter (EM gibt den YAML-Namen nur ans Modell,
+`setName(name, false)`; FMM bindet das Bedrock-Modell ans Mob, `bindToUnderlyingEntity`).
 
-`BedrockNameFix` tauscht im Metadaten-Paket (Index 2, Custom-Name) den Namen **nur für Bedrock**
-gegen den FMM-Anzeigenamen und schickt ihn beim Registrieren einmal an Bedrock-Spieler, die das
-Mob schon sehen (der Tracker pollt, sie hatten die Spawn-Metadaten also vorher). **Baut sich
-selbst ab:** stimmt der Text schon (EM-Fix), wird nichts getauscht. Abschalten:
-`phase71d.bedrock-name-fix: false`. Ausbauen: Klassenkommentar von `BedrockNameFix`.
-Debug: `[PHASE71D] entity … : '…' -> '…'` einmal pro Mob.
+Jetzt: `BedrockNameFix` **blendet den Mob-Namen für Bedrock aus** (Metadaten-Index 2 → leer),
+sobald das Modell einen echten Namen hat — FMMs Schild bleibt als einziges, wie auf Java.
+FMMs Platzhalter **„Default Name"** zählt nicht als Name (die erste Fassung hat ihn fälschlich
+übernommen). Bleibt richtig, falls EM den Namen je aufs Mob schreibt; falsch nur, wenn FMM sein
+Schild für Bedrock nicht mehr zeigt → `phase71d.bedrock-name-fix: false`.
+Debug: `[PHASE71D] entity … : hid '…' for Bedrock` einmal pro Mob.
 
 ### Deploy-Stand TestServer01
 
