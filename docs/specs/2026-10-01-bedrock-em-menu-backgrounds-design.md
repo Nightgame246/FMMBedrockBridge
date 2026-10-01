@@ -114,7 +114,8 @@ jeder Neuerzeugung, damit Clients neu laden.
 - **Versatz — am Slot-Raster ausgerichtet** *(korrigiert nach der Abnahme am 01.10.2026; vorher am Titel
   ausgerichtet: x −11, y −134, dadurch saß das Bild 3 Einheiten zu hoch)*: EliteMobs malt seine Kästchen
   dorthin, wo Javas Slots liegen (x 8, y 18). Bedrocks Raster liegt in der oberen Kistenhälfte bei
-  x 7 / y 10 (groß) bzw. x 7 / y 9 (klein). Daraus: **x = −12; y = 5 − ascent (groß), 4 − ascent (klein)**
+  x 7 / y 10 (groß) bzw. x 7 / y 9 (klein). Daraus: **x = −8; y = 5 − ascent (groß), 4 − ascent (klein)**
+  (x **gemessen**: hergeleitet wären −12, im Spiel saßen die Kästchen damit 4 Einheiten zu weit links)
   — für `ascent` 136 also −131 bzw. −132. Ausnahmen in `overrides.json`.
 - **Neben anderen Packs:** Das alte `NitroSetupsBedrockMenus.mcpack` bleibt **entfernt** (es ersetzt
   `chest_screen.json` komplett). NitroSetups' Glyphen- und Item-Pack belegen `E0`–`E6` und stören nicht.

@@ -53,13 +53,13 @@ class OffsetTest(unittest.TestCase):
     # Anchored to the slot grid, not the title (acceptance 01.10.2026): EliteMobs paints its boxes
     # where Java's slots are (8, 18); Bedrock's grid sits at (7, 11 + 10) large / (7, 12 + 9) small.
     def test_large_chest_anchored_to_slots(self):
-        self.assertEqual((-12, -131), g.offset(136, "large", None))
+        self.assertEqual((-8, -131), g.offset(136, "large", None))
 
     def test_small_chest_anchored_to_slots(self):
-        self.assertEqual((-12, -132), g.offset(136, "small", None))
+        self.assertEqual((-8, -132), g.offset(136, "small", None))
 
     def test_ascent_shifts_down(self):
-        self.assertEqual((-12, -125), g.offset(130, "large", None))
+        self.assertEqual((-8, -125), g.offset(130, "large", None))
 
     def test_override_wins(self):
         self.assertEqual((-5, -100), g.offset(136, "large", {"large": {"x": -5, "y": -100}}))

@@ -18,7 +18,10 @@ KNOWN_SPACING = {0xF0EF1, 0xF0EF5}          # muss BedrockMenuTitle.SPACING_CODE
 # dorthin, wo Javas Slots liegen (x 8, y 18). Javas Bild liegt relativ dazu bei x −19 und
 # y = (13 − ascent) − 18. Bedrocks Raster liegt in der oberen Kistenhaelfte bei x 7 und
 # y 10 (grosse Kiste) bzw. 9 (kleine Kiste) — Vanilla chest_screen.json.
-JAVA_IMAGE_X_FROM_SLOTS = -19                # 8 (Titel-x) − 19 (U+F0EF1) − 8 (Slot-x)
+# Hergeleitet waeren −19 (8 Titel-x − 19 fuer U+F0EF1 − 8 Slot-x). GEMESSEN (Abnahme 01.10.2026,
+# Reparatur-Menue v0.0.3): die gemalten Kaestchen lagen 4 Einheiten links der Slot-Symbole, auf Java
+# exakt darunter. Vermutlich verrechnet Java die Abstands-Glyphen anders als hier angenommen.
+JAVA_IMAGE_X_FROM_SLOTS = -15
 BEDROCK_GRID = {"large": (7, 10), "small": (7, 9)}
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.abspath(os.path.join(HERE, "..", ".."))
