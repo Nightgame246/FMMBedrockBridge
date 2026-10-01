@@ -178,13 +178,17 @@ EM 10.9.0 und 10.9.5 identisch.
 nur klickbare Chat-Buttons, keinen Dialog; dort ist die Kiste für Bedrock die bessere Wahl.
 Quest-Dialog-BossBar, Patrol-Editor, HUD, Wormhole-Marker sind keine Menüs.
 
-### Phase 7.6 — EliteMobs-Menü-Hintergründe auf Bedrock (abgenommen 01.10.2026, Branch `phase-7.6-menu-backgrounds`)
+### Phase 7.6 — EliteMobs-Menü-Hintergründe auf Bedrock (abgenommen und nach `main` gemergt 01.10.2026, `9e7ba4a`)
 
 Spec `docs/specs/2026-10-01-bedrock-em-menu-backgrounds-design.md`, Plan `docs/plans/2026-10-01-bedrock-em-menu-backgrounds.md`.
 Bedrock zeigte bei EliteMobs-Menüs eine graue Kiste und ▯▯▯ im Titel. Jetzt: Bridge schreibt den Titel
 für Bedrock um (`BedrockMenuTitle`, OPEN_WINDOW), das Pack **`FMMBridge-EliteMobsMenus.mcpack`** in
 Geysers `packs/` blendet den Hintergrund ein und die grauen Slot-Kästchen aus.
 
+- **Nur Menüs mit Bild bekommen Erkennungszeichen** (`src/main/resources/bedrock-menus/known-backgrounds.txt`,
+  vom Generator) — Review-Fix: ein unbekanntes EM-Zeichen kann nie mehr alle Menüs leerräumen. **Neue Menüs
+  brauchen Generator-Lauf UND neu gebaute Bridge.** Zurückgestellte Kleinigkeiten M1–M8 im Merge-Commit-Umfeld
+  (`fb26aff` und Review-Zusammenfassung 01.10.).
 - **16 Menüs** (nicht 173 — RPM wiederholt EMs Schrift je Inhalts-Paket; erster Eintrag gewinnt).
 - **Versatz** am Slot-Raster: x **−8** (gemessen, hergeleitet wären −12), y **5 − ascent** (große Kiste),
   **4 − ascent** (kleine Kiste). Ausnahmen in `tools/bedrock-menus/overrides.json`.
