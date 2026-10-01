@@ -1,0 +1,34 @@
+{
+  "markers": [
+    { "em": "F0E00", "marker": "E900" },
+    { "em": "F0E01", "marker": "E901" },
+    { "em": "F0EFF", "marker": "E9FF" },
+    { "em": "F0F00", "marker": "EA00" },
+    { "em": "F0F0B", "marker": "EA0B" }
+  ],
+  "spacing": ["F0EF1", "F0EF5"],
+  "titles": [
+    { "name": "repairWithSlotsHidden", "hideSlots": true,
+      "input": "§f󰻱󰸁󰻵           [EM] Reparaturmenü!",
+      "expected": "§f[EM] Reparaturmenü!" },
+    { "name": "repairWithSlotsShown", "hideSlots": false,
+      "input": "§f󰻱󰸁󰻵           [EM] Reparaturmenü!",
+      "expected": "§f[EM] Reparaturmenü!" },
+    { "name": "plainTitleUntouched", "hideSlots": true,
+      "input": "§6Shop", "expected": "§6Shop" },
+    { "name": "hexColourTitleWithoutEmCharsIsUntouched", "hideSlots": true,
+      "input": "§x§f§f§8§8§0§0Gilde", "expected": "§x§f§f§8§8§0§0Gilde" },
+    { "name": "unknownBackgroundInBlockStillMapped", "hideSlots": true,
+      "input": "§f󰺀  Neu", "expected": "§fNeu" },
+    { "name": "lastBlockCharacter", "hideSlots": false,
+      "input": "󰼋Arena", "expected": "Arena" },
+    { "name": "onlySpacingRemovedNoMarker", "hideSlots": true,
+      "input": "§f󰻱   Name", "expected": "§fName" },
+    { "name": "foreignPlanePuaRemoved", "hideSlots": true,
+      "input": "󱈴 Fremd", "expected": "Fremd" },
+    { "name": "spacesInsideNameKept", "hideSlots": false,
+      "input": "§f󰸁   §c[EM] Mein  Menü", "expected": "§f§c[EM] Mein  Menü" },
+    { "name": "onlyFirstBackgroundCounts", "hideSlots": false,
+      "input": "󰸁󰸂 Zwei", "expected": "Zwei" }
+  ]
+}
