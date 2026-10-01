@@ -1,5 +1,10 @@
 package de.crazypandas.fmmbedrockbridge.bridge;
 
+import java.io.BufferedReader;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
+import java.util.HashSet;
 import java.util.Set;
 
 /**
@@ -22,6 +27,15 @@ public final class BedrockMenuTitle {
     public static final int GENERIC_MARKER = 0xE8FF;
     /** Negative-advance glyphs in EliteMobs' font: ascent -32768, negative height. */
     public static final Set<Integer> SPACING_CODEPOINTS = Set.of(0xF0EF1, 0xF0EF5);
+    /**
+     * The backgrounds the generated pack has an image for — written by
+     * {@code tools/bedrock-menus/generate.py} into {@code bedrock-menus/known-backgrounds.txt}.
+     * Only these get a marker (and the slot-hiding {@link #GENERIC_MARKER}); anything else from the
+     * plane is stripped. Without the list, a new spacing glyph that EliteMobs puts before the
+     * background would be taken for the background, and the grey cells would vanish with no image
+     * behind them (final review 01.10.2026).
+     */
+    public static final Set<Integer> KNOWN_BACKGROUNDS = loadKnownBackgrounds();
 
     private BedrockMenuTitle() {}
 
@@ -39,6 +53,11 @@ public final class BedrockMenuTitle {
      * @return the rewritten title, or {@code legacyTitle} itself when it holds no plane-15/16 character
      */
     public static String rewrite(String legacyTitle, boolean hideSlots) {
+        return rewrite(legacyTitle, hideSlots, KNOWN_BACKGROUNDS);
+    }
+
+    /** @param knownBackgrounds EliteMobs code points the Bedrock pack has an image for */
+    public static String rewrite(String legacyTitle, boolean hideSlots, Set<Integer> knownBackgrounds) {
         if (legacyTitle == null || !containsSupplementaryPua(legacyTitle)) return legacyTitle;
 
         StringBuilder out = new StringBuilder(legacyTitle.length());
@@ -50,7 +69,7 @@ public final class BedrockMenuTitle {
             i += Character.charCount(cp);
 
             if (isSupplementaryPua(cp)) {
-                if (!markerWritten && isBackground(cp)) {
+                if (!markerWritten && isBackground(cp) && knownBackgrounds.contains(cp)) {
                     if (hideSlots) out.appendCodePoint(GENERIC_MARKER);
                     out.appendCodePoint(markerFor(cp));
                     markerWritten = true;
@@ -63,6 +82,21 @@ public final class BedrockMenuTitle {
             out.appendCodePoint(cp);
         }
         return out.toString();
+    }
+
+    private static Set<Integer> loadKnownBackgrounds() {
+        Set<Integer> known = new HashSet<>();
+        try (InputStream in = BedrockMenuTitle.class.getResourceAsStream("/bedrock-menus/known-backgrounds.txt")) {
+            if (in == null) return Set.of();
+            BufferedReader reader = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8));
+            for (String line; (line = reader.readLine()) != null; ) {
+                line = line.trim();
+                if (!line.isEmpty() && !line.startsWith("#")) known.add(Integer.parseInt(line, 16));
+            }
+        } catch (Exception e) {
+            return Set.of();   // no list = no markers, titles only cleaned: safe, never boxes
+        }
+        return Set.copyOf(known);
     }
 
     private static boolean isBackground(int cp) {

@@ -89,12 +89,14 @@ Einhängepunkt: `chest.large_chest_panel_top_half`, per `modifications` / `inser
   Java-Pack daran erkennbar, dass sie `ascent -32768` und eine **negative** `height` haben; heute sind
   es genau `U+F0EF1` und `U+F0EF5`. Die Bridge kennt diese kleine Menge als Konstante. **Jedes andere
   Zeichen** aus dem Block im Titel-Präfix gilt als Hintergrund.
-- **Unbekannte Zeichen** (im Block, aber ohne Bild im Pack — etwa nach einem EM-Update): Die Bridge
-  schreibt trotzdem nach der Regel um. Ohne passendes Bild bleibt das Erkennungszeichen unsichtbar,
-  der Titel ist sauber; es fehlt nur der Hintergrund. Das gilt auch für den Fall, dass EM ein **neues
-  Abstands-Zeichen** einführt: Es würde fälschlich als Hintergrund gelesen — Folge ist nur ein
-  unsichtbares Zeichen ohne Bild, kein Kästchen. Der Generator meldet neue Abstands-Zeichen, dann wird
-  die Konstante nachgezogen.
+- **Nur bekannte Hintergründe bekommen ein Erkennungszeichen** *(korrigiert nach dem Final Review,
+  01.10.2026)*: Der Generator schreibt die Menüs mit Bild als `src/main/resources/bedrock-menus/known-backgrounds.txt`
+  in die Bridge. Erkennungszeichen **und** `U+E8FF` gibt es nur für diese. Jedes andere Zeichen aus dem Block
+  wird nur entfernt. Vorher stand hier, ein unbekanntes Zeichen ergebe „nur ein unsichtbares Zeichen ohne
+  Bild" — falsch: ein neues Abstands-Zeichen **vor** dem Hintergrund wäre als Hintergrund gelesen worden
+  (erstes Zeichen gewinnt), der echte wäre weggefallen, und `U+E8FF` hätte die grauen Kästchen ohne Bild
+  dahinter ausgeblendet — in allen Menüs auf einmal. Jetzt bleibt ein unbekanntes Menü eine normale graue
+  Kiste mit sauberem Titel. Neue Menüs brauchen einen Generator-Lauf **und** eine neu gebaute Bridge.
 - **Alle übrigen Zeichen** aus der Ebene `U+F0000`–`U+FFFFD` im Präfix werden entfernt, damit Bedrock
   nie Kästchen zeigt.
 - **Schalter:** `phase76.bedrock-menu-backgrounds` (Standard `true`). Aus = Titel unverändert wie heute.

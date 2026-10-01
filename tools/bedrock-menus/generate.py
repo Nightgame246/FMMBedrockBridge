@@ -127,7 +127,18 @@ def chest_screen(menus, overrides):
     return ui
 
 
-def build(java_zip, out_dir, meta, overrides):
+KNOWN_FILE = os.path.join(ROOT, "src", "main", "resources", "bedrock-menus", "known-backgrounds.txt")
+
+
+def write_known(menus, path):
+    """Menues mit Bild im Pack — die Bridge setzt nur fuer diese Erkennungszeichen (BedrockMenuTitle)."""
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w") as f:
+        f.write("# generiert von tools/bedrock-menus/generate.py — nicht von Hand aendern\n")
+        f.write("\n".join(f"{m.codepoint:X}" for m in menus) + "\n")
+
+
+def build(java_zip, out_dir, meta, overrides, known_file=None):
     menus, spacing = read_menus(zipfile.ZipFile(java_zip))
     unknown = spacing - KNOWN_SPACING
     if unknown:
@@ -151,6 +162,8 @@ def build(java_zip, out_dir, meta, overrides):
         for m in menus:
             z.writestr(f"textures/ui/fmmbridge_em/{m.texture_name}.png", m.png)
     _report(out_dir, menus)
+    if known_file:
+        write_known(menus, known_file)
     return out
 
 
@@ -170,9 +183,10 @@ def main(argv):
     meta_path = os.path.join(HERE, "pack-meta.json")
     meta = json.load(open(meta_path))
     overrides = {k: v for k, v in json.load(open(os.path.join(HERE, "overrides.json"))).items() if not k.startswith("_")}
-    out = build(argv[1], os.path.join(ROOT, "target", "bedrock-menus"), meta, overrides)
+    out = build(argv[1], os.path.join(ROOT, "target", "bedrock-menus"), meta, overrides, known_file=KNOWN_FILE)
     json.dump(meta, open(meta_path, "w"), indent=2)
-    print(f"Pack: {out}  Version: 0.0.{meta['version']}  (pack-meta.json committen)")
+    print(f"Pack: {out}  Version: 0.0.{meta['version']}  (pack-meta.json und known-backgrounds.txt committen,"
+          " Bridge neu bauen)")
 
 
 if __name__ == "__main__":

@@ -55,14 +55,28 @@ class BedrockMenuTitleTest {
         assertThrows(IllegalArgumentException.class, () -> BedrockMenuTitle.markerFor(0xF0F0C));
     }
 
+    private static java.util.Set<Integer> known() {
+        java.util.Set<Integer> known = new java.util.HashSet<>();
+        for (JsonElement e : cases().getAsJsonArray("known")) known.add(Integer.parseInt(e.getAsString(), 16));
+        return known;
+    }
+
+    @Test
+    void knownBackgroundsAreLoadedFromTheGeneratedResource() {
+        // Written by tools/bedrock-menus/generate.py; the bridge only marks what the pack can show.
+        org.junit.jupiter.api.Assertions.assertFalse(BedrockMenuTitle.KNOWN_BACKGROUNDS.isEmpty());
+        org.junit.jupiter.api.Assertions.assertTrue(BedrockMenuTitle.KNOWN_BACKGROUNDS.contains(0xF0E01));
+    }
+
     @TestFactory
     List<DynamicTest> titleRewrites() {
+        java.util.Set<Integer> known = known();
         List<DynamicTest> tests = new ArrayList<>();
         for (JsonElement e : cases().getAsJsonArray("titles")) {
             JsonObject c = e.getAsJsonObject();
             tests.add(DynamicTest.dynamicTest(c.get("name").getAsString(), () -> assertEquals(
                     c.get("expected").getAsString(),
-                    BedrockMenuTitle.rewrite(c.get("input").getAsString(), c.get("hideSlots").getAsBoolean()))));
+                    BedrockMenuTitle.rewrite(c.get("input").getAsString(), c.get("hideSlots").getAsBoolean(), known))));
         }
         return tests;
     }

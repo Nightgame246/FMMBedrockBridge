@@ -1,0 +1,17 @@
+# generiert von tools/bedrock-menus/generate.py — nicht von Hand aendern
+F0E00
+F0E01
+F0E02
+F0E03
+F0E04
+F0E05
+F0E06
+F0E07
+F0E08
+F0E09
+F0E0A
+F0E0B
+F0E0C
+F0E0D
+F0F00
+F0F0B

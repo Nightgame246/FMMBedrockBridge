@@ -113,6 +113,14 @@ class BuildTest(unittest.TestCase):
             self.assertEqual([0, 0, 5], manifest["header"]["version"])
             self.assertEqual(5, meta["version"])
 
+    def test_writes_known_backgrounds_for_the_bridge(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            known = os.path.join(tmp, "known-backgrounds.txt")
+            meta = {"header_uuid": "a", "module_uuid": "b", "version": 0}
+            g.build(java_pack(MINI, MINI_TEX), tmp, meta, {}, known_file=known)
+            lines = [l for l in open(known).read().splitlines() if l and not l.startswith("#")]
+            self.assertEqual(["F0E01", "F0E02", "F0F0B"], lines)
+
     def test_visibility_uses_marker_character(self):
         with tempfile.TemporaryDirectory() as tmp:
             meta = {"header_uuid": "a", "module_uuid": "b", "version": 0}
