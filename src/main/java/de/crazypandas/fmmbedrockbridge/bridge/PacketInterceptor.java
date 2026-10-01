@@ -6,6 +6,7 @@ import com.github.retrooper.packetevents.event.PacketListenerPriority;
 import com.github.retrooper.packetevents.event.PacketSendEvent;
 import com.github.retrooper.packetevents.protocol.packettype.PacketType;
 import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerBossBar;
+import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerOpenWindow;
 import de.crazypandas.fmmbedrockbridge.FMMBedrockBridge;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
@@ -20,6 +21,7 @@ import java.util.logging.Logger;
  *  - Phase 7.1a: suppresses EM's "Evoker | 2" BossBar packet for Bedrock players
  *    via first-match heuristic, leaving our styled bridge BossBar visible.
  *  - Phase 7.1d: hides the mob's own name for Bedrock where FMM shows a nameplate.
+ *  - Phase 7.6: rewrites EliteMobs' menu titles for Bedrock (background markers).
  */
 public class PacketInterceptor {
 
@@ -30,6 +32,9 @@ public class PacketInterceptor {
     private BedrockEntityBridge bridge;
     // Phase 7.1d — removable in one piece, see BedrockNameFix.
     private final BedrockNameFix nameFix = new BedrockNameFix();
+    // Phase 7.6 — keeps hex colours (§x§r§r§g§g§b§b) intact across the legacy round trip.
+    private static final LegacyComponentSerializer MENU_TITLE_LEGACY = LegacyComponentSerializer.builder()
+            .character('§').hexColors().useUnusualXRepeatedCharacterHexFormat().build();
 
     public void setBridge(BedrockEntityBridge bridge) {
         this.bridge = bridge;
@@ -57,6 +62,12 @@ public class PacketInterceptor {
                     nameFix.onMetadata(event);
                 }
 
+                // Phase 7.6 — EliteMobs menu backgrounds for Bedrock
+                if (event.getPacketType() == PacketType.Play.Server.OPEN_WINDOW
+                        && Boolean.TRUE.equals(isBedrock(playerObj))) {
+                    rewriteMenuTitle(event);
+                }
+
                 // Phase 7.1a — BOSS_EVENT suppress for Bedrock players
                 if (event.getPacketType() == PacketType.Play.Server.BOSS_BAR) {
                     handleBossEvent(event, playerObj);
@@ -71,6 +82,27 @@ public class PacketInterceptor {
         if (listener != null) {
             PacketEvents.getAPI().getEventManager().unregisterListener(listener);
             listener = null;
+        }
+    }
+
+    /**
+     * Phase 7.6 — replaces EliteMobs' background glyphs in the chest title by the markers the
+     * FMMBridge-EliteMobsMenus pack recognises. Untouched titles are not re-encoded at all.
+     */
+    private void rewriteMenuTitle(PacketSendEvent event) {
+        if (!FMMBedrockBridge.isPhase76MenuBackgroundsEnabled()) return;
+        try {
+            WrapperPlayServerOpenWindow wrapper = new WrapperPlayServerOpenWindow(event);
+            Component title = wrapper.getTitle();
+            if (title == null) return;
+            String legacy = MENU_TITLE_LEGACY.serialize(title);
+            String rewritten = BedrockMenuTitle.rewrite(legacy, FMMBedrockBridge.isPhase76HideSlotBackgrounds());
+            if (rewritten == legacy) return;
+            wrapper.setTitle(MENU_TITLE_LEGACY.deserialize(rewritten));
+            event.markForReEncode(true);
+            FMMBedrockBridge.debugLog("[PHASE76] menu title rewritten for Bedrock: '" + rewritten + "'");
+        } catch (Throwable t) {
+            FMMBedrockBridge.debugLog("[PHASE76] title rewrite failed: " + t);
         }
     }
 

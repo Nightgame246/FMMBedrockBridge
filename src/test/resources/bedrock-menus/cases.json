@@ -1,0 +1,108 @@
+{
+  "markers": [
+    {
+      "em": "F0E00",
+      "marker": "E900"
+    },
+    {
+      "em": "F0E01",
+      "marker": "E901"
+    },
+    {
+      "em": "F0EFF",
+      "marker": "E9FF"
+    },
+    {
+      "em": "F0F00",
+      "marker": "EA00"
+    },
+    {
+      "em": "F0F0B",
+      "marker": "EA0B"
+    }
+  ],
+  "spacing": [
+    "F0EF1",
+    "F0EF5"
+  ],
+  "titles": [
+    {
+      "name": "repairWithSlotsHidden",
+      "hideSlots": true,
+      "input": "\u00a7f\udb83\udef1\udb83\ude01\udb83\udef5           [EM] Reparaturmen\u00fc!",
+      "expected": "\u00a7f\ue8ff\ue901[EM] Reparaturmen\u00fc!"
+    },
+    {
+      "name": "repairWithSlotsShown",
+      "hideSlots": false,
+      "input": "\u00a7f\udb83\udef1\udb83\ude01\udb83\udef5           [EM] Reparaturmen\u00fc!",
+      "expected": "\u00a7f\ue901[EM] Reparaturmen\u00fc!"
+    },
+    {
+      "name": "plainTitleUntouched",
+      "hideSlots": true,
+      "input": "\u00a76Shop",
+      "expected": "\u00a76Shop"
+    },
+    {
+      "name": "hexColourTitleWithoutEmCharsIsUntouched",
+      "hideSlots": true,
+      "input": "\u00a7x\u00a7f\u00a7f\u00a78\u00a78\u00a70\u00a70Gilde",
+      "expected": "\u00a7x\u00a7f\u00a7f\u00a78\u00a78\u00a70\u00a70Gilde"
+    },
+    {
+      "name": "lastBlockCharacter",
+      "hideSlots": false,
+      "input": "\udb83\udf0bArena",
+      "expected": "\uea0bArena"
+    },
+    {
+      "name": "onlySpacingRemovedNoMarker",
+      "hideSlots": true,
+      "input": "\u00a7f\udb83\udef1   Name",
+      "expected": "\u00a7fName"
+    },
+    {
+      "name": "foreignPlanePuaRemoved",
+      "hideSlots": true,
+      "input": "\udb84\ude34 Fremd",
+      "expected": "Fremd"
+    },
+    {
+      "name": "spacesInsideNameKept",
+      "hideSlots": false,
+      "input": "\u00a7f\udb83\ude01   \u00a7c[EM] Mein  Men\u00fc",
+      "expected": "\u00a7f\ue901\u00a7c[EM] Mein  Men\u00fc"
+    },
+    {
+      "name": "onlyFirstBackgroundCounts",
+      "hideSlots": false,
+      "input": "\udb83\ude01\udb83\ude02 Zwei",
+      "expected": "\ue901Zwei"
+    },
+    {
+      "name": "unknownBackgroundOnlyStrippedGridStays",
+      "hideSlots": true,
+      "input": "\u00a7f\udb83\ude80  Neu",
+      "expected": "\u00a7fNeu"
+    },
+    {
+      "name": "unknownSpacingBeforeKnownBackground",
+      "hideSlots": true,
+      "input": "\u00a7f\udb83\udef2\udb83\ude01\udb83\udef5   Name",
+      "expected": "\u00a7f\ue8ff\ue901Name"
+    },
+    {
+      "name": "unknownCharacterAfterKnownBackground",
+      "hideSlots": false,
+      "input": "\udb83\ude01\udb83\udef7 Name",
+      "expected": "\ue901Name"
+    }
+  ],
+  "known": [
+    "F0E00",
+    "F0E01",
+    "F0E02",
+    "F0F0B"
+  ]
+}

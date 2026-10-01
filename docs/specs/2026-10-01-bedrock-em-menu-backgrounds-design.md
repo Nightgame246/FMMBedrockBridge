@@ -5,6 +5,9 @@
 > Bedrock. Vorbild ist NitroSetups, das 2024 eigene Menüs auf diese Weise nach Bedrock gebracht hat.
 > **Ablauf:** Abschnitte einzeln im Chat abgestimmt; ein Machbarkeitstest ist bereits gelaufen (§ 1).
 
+> **Screenshots** (lokal, nicht im Repo): `references/screenshots/alt/2026-10-01_phase76-em-menues-bedrock/`
+> — Unterordner je Machbarkeitstest und Pack-Version.
+
 ## 0. Ziel und Rahmen
 
 **Was Fabi will:** Die Menüs von EliteMobs sollen auf Bedrock so aussehen wie auf Java — mit ihren
@@ -21,9 +24,10 @@ gezeichneten Hintergründen statt einer nackten grauen Kiste.
 
 **Befund, auf dem alles aufbaut:**
 
-- Das zusammengeführte Java-Pack von ResourcePackManager enthält **173 Menü-Hintergründe**:
-  170 aus `elitemobs:gui`, 3 aus `nightbreak:gui`. Nur 17 davon stammen aus dem Grund-Pack von
-  EliteMobs, die übrigen aus den Inhalts-Paketen.
+- Das zusammengeführte Java-Pack von ResourcePackManager enthält **173 Einträge** für Menü-Hintergründe,
+  aber nur **16 verschiedene Menüs**: RPM wiederholt EliteMobs' Schrift je Inhalts-Paket. *(Korrigiert
+  am 01.10.2026 beim ersten Generator-Lauf — vorher stand hier fälschlich „173 Menü-Hintergründe".)*
+  Es gilt der erste Eintrag je Zeichen, wie bei Minecraft selbst.
 - Jeder Hintergrund ist ein Schrift-Zeichen in `assets/minecraft/font/default.json`. **Alle liegen
   lückenlos in `U+F0E00`–`U+F0F0B`.** Bildgröße fast immer 256 × 256 px (zweimal 213/214 × 256),
   `height` 256, `ascent` 136 (147×), 130 (24×) oder 45 (2×).
@@ -34,7 +38,7 @@ gezeichneten Hintergründen statt einer nackten grauen Kiste.
 - **Diese Zeichen liegen außerhalb der Basis-Ebene von Unicode.** Bedrock zeigt sie als Kästchen —
   im Spiel belegt: vor „[EM] Reparaturmenü!" stehen drei ▯▯▯ (Screenshot `rep.png`, 01.10.2026).
 - ResourcePackManager erzeugt für Bedrock **weder `ui/` noch `font/`** — Bedrock sieht heute bei
-  allen 173 Menüs die Standard-Kiste.
+  allen 16 Menüs die Standard-Kiste.
 
 **Wie NitroSetups es gemacht hat** (Packs vom 31.08.2024; das „Addon v1.3.1" vom Februar 2026 enthält
 byte-identische Packs, nur neuere Geyser-JARs): ein Pack überschreibt `ui/chest_screen.json` und
@@ -85,12 +89,14 @@ Einhängepunkt: `chest.large_chest_panel_top_half`, per `modifications` / `inser
   Java-Pack daran erkennbar, dass sie `ascent -32768` und eine **negative** `height` haben; heute sind
   es genau `U+F0EF1` und `U+F0EF5`. Die Bridge kennt diese kleine Menge als Konstante. **Jedes andere
   Zeichen** aus dem Block im Titel-Präfix gilt als Hintergrund.
-- **Unbekannte Zeichen** (im Block, aber ohne Bild im Pack — etwa nach einem EM-Update): Die Bridge
-  schreibt trotzdem nach der Regel um. Ohne passendes Bild bleibt das Erkennungszeichen unsichtbar,
-  der Titel ist sauber; es fehlt nur der Hintergrund. Das gilt auch für den Fall, dass EM ein **neues
-  Abstands-Zeichen** einführt: Es würde fälschlich als Hintergrund gelesen — Folge ist nur ein
-  unsichtbares Zeichen ohne Bild, kein Kästchen. Der Generator meldet neue Abstands-Zeichen, dann wird
-  die Konstante nachgezogen.
+- **Nur bekannte Hintergründe bekommen ein Erkennungszeichen** *(korrigiert nach dem Final Review,
+  01.10.2026)*: Der Generator schreibt die Menüs mit Bild als `src/main/resources/bedrock-menus/known-backgrounds.txt`
+  in die Bridge. Erkennungszeichen **und** `U+E8FF` gibt es nur für diese. Jedes andere Zeichen aus dem Block
+  wird nur entfernt. Vorher stand hier, ein unbekanntes Zeichen ergebe „nur ein unsichtbares Zeichen ohne
+  Bild" — falsch: ein neues Abstands-Zeichen **vor** dem Hintergrund wäre als Hintergrund gelesen worden
+  (erstes Zeichen gewinnt), der echte wäre weggefallen, und `U+E8FF` hätte die grauen Kästchen ohne Bild
+  dahinter ausgeblendet — in allen Menüs auf einmal. Jetzt bleibt ein unbekanntes Menü eine normale graue
+  Kiste mit sauberem Titel. Neue Menüs brauchen einen Generator-Lauf **und** eine neu gebaute Bridge.
 - **Alle übrigen Zeichen** aus der Ebene `U+F0000`–`U+FFFFD` im Präfix werden entfernt, damit Bedrock
   nie Kästchen zeigt.
 - **Schalter:** `phase76.bedrock-menu-backgrounds` (Standard `true`). Aus = Titel unverändert wie heute.
@@ -110,9 +116,12 @@ jeder Neuerzeugung, damit Clients neu laden.
 | `font/glyph_E8.png`, `glyph_E9.png`, `glyph_EA.png` | transparent → `U+E8xx`, `U+E9xx`, `U+EAxx` unsichtbar |
 | `textures/ui/fmmbridge_em/<menü>.png` | Hintergründe 1:1 aus dem Java-Pack |
 
-- **Versatz:** Standard aus dem Test (große Kiste x −11, y −134 bei `ascent` 136). Vertikal je Menü
-  aus `ascent` berechnet: **y = −134 + (136 − ascent)**. Kleine Kiste: eigener Grundwert, beim ersten
-  Lauf auszumessen. Ausnahmen in `overrides.yml`.
+- **Versatz — am Slot-Raster ausgerichtet** *(korrigiert nach der Abnahme am 01.10.2026; vorher am Titel
+  ausgerichtet: x −11, y −134, dadurch saß das Bild 3 Einheiten zu hoch)*: EliteMobs malt seine Kästchen
+  dorthin, wo Javas Slots liegen (x 8, y 18). Bedrocks Raster liegt in der oberen Kistenhälfte bei
+  x 7 / y 10 (groß) bzw. x 7 / y 9 (klein). Daraus: **x = −8; y = 5 − ascent (groß), 4 − ascent (klein)**
+  (x **gemessen**: hergeleitet wären −12, im Spiel saßen die Kästchen damit 4 Einheiten zu weit links)
+  — für `ascent` 136 also −131 bzw. −132. Ausnahmen in `overrides.json`.
 - **Neben anderen Packs:** Das alte `NitroSetupsBedrockMenus.mcpack` bleibt **entfernt** (es ersetzt
   `chest_screen.json` komplett). NitroSetups' Glyphen- und Item-Pack belegen `E0`–`E6` und stören nicht.
 
@@ -122,12 +131,16 @@ jeder Neuerzeugung, damit Clients neu laden.
   Bild tut. **Items, Stückzahl, Haltbarkeits-Balken, Hover-/Controller-Auswahl bleiben.**
 - **Wie:** Die Slot-Vorlage der Kiste (`chest_grid_item`) bekommt per `modifications` **eine** Regel:
   grauer Hintergrund unsichtbar, wenn der Titel `U+E8FF` enthält. Das allgemeine Zeichen erspart
-  173 Bedingungen pro Slot.
+  16 Bedingungen pro Slot.
 - **Laufzeit-Schalter:** `phase76.hide-slot-backgrounds` (Standard `true`) — steuert, ob die Bridge
   `U+E8FF` setzt. Aus = Bilder bleiben, graues Raster wieder darüber.
-- **Offen:** Der genaue Name des grauen Hintergrund-Elements in Bedrocks `ui_common.json` muss
-  nachgelesen werden.
 - **Absicherung:** zweiter Machbarkeitstest (§ 7) **vor** dem Generator.
+- ✅ **Ergebnis 01.10.2026 (Spike-Pack v0.0.2, Screenshots `slot_regel.png` / `ohne slot regel.png`):**
+  Mit `U+E8FF` ist das graue Raster weg und das Bild vollständig sichtbar (inkl. der gemalten Kästchen);
+  Items mit Stückzahl sichtbar und an derselben Stelle wie ohne Regel; Auswahl-Hervorhebung bleibt.
+  Ohne `U+E8FF` ist das Raster wie erwartet da. **Das Element heißt `cell_image`** (in
+  `common.cell_image_panel`, ausgetauscht über `$background_images` von `common.container_item`); die
+  Hervorhebung `cell_image_selected` bleibt unberührt. Controller-Bedienung (Konsole) noch offen → § 7.
 
 ## 5. Generator und Zuordnung
 

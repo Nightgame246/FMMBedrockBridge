@@ -156,6 +156,10 @@ public class FMMBedrockBridge extends JavaPlugin {
                     + ", em=" + elitemobsAvailable + ", enabled=" + isPhase74Enabled() + ")");
         }
 
+        log.info("Phase 7.6: Bedrock menu backgrounds " + (isPhase76MenuBackgroundsEnabled() ? "on" : "off")
+                + " (hide-slot-backgrounds=" + isPhase76HideSlotBackgrounds()
+                + ", needs the FMMBridge-EliteMobsMenus pack in Geyser's packs folder)");
+
         FMMBridgeCommand cmd = new FMMBridgeCommand(this);
         getCommand("fmmbridge").setExecutor(cmd);
         getCommand("fmmbridge").setTabCompleter(cmd);
@@ -227,6 +231,16 @@ public class FMMBedrockBridge extends JavaPlugin {
     public static boolean isPhase73ClassRerouteEnabled() {
         FMMBedrockBridge plugin = instance;
         return plugin != null && plugin.getConfig().getBoolean("phase73.bedrock-class-reroute", true);
+    }
+
+    public static boolean isPhase76MenuBackgroundsEnabled() {
+        FMMBedrockBridge plugin = instance;
+        return plugin != null && plugin.getConfig().getBoolean("phase76.bedrock-menu-backgrounds", true);
+    }
+
+    public static boolean isPhase76HideSlotBackgrounds() {
+        FMMBedrockBridge plugin = instance;
+        return plugin != null && plugin.getConfig().getBoolean("phase76.hide-slot-backgrounds", true);
     }
 
     public static boolean isPhase74Enabled() {

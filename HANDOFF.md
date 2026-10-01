@@ -74,7 +74,7 @@ liefert aber **keinen** Ersatz.
 **Was sie war.** EMs Combat-HUD wird aus einer Java-Resource-Pack-Schrift gezeichnet; 689 der
 703 Glyphen liegen in der Private Use Area, wo Bedrock seine eigenen Item-Symbole hat. Ergebnis
 in-game: hunderte Rüstungs- und Karotten-Icons über dem halben Bildschirm, fünfmal pro Sekunde
-neu — der Client laggt sich fest. Screenshots: `../references/screenshots/`. Die Bridge fing
+neu — der Client laggt sich fest. Screenshots: `../references/screenshots/alt/2026-09-11_phase75-hud-glyphen/`. Die Bridge fing
 deshalb Actionbar-Pakete ab, filterte die Glyphen und ersetzte das HUD durch eine eigene
 Textzeile aus EMs öffentlichen Snapshots.
 
@@ -177,6 +177,26 @@ EM 10.9.0 und 10.9.5 identisch.
 (7.3b) · **Classes (7.3c)** — das waren alle mit Dialog-Alternative. Party-Menüs haben für Java
 nur klickbare Chat-Buttons, keinen Dialog; dort ist die Kiste für Bedrock die bessere Wahl.
 Quest-Dialog-BossBar, Patrol-Editor, HUD, Wormhole-Marker sind keine Menüs.
+
+### Phase 7.6 — EliteMobs-Menü-Hintergründe auf Bedrock (abgenommen 01.10.2026, Branch `phase-7.6-menu-backgrounds`)
+
+Spec `docs/specs/2026-10-01-bedrock-em-menu-backgrounds-design.md`, Plan `docs/plans/2026-10-01-bedrock-em-menu-backgrounds.md`.
+Bedrock zeigte bei EliteMobs-Menüs eine graue Kiste und ▯▯▯ im Titel. Jetzt: Bridge schreibt den Titel
+für Bedrock um (`BedrockMenuTitle`, OPEN_WINDOW), das Pack **`FMMBridge-EliteMobsMenus.mcpack`** in
+Geysers `packs/` blendet den Hintergrund ein und die grauen Slot-Kästchen aus.
+
+- **16 Menüs** (nicht 173 — RPM wiederholt EMs Schrift je Inhalts-Paket; erster Eintrag gewinnt).
+- **Versatz** am Slot-Raster: x **−8** (gemessen, hergeleitet wären −12), y **5 − ascent** (große Kiste),
+  **4 − ascent** (kleine Kiste). Ausnahmen in `tools/bedrock-menus/overrides.json`.
+- **Abnahme** (PC): Reparieren, Verschrotter, Kaufen/Verkaufen (kleine Kiste), Eigener Shop, Prozeduraler
+  Shop — Titel ohne Kästchen, Bild passt, Items bedienbar. **Konsole nicht separat geprüft** (Fabis
+  Entscheidung: Classic-UI identisch, Konsolenspieler melden Fehler).
+- **Neues Pack erzeugen** (nach EM-Update / neuen Inhalts-Paketen): `ResourcePackManager_RSP.zip` von
+  TestServer01 nach `target/bedrock-menus/RSP.zip`, dann `python3 tools/bedrock-menus/generate.py
+  target/bedrock-menus/RSP.zip`, `pack-meta.json` committen, Pack nach `Geyser-Velocity/packs/`, Proxy neu.
+- **Reihenfolge:** erst Pack, dann Bridge. **Rückweg:** `phase76.bedrock-menu-backgrounds: false` bzw.
+  `hide-slot-backgrounds: false` (nur graue Kästchen zurück); ganz: Pack entfernen.
+- **Nicht Teil davon:** die Item-Symbole der Menü-Buttons (Vanilla statt EM) — eigenes Thema im Umbrella-HANDOFF.
 
 ### Phase 7.1b ausgebaut — 01.10.2026
 

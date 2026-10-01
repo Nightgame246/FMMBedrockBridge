@@ -1985,3 +1985,14 @@ Utility kam nachweislich über die Taste. Actionbar-Hinweis laut Fabi korrekt.
   FMM-Bossen nur ans Modell, Bedrock sieht das Mob darunter. Selbst-abbauend, abschaltbar.
 - Java-BossBar fehlte im Test: EliteMobs zeigt sie nur dem aktuellen Ziel des Bosses — kein Bridge-Thema.
 - Deployt auf TestServer01: `ab5914f` (gegen PacketEvents 2.13.0). **Spieltest steht aus.**
+
+## Session: 2026-10-01
+
+- **7.1b ausgebaut** (A/B-Test: EliteMobs' HP-Anzeige erreicht Bedrock selbst), **Upgrade** TestServer01 +
+  Proxy01 (EM 10.9.7, FMM 2.12.5, RPM 2.4.5, BS 2.7.6, PacketEvents 2.14.0, Geyser b1247, Floodgate b141,
+  Via 5.12.1-SNAPSHOT; RPM aktualisiert den Proxy selbst, ein Neustart reicht).
+- **Phase 7.6 — EliteMobs-Menü-Hintergründe auf Bedrock**: Brainstorming (Weg B), zwei Machbarkeitstests
+  (Erkennungszeichen + transparente Glyphen-Seite; graue Slots über `$background_images`), Spec, Plan,
+  inline umgesetzt auf Branch `phase-7.6-menu-backgrounds`. Funde unterwegs: 16 statt 173 Menüs
+  (Dubletten im RPM-Pack), Versatz am Slot-Raster statt am Titel, x gemessen −8. Pack v0.0.4 auf Proxy01,
+  Bridge auf TestServer01, Abnahme am PC bestanden.
