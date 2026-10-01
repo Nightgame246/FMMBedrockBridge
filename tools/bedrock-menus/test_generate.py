@@ -50,14 +50,16 @@ class MarkerTest(unittest.TestCase):
 
 
 class OffsetTest(unittest.TestCase):
-    def test_large_chest_matches_spike(self):
-        self.assertEqual((-11, -134), g.offset(136, "large", None))
+    # Anchored to the slot grid, not the title (acceptance 01.10.2026): EliteMobs paints its boxes
+    # where Java's slots are (8, 18); Bedrock's grid sits at (7, 11 + 10) large / (7, 12 + 9) small.
+    def test_large_chest_anchored_to_slots(self):
+        self.assertEqual((-12, -131), g.offset(136, "large", None))
 
-    def test_small_chest_one_lower_top(self):
-        self.assertEqual((-11, -135), g.offset(136, "small", None))
+    def test_small_chest_anchored_to_slots(self):
+        self.assertEqual((-12, -132), g.offset(136, "small", None))
 
     def test_ascent_shifts_down(self):
-        self.assertEqual((-11, -128), g.offset(130, "large", None))
+        self.assertEqual((-12, -125), g.offset(130, "large", None))
 
     def test_override_wins(self):
         self.assertEqual((-5, -100), g.offset(136, "large", {"large": {"x": -5, "y": -100}}))

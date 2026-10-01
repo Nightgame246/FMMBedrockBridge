@@ -14,8 +14,12 @@ from dataclasses import dataclass
 EM_BLOCK_START, EM_BLOCK_END = 0xF0E00, 0xF0F0B
 MARKER_BASE, GENERIC_MARKER = 0xE900, 0xE8FF
 KNOWN_SPACING = {0xF0EF1, 0xF0EF5}          # muss BedrockMenuTitle.SPACING_CODEPOINTS entsprechen
-X_DEFAULT = -11                              # 8 (Titel-x) − 19 (U+F0EF1)
-TOP = {"large": 11, "small": 12}             # y der oberen Kistenhaelfte in Bedrocks chest_screen
+# Ausgerichtet am Slot-Raster, nicht am Titel (Abnahme 01.10.2026): EliteMobs malt seine Kaestchen
+# dorthin, wo Javas Slots liegen (x 8, y 18). Javas Bild liegt relativ dazu bei x −19 und
+# y = (13 − ascent) − 18. Bedrocks Raster liegt in der oberen Kistenhaelfte bei x 7 und
+# y 10 (grosse Kiste) bzw. 9 (kleine Kiste) — Vanilla chest_screen.json.
+JAVA_IMAGE_X_FROM_SLOTS = -19                # 8 (Titel-x) − 19 (U+F0EF1) − 8 (Slot-x)
+BEDROCK_GRID = {"large": (7, 10), "small": (7, 9)}
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.abspath(os.path.join(HERE, "..", ".."))
 
@@ -40,7 +44,8 @@ def marker_for(cp):
 def offset(ascent, chest, override):
     if override and chest in override:
         return override[chest]["x"], override[chest]["y"]
-    return X_DEFAULT, 13 - ascent - TOP[chest]
+    gx, gy = BEDROCK_GRID[chest]
+    return gx + JAVA_IMAGE_X_FROM_SLOTS, gy + (13 - ascent) - 18
 
 
 def read_menus(z):

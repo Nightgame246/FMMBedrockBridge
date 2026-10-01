@@ -111,9 +111,11 @@ jeder Neuerzeugung, damit Clients neu laden.
 | `font/glyph_E8.png`, `glyph_E9.png`, `glyph_EA.png` | transparent → `U+E8xx`, `U+E9xx`, `U+EAxx` unsichtbar |
 | `textures/ui/fmmbridge_em/<menü>.png` | Hintergründe 1:1 aus dem Java-Pack |
 
-- **Versatz:** Standard aus dem Test (große Kiste x −11, y −134 bei `ascent` 136). Vertikal je Menü
-  aus `ascent` berechnet: **y = −134 + (136 − ascent)**. Kleine Kiste: eigener Grundwert, beim ersten
-  Lauf auszumessen. Ausnahmen in `overrides.yml`.
+- **Versatz — am Slot-Raster ausgerichtet** *(korrigiert nach der Abnahme am 01.10.2026; vorher am Titel
+  ausgerichtet: x −11, y −134, dadurch saß das Bild 3 Einheiten zu hoch)*: EliteMobs malt seine Kästchen
+  dorthin, wo Javas Slots liegen (x 8, y 18). Bedrocks Raster liegt in der oberen Kistenhälfte bei
+  x 7 / y 10 (groß) bzw. x 7 / y 9 (klein). Daraus: **x = −12; y = 5 − ascent (groß), 4 − ascent (klein)**
+  — für `ascent` 136 also −131 bzw. −132. Ausnahmen in `overrides.json`.
 - **Neben anderen Packs:** Das alte `NitroSetupsBedrockMenus.mcpack` bleibt **entfernt** (es ersetzt
   `chest_screen.json` komplett). NitroSetups' Glyphen- und Item-Pack belegen `E0`–`E6` und stören nicht.
 
