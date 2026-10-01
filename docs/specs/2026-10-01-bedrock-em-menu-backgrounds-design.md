@@ -35,7 +35,7 @@ gezeichneten Hintergründen statt einer nackten grauen Kiste.
 - **Diese Zeichen liegen außerhalb der Basis-Ebene von Unicode.** Bedrock zeigt sie als Kästchen —
   im Spiel belegt: vor „[EM] Reparaturmenü!" stehen drei ▯▯▯ (Screenshot `rep.png`, 01.10.2026).
 - ResourcePackManager erzeugt für Bedrock **weder `ui/` noch `font/`** — Bedrock sieht heute bei
-  allen 173 Menüs die Standard-Kiste.
+  allen 16 Menüs die Standard-Kiste.
 
 **Wie NitroSetups es gemacht hat** (Packs vom 31.08.2024; das „Addon v1.3.1" vom Februar 2026 enthält
 byte-identische Packs, nur neuere Geyser-JARs): ein Pack überschreibt `ui/chest_screen.json` und
@@ -123,7 +123,7 @@ jeder Neuerzeugung, damit Clients neu laden.
   Bild tut. **Items, Stückzahl, Haltbarkeits-Balken, Hover-/Controller-Auswahl bleiben.**
 - **Wie:** Die Slot-Vorlage der Kiste (`chest_grid_item`) bekommt per `modifications` **eine** Regel:
   grauer Hintergrund unsichtbar, wenn der Titel `U+E8FF` enthält. Das allgemeine Zeichen erspart
-  173 Bedingungen pro Slot.
+  16 Bedingungen pro Slot.
 - **Laufzeit-Schalter:** `phase76.hide-slot-backgrounds` (Standard `true`) — steuert, ob die Bridge
   `U+E8FF` setzt. Aus = Bilder bleiben, graues Raster wieder darüber.
 - **Absicherung:** zweiter Machbarkeitstest (§ 7) **vor** dem Generator.
