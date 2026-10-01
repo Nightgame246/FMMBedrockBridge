@@ -74,7 +74,7 @@ liefert aber **keinen** Ersatz.
 **Was sie war.** EMs Combat-HUD wird aus einer Java-Resource-Pack-Schrift gezeichnet; 689 der
 703 Glyphen liegen in der Private Use Area, wo Bedrock seine eigenen Item-Symbole hat. Ergebnis
 in-game: hunderte Rüstungs- und Karotten-Icons über dem halben Bildschirm, fünfmal pro Sekunde
-neu — der Client laggt sich fest. Screenshots: `../references/screenshots/`. Die Bridge fing
+neu — der Client laggt sich fest. Screenshots: `../references/screenshots/alt/2026-09-11_phase75-hud-glyphen/`. Die Bridge fing
 deshalb Actionbar-Pakete ab, filterte die Glyphen und ersetzte das HUD durch eine eigene
 Textzeile aus EMs öffentlichen Snapshots.
 

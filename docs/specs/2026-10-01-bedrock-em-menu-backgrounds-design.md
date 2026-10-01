@@ -5,6 +5,9 @@
 > Bedrock. Vorbild ist NitroSetups, das 2024 eigene Menüs auf diese Weise nach Bedrock gebracht hat.
 > **Ablauf:** Abschnitte einzeln im Chat abgestimmt; ein Machbarkeitstest ist bereits gelaufen (§ 1).
 
+> **Screenshots** (lokal, nicht im Repo): `references/screenshots/alt/2026-10-01_phase76-em-menues-bedrock/`
+> — Unterordner je Machbarkeitstest und Pack-Version.
+
 ## 0. Ziel und Rahmen
 
 **Was Fabi will:** Die Menüs von EliteMobs sollen auf Bedrock so aussehen wie auf Java — mit ihren
