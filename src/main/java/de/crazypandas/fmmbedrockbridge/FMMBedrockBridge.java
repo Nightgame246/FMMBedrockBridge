@@ -19,7 +19,6 @@ import java.util.logging.Logger;
  *
  * What this plugin does (and what MagmaGuy doesn't cover):
  *  - Phase 7.1a/c: Combat-triggered styled BossBar with HP sync, suppresses EM's vanilla "Evoker | 2"
- *  - Phase 7.1b/c: Combat-triggered Bedrock nametag overlay (HP / HP-Bar; FMM renders name)
  */
 public class FMMBedrockBridge extends JavaPlugin {
 
@@ -73,7 +72,7 @@ public class FMMBedrockBridge extends JavaPlugin {
             try {
                 getServer().getPluginManager().registerEvents(
                         new de.crazypandas.fmmbedrockbridge.bridge.BedrockCombatTrigger(bridge), this);
-                log.info("Phase 7.1c: combat trigger registered (BossBar + nametag combat-only)");
+                log.info("Phase 7.1c: combat trigger registered (BossBar combat-only)");
             } catch (Throwable t) {
                 log.warning("Phase 7.1c: failed to register combat trigger — falling back to always-visible BossBar. Cause: " + t);
             }

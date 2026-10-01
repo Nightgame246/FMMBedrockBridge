@@ -174,7 +174,7 @@ Die Konvertierung muss folgendes leisten:
 
 **Wichtig:** FMM 2.6.0 + ResourcePackManager 2.0.0 übernehmen die Mob/Item-Render-Pipeline nativ. Phasen 1-6 + 7.2c/d wurden in einem Refactor entfernt (git tag `archive/2026-05-24-pre-rpm18-pivot` sichert den alten Stand).
 
-Aktuelle Bridge-Verantwortung: **EM↔Bedrock UX-Layer** — Combat-styled BossBar, Combat-Nametag (HP/Bar), 2D legacy UI-Items. Mob-Rendering, Animationen, 3D-Items, Static-Props laufen nativ über FMM 2.6.0 + RPM 2.0.0 Network-Mode.
+Aktuelle Bridge-Verantwortung: **EM↔Bedrock UX-Layer** — Combat-styled BossBar, ein Name über modellierten Bossen (7.1d), Klassen-Fähigkeiten (7.4) und Menüs als Formular (7.3/7.3b/7.3c). ~~Combat-Nametag (HP/Bar)~~ — am 01.10.2026 ausgebaut, EliteMobs' eigene HP-Anzeige erreicht Bedrock. Mob-Rendering, Animationen, 3D-Items, Static-Props laufen nativ über FMM 2.6.0 + RPM 2.0.0 Network-Mode.
 
 ## Bekannte Probleme & Erkenntnisse
 

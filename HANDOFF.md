@@ -178,6 +178,19 @@ EM 10.9.0 und 10.9.5 identisch.
 nur klickbare Chat-Buttons, keinen Dialog; dort ist die Kiste für Bedrock die bessere Wahl.
 Quest-Dialog-BossBar, Patrol-Editor, HUD, Wormhole-Marker sind keine Menüs.
 
+### Phase 7.1b ausgebaut — 01.10.2026
+
+A/B-Test auf TestServer01 (Bridge-Overlay per `phase71b.nametag-enabled: false` aus): über dem
+Eis-Elementar blieb **eine** HP-Anzeige — EliteMobs' eigene (`76.41 / 79.58` + Balken-Zeilen,
+`FakeText`). Am 16.08. erreichte sie Bedrock noch nicht; was sich geändert hat (vermutlich Geyser
+mit Text-Display-Unterstützung), ist für die Entscheidung egal. Mit beiden an stand alles doppelt.
+Ausgebaut: `BedrockNametagController`, `NametagTextBuilder`, die Java-Unterdrückung im
+`PacketInterceptor`, der Nametag-Teil in `BedrockCombatTrigger`/`FMMBedrockBridge`/Debug-Command und
+der Config-Block. Der Schalter in der Server-Config ist danach wirkungslos.
+⚠️ Die Overlays waren **echte** TextDisplays (`world.spawn`, nicht `setPersistent(false)`). Sauber
+entfernt wurden sie beim Stopp; nach einem Absturz könnten verwaiste in der Welt von TestServer01
+stehen — schwebender HP-Text ohne Mob. Das gab es schon vorher, der Ausbau ändert daran nichts.
+
 ### Phase 7.1d — nur EIN Name über Bossen auf Bedrock (umgebaut 30.09., in-game offen)
 
 Bedrock zeigte über Evoker-Bossen „Evoker". Erste Fassung (27.09., `ab5914f`) hat den Namen des
@@ -218,9 +231,7 @@ Reflection-Ziele** unverändert da sind: `PlayerStatusScreenDialog.showPlayerSta
 
 ### ▶ Nächste Sitzung
 
-**Neu 30.09.: zwei HP-Balken auf Bedrock** — unklar, ob EMs Overhead-HP (FakeText) Bedrock jetzt
-erreicht und unser 7.1b damit doppelt ist. Screenshot + A/B mit `phase71b.nametag-enabled: false`.
-Details in `../HANDOFF.md`.
+✅ **Zwei HP-Balken geklärt (01.10.):** EMs Anzeige erreicht Bedrock, 7.1b ist ausgebaut (Abschnitt oben).
 
 
 Reihenfolge von Fabi, Details in `../HANDOFF.md` („NÄCHSTE SITZUNG"): **1.** Spieltest des JARs

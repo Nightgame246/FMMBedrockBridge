@@ -6,36 +6,25 @@ import com.github.retrooper.packetevents.event.PacketListenerPriority;
 import com.github.retrooper.packetevents.event.PacketSendEvent;
 import com.github.retrooper.packetevents.protocol.packettype.PacketType;
 import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerBossBar;
-import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerEntityMetadata;
-import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerEntityPositionSync;
-import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerEntityRelativeMove;
-import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerEntityRelativeMoveAndRotation;
-import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerEntityTeleport;
-import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerSpawnEntity;
 import de.crazypandas.fmmbedrockbridge.FMMBedrockBridge;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 import org.bukkit.entity.Player;
 
-import java.util.Set;
 import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Logger;
 
 /**
  * PacketEvents listener that:
  *  - Phase 7.1a: suppresses EM's "Evoker | 2" BossBar packet for Bedrock players
  *    via first-match heuristic, leaving our styled bridge BossBar visible.
- *  - Phase 7.1b: suppresses our auxiliary TextDisplay nametag entity for Java
- *    players (only Bedrock players see it — Java has FMM's vanilla nametag).
+ *  - Phase 7.1d: hides the mob's own name for Bedrock where FMM shows a nameplate.
  */
 public class PacketInterceptor {
 
     private static final Logger log = FMMBedrockBridge.getInstance().getLogger();
 
-    // Phase 7.1b — entity IDs hidden from ALL Java (non-Floodgate) players (our TextDisplay nametags)
-    private final Set<Integer> javaHiddenEntityIds = ConcurrentHashMap.newKeySet();
 
     private PacketListenerAbstract listener;
     private BedrockEntityBridge bridge;
@@ -49,7 +38,7 @@ public class PacketInterceptor {
     /**
      * The same detection EliteMobs uses, via {@link ViewerManager} (cached per player — this runs
      * for every entity packet). {@code null} while no bridge is set: then nobody is classified,
-     * and both suppressions stay off, as they did before without Floodgate.
+     * and the Bedrock-only handling stays off, as they did before without Floodgate.
      */
     private Boolean isBedrock(Player player) {
         return bridge == null ? null : bridge.getViewerManager().isBedrockPlayer(player);
@@ -62,29 +51,7 @@ public class PacketInterceptor {
                 Object eventPlayer = event.getPlayer();
                 if (!(eventPlayer instanceof Player playerObj)) return;
 
-                // Phase 7.1b — Java-only suppress for our auxiliary TextDisplay nametags
-                if (!javaHiddenEntityIds.isEmpty() && Boolean.FALSE.equals(isBedrock(playerObj))) {
-                    int entityId = -1;
-                    if (event.getPacketType() == PacketType.Play.Server.SPAWN_ENTITY) {
-                        entityId = new WrapperPlayServerSpawnEntity(event).getEntityId();
-                    } else if (event.getPacketType() == PacketType.Play.Server.ENTITY_METADATA) {
-                        entityId = new WrapperPlayServerEntityMetadata(event).getEntityId();
-                    } else if (event.getPacketType() == PacketType.Play.Server.ENTITY_TELEPORT) {
-                        try { entityId = new WrapperPlayServerEntityTeleport(event).getEntityId(); } catch (Throwable t) {}
-                    } else if (event.getPacketType() == PacketType.Play.Server.ENTITY_RELATIVE_MOVE) {
-                        try { entityId = new WrapperPlayServerEntityRelativeMove(event).getEntityId(); } catch (Throwable t) {}
-                    } else if (event.getPacketType() == PacketType.Play.Server.ENTITY_RELATIVE_MOVE_AND_ROTATION) {
-                        try { entityId = new WrapperPlayServerEntityRelativeMoveAndRotation(event).getEntityId(); } catch (Throwable t) {}
-                    } else if (event.getPacketType() == PacketType.Play.Server.ENTITY_POSITION_SYNC) {
-                        try { entityId = new WrapperPlayServerEntityPositionSync(event).getId(); } catch (Throwable t) {}
-                    }
-                    if (entityId > 0 && javaHiddenEntityIds.contains(entityId)) {
-                        event.setCancelled(true);
-                        return;
-                    }
-                }
-
-                // Phase 7.1d — real boss name on the Bedrock nametag
+                // Phase 7.1d — one name above modelled bosses on Bedrock, not two
                 if (event.getPacketType() == PacketType.Play.Server.ENTITY_METADATA
                         && Boolean.TRUE.equals(isBedrock(playerObj))) {
                     nameFix.onMetadata(event);
@@ -107,20 +74,11 @@ public class PacketInterceptor {
         }
     }
 
-    public void hideFromJava(int entityId) {
-        javaHiddenEntityIds.add(entityId);
-    }
-
-    public void unhideFromJava(int entityId) {
-        javaHiddenEntityIds.remove(entityId);
-    }
-
     public BedrockNameFix getNameFix() {
         return nameFix;
     }
 
     public void clear() {
-        javaHiddenEntityIds.clear();
         nameFix.clear();
     }
 

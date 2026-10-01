@@ -9,16 +9,15 @@
 #
 # This plugin only adds the EM UX layer that MagmaGuy doesn't provide natively:
 #   - Phase 7.1a/c: Combat-triggered styled BossBar (replaces EM's "Evoker | 2")
-#   - Phase 7.1b/c: Combat-triggered nametag overlay (HP / HP-Bar; FMM renders name)
 
 # Master switch
 enabled: true
 
-# Debug mode — logs verbose diagnostic info (BossBar UUID claims, Nametag updates).
+# Debug mode — logs verbose diagnostic info (BossBar UUID claims, combat state).
 # See /fmmbridge debug for live state.
 debug: false
 
-# Distance in blocks within which Bedrock players are added as viewers of BossBar/Nametag
+# Distance in blocks within which Bedrock players are added as viewers of the BossBar
 # controllers. Same range FMM uses for its own model visibility.
 entity-view-distance: 50
 
@@ -42,32 +41,25 @@ phase71a:
   # mode is active.
   resolve-own-bossbar-uuid: true
 
-# Phase 7.1b — combat HP overlay (number + bar) above bridged mobs, Bedrock-only.
-phase71b:
-  # EliteMobs renders an equivalent display itself since 9.6.0 — see
-  # plugins/EliteMobs/MobCombatSettings.yml: displayVisualHealthBars + displayNumericHealth.
-  # Set to false to drop our overlay. Use this to test whether EM's own display reaches
-  # Bedrock clients: if it does, this scope is redundant and can be removed; if it does not,
-  # keep ours and turn EM's off instead so nothing is shown twice.
-  #
-  # Does NOT affect the BossBar — EliteMobs still has no Bedrock path for that.
-  nametag-enabled: true
+# Phase 7.1b (HP-Overlay über Mobs, nur Bedrock) wurde am 01.10.2026 AUSGEBAUT:
+# EliteMobs' eigene Overhead-HP-Anzeige (MobCombatSettings.yml: displayVisualHealthBars +
+# displayNumericHealth) erreicht Bedrock inzwischen — im A/B-Test stand sonst alles doppelt.
+# Ein alter Eintrag "phase71b:" in dieser Datei wird ignoriert.
 
 # Phase 7.1c — Combat-triggered visuals (HP/Bar/BossBar)
 phase71c:
-  # When true, BossBar appears only during combat (EnterCombat → ExitCombat). Nametag
-  # overlay shows HP / Health-Bar during combat; FMM renders the mob name natively.
+  # When true, BossBar appears only during combat (EnterCombat → ExitCombat).
   # When false, BossBar is always-visible (Phase 7.1a behavior).
   combat-enabled: true
   # EliteMobs sometimes does not fire a second EnterCombat event after combat paused.
   # When true, EliteMobDamagedByPlayerEvent also refreshes Bedrock combat UI. This is
   # the same event EliteMobs uses for Java's HP/name displays.
   damage-refresh-enabled: true
-  # When false, HP/Bar stays visible until the display timeout even if EM fires ExitCombat,
+  # When false, the BossBar stays visible until the display timeout even if EM fires ExitCombat,
   # matching Java's "lingers after last hit" feel more closely.
   hide-on-exit-event: false
   # 0 = use EliteMobs' MobCombatSettings.yml combatDisplayTimeoutSeconds (default 30s).
-  # Set a positive tick value to override only the Bedrock overlay timeout.
+  # Set a positive tick value to override only the Bedrock BossBar timeout.
   damage-timeout-ticks: 0
 
 # Phase 7.1d — nur EIN Name über modellierten Bossen auf Bedrock

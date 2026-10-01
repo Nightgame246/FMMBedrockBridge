@@ -29,8 +29,7 @@ import java.util.concurrent.ConcurrentHashMap;
  *
  * <p>Only registered when EliteMobs is loaded AND
  * {@code phase71c.combat-enabled = true}. When the toggle is off, this class is
- * never instantiated and Phase 7.1a (always-visible BossBar) + Phase 7.1b (1-line
- * nametag) behavior is preserved.
+ * never instantiated and Phase 7.1a (always-visible BossBar) behavior is preserved.
  */
 public final class BedrockCombatTrigger implements Listener {
 
@@ -88,13 +87,6 @@ public final class BedrockCombatTrigger implements Listener {
                 bossBar.exitCombat();
             }
             FMMBedrockBridge.debugLog("[BRIDGE] BossBar setCombatState(" + inCombat
-                    + ") for " + uuid + " via " + reason);
-        }
-
-        BedrockNametagController nametag = bridge.getActiveNametags().get(uuid);
-        if (nametag != null) {
-            nametag.setCombatState(inCombat);
-            FMMBedrockBridge.debugLog("[BRIDGE] Nametag setCombatState(" + inCombat
                     + ") for " + uuid + " via " + reason);
         }
     }

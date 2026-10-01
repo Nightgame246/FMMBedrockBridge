@@ -4,7 +4,6 @@ import com.magmaguy.freeminecraftmodels.customentity.ModeledEntity;
 import de.crazypandas.fmmbedrockbridge.FMMBedrockBridge;
 import de.crazypandas.fmmbedrockbridge.bridge.BedrockBossBarController;
 import de.crazypandas.fmmbedrockbridge.bridge.BedrockEntityBridge;
-import de.crazypandas.fmmbedrockbridge.bridge.BedrockNametagController;
 import de.crazypandas.fmmbedrockbridge.bridge.FMMEntityData;
 import org.bukkit.Location;
 import org.bukkit.command.Command;
@@ -92,17 +91,6 @@ public class FMMBridgeCommand implements CommandExecutor, TabCompleter {
                     + " §8|§7 own-claimed: " + (ctrl.hasOwnUuid() ? "§ayes" : "§7no")
                     + " §8|§7 inCombat: " + (ctrl.isInCombat() ? "§ayes" : "§7no")
                     + " §8|§7 entityUuid=§7" + ctrl.getRealEntityUuid().toString().substring(0, 8) + "…");
-        }
-
-        Map<UUID, BedrockNametagController> nametags = bridge.getActiveNametags();
-        sender.sendMessage("§6[FMMBridge Debug] §7Nametag controllers: §e" + nametags.size());
-        for (BedrockNametagController nt : nametags.values()) {
-            String text = net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer
-                    .plainText().serialize(nt.getCurrentText());
-            sender.sendMessage("  §d" + text
-                    + " §8|§7 textDisplayId=§7" + nt.getTextDisplayEntityId()
-                    + " §8|§7 inCombat: " + (nt.isInCombat() ? "§ayes" : "§7no")
-                    + " §8|§7 entityUuid=§7" + nt.getRealEntityUuid().toString().substring(0, 8) + "…");
         }
     }
 

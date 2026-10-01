@@ -5,11 +5,9 @@ import de.crazypandas.fmmbedrockbridge.FMMBedrockBridge;
 import de.crazypandas.fmmbedrockbridge.elite.EliteMobsHook;
 import net.kyori.adventure.text.Component;
 import org.bukkit.Location;
-import org.bukkit.entity.Display;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
-import org.bukkit.entity.TextDisplay;
 
 import java.util.Collections;
 import java.util.Set;
@@ -18,11 +16,11 @@ import java.util.logging.Logger;
 import java.util.function.Supplier;
 
 /**
- * Holds the BossBar + Nametag controllers for a single FMM modeled entity.
+ * Holds the BossBar controller and the Bedrock name fix for a single FMM modeled entity.
  *
  * <p>Mob/static rendering is FMM 2.6.0 native — this class no longer spawns fake entities
  * or hides the real entity from Bedrock viewers. It only manages the UX layer
- * (BossBar suppression + replacement, combat-triggered HP nametag overlay) that FMM doesn't
+ * (BossBar suppression + replacement) that FMM doesn't
  * provide natively.
  */
 public class FMMEntityData {
@@ -38,15 +36,12 @@ public class FMMEntityData {
     // Phase 7.1a — null if this entity is not an EliteMobs boss
     private final BedrockBossBarController bossBarController;
 
-    // Phase 7.1b — null if the entity has no custom-name (no nametag)
-    private final BedrockNametagController bedrockNametagController;
 
     public FMMEntityData(ModeledEntity modeledEntity, Entity realEntity, BedrockEntityBridge bridge) {
         this.modeledEntity = modeledEntity;
         this.realEntity = realEntity;
         this.bridge = bridge;
         this.bossBarController = createBossBarControllerIfElite();
-        this.bedrockNametagController = createNametagControllerIfNamed();
         refreshBedrockName();
     }
 
@@ -120,56 +115,6 @@ public class FMMEntityData {
         return EliteMobsHook.getStyledName(living);
     }
 
-    private BedrockNametagController createNametagControllerIfNamed() {
-        if (!FMMBedrockBridge.getInstance().isFloodgateAvailable()) return null;
-        // Phase 7.1b — EliteMobs renders an equivalent overhead display itself
-        // (EliteOverheadHealthDisplay, MobCombatSettings.yml: displayVisualHealthBars +
-        // displayNumericHealth). Set nametag-enabled: false to drop our overlay and check
-        // whether EM's reaches Bedrock; if it does, this whole scope is redundant.
-        if (!FMMBedrockBridge.getInstance().getConfig()
-                .getBoolean("phase71b.nametag-enabled", true)) {
-            return null;
-        }
-
-        // Gate on name-source (not on initial text — initial is empty by design out-of-combat).
-        // Mobs without a displayable name get no Bridge nametag overlay at all.
-        if (!NametagTextBuilder.hasNameSource(realEntity, modeledEntity)) return null;
-        if (bridge.getActiveNametags().containsKey(realEntity.getUniqueId())) {
-            log.warning("[BRIDGE] Duplicate FMMEntityData nametag — skipping.");
-            return null;
-        }
-
-        // Initial text = empty: out-of-combat the TextDisplay shows nothing and FMM's
-        // native nametag is the sole name visible. On combat-enter the controller
-        // switches to a 2-line HP/Bar layout above FMM's name.
-        Component initialName = NametagTextBuilder.compose(realEntity, modeledEntity, false);
-
-        Location spawnLoc = realEntity.getLocation().clone()
-                .add(0, realEntity.getHeight() + BedrockNametagController.Y_OFFSET_PADDING, 0);
-
-        Component finalInitialName = initialName;
-        TextDisplay textDisplay;
-        try {
-            textDisplay = realEntity.getWorld().spawn(spawnLoc, TextDisplay.class, td -> {
-                td.text(finalInitialName);
-                td.setBillboard(Display.Billboard.CENTER);
-                td.setSeeThrough(true);
-                td.setDefaultBackground(true);
-                bridge.getPacketInterceptor().hideFromJava(td.getEntityId());
-            });
-        } catch (Exception e) {
-            log.warning("[BRIDGE] Failed to spawn TextDisplay nametag: " + e.getMessage());
-            return null;
-        }
-
-        BedrockNametagController controller = new BedrockNametagController(
-                realEntity, modeledEntity, textDisplay, initialName);
-        bridge.getActiveNametags().put(realEntity.getUniqueId(), controller);
-        FMMBedrockBridge.debugLog("[BRIDGE] Created Nametag controller (textDisplayId="
-                + textDisplay.getEntityId() + ", initial=empty until combat)");
-        return controller;
-    }
-
     public void addViewer(Player player) {
         if (destroyed || viewers.contains(player)) return;
         viewers.add(player);
@@ -188,7 +133,6 @@ public class FMMEntityData {
     public void tick() {
         if (destroyed) return;
         if (bossBarController != null) bossBarController.tickUpdate();
-        if (bedrockNametagController != null) bedrockNametagController.tickUpdate();
         refreshBedrockName();
     }
 
@@ -211,11 +155,6 @@ public class FMMEntityData {
 
         bridge.getPacketInterceptor().getNameFix().unregister(realEntity.getEntityId());
 
-        if (bedrockNametagController != null) {
-            bridge.getPacketInterceptor().unhideFromJava(bedrockNametagController.getTextDisplayEntityId());
-            bedrockNametagController.cleanup();
-            bridge.getActiveNametags().remove(realEntity.getUniqueId());
-        }
 
         viewers.clear();
     }

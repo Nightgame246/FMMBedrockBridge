@@ -18,17 +18,18 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Logger;
 
 /**
- * Manages the BossBar + Nametag controllers for FMM modeled entities (DynamicEntity only).
+ * Manages the BossBar controllers for FMM modeled entities (DynamicEntity only).
  *
  * Mob/static rendering is FMM 2.6.0 native — this bridge only adds the EM UX layer:
- * Phase 7.1a/c styled BossBar + Phase 7.1b/c combat-triggered HP nametag overlay.
+ * Phase 7.1a/c styled BossBar. (Phase 7.1b, the HP nametag overlay, was removed on 01.10.2026:
+ * EliteMobs' own overhead health display reaches Bedrock now.)
  */
 public class BedrockEntityBridge {
 
     private static final Logger log = FMMBedrockBridge.getInstance().getLogger();
     private final FMMEntityTracker entityTracker;
 
-    /** Active FMM entity data (BossBar + Nametag holders), keyed by ModeledEntity */
+    /** Active FMM entity data (BossBar holders), keyed by ModeledEntity */
     private final Map<ModeledEntity, FMMEntityData> entityDataMap = new ConcurrentHashMap<>();
 
     /** Packet inject / BossBar suppression */
@@ -43,8 +44,6 @@ public class BedrockEntityBridge {
     /** Phase 7.1a — captured EM BossBar UUIDs for suppression on Bedrock players */
     private final BossBarRegistry bossBarRegistry = new BossBarRegistry();
 
-    /** Phase 7.1b — active Nametag controllers, keyed by real-entity UUID */
-    private final Map<UUID, BedrockNametagController> activeNametags = new ConcurrentHashMap<>();
 
     private BukkitTask syncTask;
 
@@ -102,7 +101,6 @@ public class BedrockEntityBridge {
         entityDataMap.clear();
         activeControllers.clear();
         bossBarRegistry.clear();
-        activeNametags.clear();
         viewerManager.clear();
         packetInterceptor.clear();
         log.info("[BRIDGE] Shutdown complete");
@@ -110,7 +108,7 @@ public class BedrockEntityBridge {
 
     /** Called by FMMEntityTracker when a new FMM DynamicEntity is detected. */
     public void onEntitySpawn(ModeledEntity modeledEntity) {
-        // Only DynamicEntity — static props have no BossBar/Nametag and are handled by FMM nativ.
+        // Only DynamicEntity — static props have no BossBar and are handled by FMM nativ.
         if (!(modeledEntity instanceof DynamicEntity)) return;
 
         Entity underlying = getUnderlyingEntity(modeledEntity);
@@ -189,8 +187,4 @@ public class BedrockEntityBridge {
         return bossBarRegistry;
     }
 
-    /** Phase 7.1b — accessor for Nametag subsystem. */
-    public Map<UUID, BedrockNametagController> getActiveNametags() {
-        return activeNametags;
-    }
 }

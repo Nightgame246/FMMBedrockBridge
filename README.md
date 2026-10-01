@@ -1,6 +1,6 @@
 # FMMBedrockBridge
 
-A Spigot/Paper plugin that adds the **EliteMobs UX layer** (combat-styled BossBar, HP/Bar combat-nametag) for Bedrock clients connected via [Geyser](https://geysermc.org/) — features that [FreeMinecraftModels (FMM) 2.6.0](https://github.com/MagmaGuy/FreeMinecraftModels) and [ResourcePackManager 2.0.2](https://github.com/MagmaGuy/ResourcePackManager) don't cover natively.
+A Spigot/Paper plugin that adds the **EliteMobs UX layer** (combat-styled BossBar, one name above modelled bosses, class abilities and menus) for Bedrock clients connected via [Geyser](https://geysermc.org/) — features that [FreeMinecraftModels (FMM) 2.6.0](https://github.com/MagmaGuy/FreeMinecraftModels) and [ResourcePackManager 2.0.2](https://github.com/MagmaGuy/ResourcePackManager) don't cover natively.
 
 ## Background
 
@@ -15,7 +15,7 @@ The current plugin is a focused **EM↔Bedrock UX-Bridge**.
 | Feature | Why it exists |
 |---------|---------------|
 | **Phase 7.1a/c — Styled Combat BossBar** | EM-managed Bukkit BossBar with the YAML-styled name (e.g. "Tier 13 Eis-Elementar") instead of the Vanilla "Evoker | 2" Geyser would otherwise show on Bedrock. EM's own BOSS_EVENT packets are suppressed for Bedrock players; our bar is identified by its wire UUID, read reflectively, because EliteMobs 10.8.0 pools and re-titles up to four bars per player and an ordering heuristic can no longer tell them apart. |
-| **Phase 7.1b/c — Combat Nametag** | Bukkit TextDisplay above bridged mobs showing HP-number / health-bar (combat-only, 2 lines above FMM's native name). Java players see only FMM's native nametag (packet-suppress for our TextDisplay). **This does not duplicate EliteMobs' own overhead health display** — verified in-game on 2026-08-16: EM's `EliteOverheadHealthDisplay` (`displayVisualHealthBars` / `displayNumericHealth`) reaches Java only and never arrives on Bedrock, while this overlay is suppressed for Java. The two serve disjoint client groups; do not "deduplicate" them by disabling either side. |
+| ~~**Phase 7.1b — Combat Nametag**~~ | **Removed on 2026-10-01.** A Bukkit TextDisplay showing HP above bridged mobs for Bedrock only. EliteMobs' own overhead health display (`displayVisualHealthBars` / `displayNumericHealth`) reaches Bedrock clients now — an A/B test on TestServer01 showed health twice with both on, once with ours off. History: git before the removal commit. |
 | **Phase 7.3 — Bedrock Menu Dialog-Reroute** | EM forces Bedrock players to the `/em` chest menu (a bare container grid on Bedrock) even though it already builds the same menu as a native MC dialog for Java 1.21.6+. Geyser now renders MC dialogs as native Bedrock forms, so the bridge cancels the Bedrock chest and triggers EM's `showPlayerStatusDialog` — Bedrock gets a real form, sub-pages cascade natively. Reroute-only (no form-building); registry-extensible to other EM menus. Requires MC ≥ 1.21.6. |
 | **Phase 7.3b — Bedrock NPC Quest-Menu Dialog-Reroute** | Extends Phase 7.3 to EliteMobs' NPC quest menu — the only other Bedrock-forced-to-chest EM menu with a native dialog path (`QuestMenu.generateDialogMenu`). Detection is holder-based (looks the opened chest up in EM's internal `QuestInventoryMenu` maps via reflection) because quest chest titles are dynamic (single-quest title = quest name, multi-quest = literal `"Quests"`). On a hit the chest is cancelled and EM's quest dialog fires next tick → Geyser renders a native Bedrock form. Status-vs-quest precedence + per-flag gating live in `RerouteDecision`; recovered quest context is carried opaquely in `QuestMenuContext`. Config: `phase73.bedrock-quest-reroute: true`. Requires MC ≥ 1.21.6. |
 | **Phase 7.3c — Bedrock Class-Menu Dialog-Reroute** | EliteMobs 10.9's class menu (`/em class`, the Classes button, class trainer NPCs) is built twice — as a dialog and as a chest — and `ClassMenuCoordinator.renderer(player)` picks the chest for every Bedrock player. The bridge swaps the coordinator's chest renderer for a router that sends Bedrock players to EM's dialog renderer instead, so Geyser shows native forms on every page. Only where Bedrock is the *only* reason for the chest (EM's per-player menu style and `onlyUseBedrockMenus` are respected). Config: `phase73.bedrock-class-reroute: true`. Requires MC ≥ 1.21.6. |
@@ -113,12 +113,6 @@ phase71a:
                                   # false = legacy "first title match is ours" heuristic.
                                   # Symptom of a mis-resolved UUID: Bedrock sees NO bar at all.
 
-phase71b:
-  nametag-enabled: true      # false = drop our combat HP overlay. EliteMobs renders an
-                             # equivalent one itself (MobCombatSettings.yml:
-                             # displayVisualHealthBars / displayNumericHealth), so turn one
-                             # of the two off to avoid showing health twice.
-                             # Does NOT affect the BossBar.
 
 phase71c:
   combat-enabled: true        # false = BossBar always-visible
@@ -135,17 +129,15 @@ phase71c:
 |-------|------|
 | `FMMBedrockBridge` | Plugin lifecycle, dependency checks, controller wire-up |
 | `tracker/FMMEntityTracker` | Polls `ModeledEntityManager.getAllEntities()` every second; calls `bridge.onEntitySpawn/Despawn` |
-| `bridge/BedrockEntityBridge` | Holds the controller maps (BossBar + Nametag), `entityDataMap`, per-tick sync |
-| `bridge/FMMEntityData` | Per-mob holder for the BossBar + Nametag controllers (no rendering — FMM does that) |
+| `bridge/BedrockEntityBridge` | Holds the BossBar controller map, `entityDataMap`, per-tick sync |
+| `bridge/FMMEntityData` | Per-mob holder for the BossBar controller and the 7.1d name fix (no rendering — FMM does that) |
 | `bridge/ViewerManager` | Bedrock player tracking, range checks; detection delegated to `BedrockDetection` |
 | `bridge/BedrockDetection` | Pure "is this a Bedrock player" decision, mirroring EliteMobs' own `BedrockChecker` order (Floodgate UUID → name pattern → Floodgate → Geyser). Kept in step with EM on purpose: EM's `fLayerSupported()` asks the same question, and a disagreement leaves the player with no input at all |
 | `bridge/PacketInterceptor` | PacketEvents listener: BossBar suppress, Java-TextDisplay suppress |
 | `bridge/BedrockBossBarController` | Bukkit BossBar lifecycle per boss × Bedrock viewer |
-| `bridge/BedrockNametagController` | TextDisplay lifecycle, combat-state, position/text sync |
 | `bridge/BedrockCombatTrigger` | Bukkit listener: forwards `EliteMobEnterCombatEvent` / `ExitCombatEvent` to controllers |
 | `bridge/BossBarRegistry` | EliteMobs BossBar UUIDs currently suppressed. Membership is temporary — since EM 10.8.0 these are pooled bars that get re-titled, so entries are evicted on REMOVE or on reuse for a title we don't own |
 | `bridge/BossBarUuidResolver` | Reads our own bar's wire UUID off the Bukkit BossBar reflectively, so EM's pooled bars can't be mistaken for ours. Returns null on any failure → legacy heuristic |
-| `bridge/NametagTextBuilder` | Pure utility composing the Nametag Component (empty out-of-combat, HP+Bar in-combat) |
 | `bridge/BedrockMenuRerouteListener` | Phase 7.3/7.3b: cancels the Bedrock `/em` chest or NPC quest-chest open and fires EM's native dialog next tick (Geyser → Bedrock form); dispatches status vs quest via `RerouteDecision` |
 | `bridge/MenuRerouteRegistry` | Phase 7.3: title-normalize (strip color codes) + title→dialog-invoker lookup; extensible to more EM menus |
 | `bridge/McVersions` | Pure dotted-version threshold check (gates the reroute on MC ≥ 1.21.6) |
