@@ -144,3 +144,18 @@ phase74:
   # (Quelle ABILITY_INPUT, Priorität 310 gegen 100 des HUD), deshalb verdrängen sich
   # die beiden nicht mehr.
   feedback: true
+
+# Phase 7.6 — EliteMobs-Menü-Hintergründe auf Bedrock
+#
+# EliteMobs zeichnet seine Menü-Hintergründe über Schrift-Zeichen im Kistentitel. Bedrock zeigt
+# diese Zeichen als Kästchen. Die Bridge ersetzt sie für Bedrock durch unsichtbare
+# Erkennungszeichen; das Pack "FMMBridge-EliteMobsMenus" im Geyser-packs-Ordner blendet daraufhin
+# den Hintergrund ein. Java ist nie betroffen.
+#
+# REIHENFOLGE: erst das Pack auf den Proxy, dann diesen Schalter an. Ohne Pack zeigt Bedrock die
+# Erkennungszeichen als Symbole.
+phase76:
+  bedrock-menu-backgrounds: true
+  # Graue Slot-Kästchen in solchen Menüs ausblenden, wie Java es durch das Bild tut. Items und
+  # Auswahl bleiben sichtbar. Auf false, falls ein Menü ohne Kästchen schwer bedienbar ist.
+  hide-slot-backgrounds: true
