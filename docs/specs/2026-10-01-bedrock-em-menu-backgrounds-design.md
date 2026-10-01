@@ -21,9 +21,10 @@ gezeichneten Hintergründen statt einer nackten grauen Kiste.
 
 **Befund, auf dem alles aufbaut:**
 
-- Das zusammengeführte Java-Pack von ResourcePackManager enthält **173 Menü-Hintergründe**:
-  170 aus `elitemobs:gui`, 3 aus `nightbreak:gui`. Nur 17 davon stammen aus dem Grund-Pack von
-  EliteMobs, die übrigen aus den Inhalts-Paketen.
+- Das zusammengeführte Java-Pack von ResourcePackManager enthält **173 Einträge** für Menü-Hintergründe,
+  aber nur **16 verschiedene Menüs**: RPM wiederholt EliteMobs' Schrift je Inhalts-Paket. *(Korrigiert
+  am 01.10.2026 beim ersten Generator-Lauf — vorher stand hier fälschlich „173 Menü-Hintergründe".)*
+  Es gilt der erste Eintrag je Zeichen, wie bei Minecraft selbst.
 - Jeder Hintergrund ist ein Schrift-Zeichen in `assets/minecraft/font/default.json`. **Alle liegen
   lückenlos in `U+F0E00`–`U+F0F0B`.** Bildgröße fast immer 256 × 256 px (zweimal 213/214 × 256),
   `height` 256, `ascent` 136 (147×), 130 (24×) oder 45 (2×).

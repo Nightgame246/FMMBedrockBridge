@@ -47,15 +47,18 @@ def read_menus(z):
     if "assets/minecraft/font/default.json" not in z.namelist():
         sys.exit("FEHLER: assets/minecraft/font/default.json fehlt — falsches ZIP? Erwartet: ResourcePackManager_RSP.zip")
     providers = json.loads(z.read("assets/minecraft/font/default.json"))["providers"]
-    menus, spacing = [], set()
+    menus, spacing, seen = [], set(), set()
+    # RPM's merged pack repeats EliteMobs' font once per content package; Minecraft lets the
+    # first provider for a character win, so later duplicates are skipped.
     for p in providers:
         if p.get("type") != "bitmap":
             continue
         for row in p.get("chars", []):
             for ch in row:
                 cp = ord(ch)
-                if not (EM_BLOCK_START <= cp <= EM_BLOCK_END):
+                if not (EM_BLOCK_START <= cp <= EM_BLOCK_END) or cp in seen:
                     continue
+                seen.add(cp)
                 if p.get("height", 0) < 0:
                     spacing.add(cp)
                 elif p.get("height", 0) >= 40:

@@ -70,6 +70,16 @@ class ReadTest(unittest.TestCase):
         self.assertEqual({0xF0EF1}, spacing)
         self.assertEqual("elitemobs_repairmenu", menus[0].texture_name)
 
+    def test_duplicate_providers_count_once_first_wins(self):
+        # RPM's merged pack repeats EliteMobs' font once per content package (01.10.2026: 173
+        # entries, 16 menus). Minecraft lets the first provider for a character win.
+        dup = dict(MINI[0], file="elitemobs:gui/other.png", ascent=100)
+        tex = dict(MINI_TEX, **{"assets/elitemobs/textures/gui/other.png": png(256, 256)})
+        menus, _ = g.read_menus(zipfile.ZipFile(java_pack(MINI + [dup, MINI[1]], tex)))
+        self.assertEqual([0xF0E01, 0xF0E02, 0xF0F0B], [m.codepoint for m in menus])
+        self.assertEqual("elitemobs_repairmenu", menus[0].texture_name)
+        self.assertEqual(136, menus[0].ascent)
+
     def test_refuses_pack_without_menus(self):
         with self.assertRaises(SystemExit):
             g.read_menus(zipfile.ZipFile(java_pack([MINI[3]], {})))
