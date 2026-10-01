@@ -125,9 +125,13 @@ jeder Neuerzeugung, damit Clients neu laden.
   173 Bedingungen pro Slot.
 - **Laufzeit-Schalter:** `phase76.hide-slot-backgrounds` (Standard `true`) — steuert, ob die Bridge
   `U+E8FF` setzt. Aus = Bilder bleiben, graues Raster wieder darüber.
-- **Offen:** Der genaue Name des grauen Hintergrund-Elements in Bedrocks `ui_common.json` muss
-  nachgelesen werden.
 - **Absicherung:** zweiter Machbarkeitstest (§ 7) **vor** dem Generator.
+- ✅ **Ergebnis 01.10.2026 (Spike-Pack v0.0.2, Screenshots `slot_regel.png` / `ohne slot regel.png`):**
+  Mit `U+E8FF` ist das graue Raster weg und das Bild vollständig sichtbar (inkl. der gemalten Kästchen);
+  Items mit Stückzahl sichtbar und an derselben Stelle wie ohne Regel; Auswahl-Hervorhebung bleibt.
+  Ohne `U+E8FF` ist das Raster wie erwartet da. **Das Element heißt `cell_image`** (in
+  `common.cell_image_panel`, ausgetauscht über `$background_images` von `common.container_item`); die
+  Hervorhebung `cell_image_selected` bleibt unberührt. Controller-Bedienung (Konsole) noch offen → § 7.
 
 ## 5. Generator und Zuordnung
 
