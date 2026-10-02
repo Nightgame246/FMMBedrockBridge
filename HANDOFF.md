@@ -1,6 +1,6 @@
 # HANDOFF — FMMBedrockBridge
 
-> Arbeitsstand **dieses Plugins**. Stand: **2026-09-27**  ·  Branch: **`main`** — Phase 7.4 am 27.09. per Squash gemerged (`d2444bd`)
+> Arbeitsstand **dieses Plugins**. Stand: **2026-10-02**  ·  Branch: **`main`** — Phase 7.7 am 02.10. abgenommen und gemergt (7.4, 7.6, 7.7 auf `main`)
 >
 > ⚠️ **Der Einstieg steht eine Ebene höher: `../HANDOFF.md`.**
 > Dort liegen Bootstrap, Session-Ende-Protokoll, Build-Vorbereitung am neuen PC und die
@@ -177,6 +177,24 @@ EM 10.9.0 und 10.9.5 identisch.
 (7.3b) · **Classes (7.3c)** — das waren alle mit Dialog-Alternative. Party-Menüs haben für Java
 nur klickbare Chat-Buttons, keinen Dialog; dort ist die Kiste für Bedrock die bessere Wahl.
 Quest-Dialog-BossBar, Patrol-Editor, HUD, Wormhole-Marker sind keine Menüs.
+
+### Phase 7.7 — EliteMobs-Menü-Symbole auf Bedrock (abgenommen und nach `main` gemergt 02.10.2026)
+
+Spec `docs/specs/2026-10-02-bedrock-em-menu-icons-design.md`, Plan `docs/plans/2026-10-02-bedrock-em-menu-icons.md`.
+Bedrock zeigte Vanilla-Items (Smaragd, Redstone, Barriere, Banner) statt EMs Symbolen. Ursache: EM setzt
+nur `item_model` auf beliebige Grund-Items, Geyser mappt je Grund-Item, RPM hat die Symbole nur unter Papier
+registriert (Redstone/Banner kann Geyser gar nicht). Die Bridge setzt das Grund-Item für Bedrock in
+Container-Fenstern auf Papier (`BedrockMenuIcons` + `MenuIconRebaser`, `WINDOW_ITEMS`/`SET_SLOT`). 105 Tests.
+- **Rückweg:** `phase77.bedrock-menu-icons: false`. Listen `item-model-prefixes`/`exclude-models` (Neustart).
+- **Upstream:** `docs/upstream-bugs/em-menu-icons-paper-base-bedrock.md` (ersetzt die zwei alten Banner-/
+  BaseItemResolver-Entwürfe) — setzt EM das um, Schalter aus.
+- **Abnahme 02.10.** (Bedrock am PC, TestServer01): Reparieren, Kaufen/Verkaufen, Verschrotter, Entbindung —
+  Pfeil-Kisten, Amboss, Geldbeutel, Hand mit Münzen kommen an, **alle Buttons funktionieren**, Log ohne
+  `[PHASE77] … failed`. Screenshots `../references/screenshots/alt/2026-10-02_phase77-em-symbole-bedrock/`.
+- **Kein Fund, sondern so gewollt:** grüne/rote Fahne im Entbindungsmenü zeigt Java genauso (EM hat dort kein
+  Symbol); das Abbrechen-X trägt kein EM-Modell (nicht umgebaut) — Vanilla-Barriere, auf jeder Edition anders gezeichnet.
+- Kronen bewusst ausgenommen (bei RPM unter Helmen). Zurückgestellte Kleinigkeiten M1–M5 aus der Abschluss-Review
+  (u. a. Kommentar in `config.yml`: auch der Schalter braucht Neustart).
 
 ### Phase 7.6 — EliteMobs-Menü-Hintergründe auf Bedrock (abgenommen und nach `main` gemergt 01.10.2026, `9e7ba4a`)
 
