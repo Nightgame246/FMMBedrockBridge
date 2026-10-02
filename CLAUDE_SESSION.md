@@ -1996,3 +1996,18 @@ Utility kam nachweislich über die Taste. Actionbar-Hinweis laut Fabi korrekt.
   inline umgesetzt auf Branch `phase-7.6-menu-backgrounds`. Funde unterwegs: 16 statt 173 Menüs
   (Dubletten im RPM-Pack), Versatz am Slot-Raster statt am Titel, x gemessen −8. Pack v0.0.4 auf Proxy01,
   Bridge auf TestServer01, Abnahme am PC bestanden.
+
+## Session: 2026-10-02
+
+- **Phase 7.7 — EliteMobs-Menü-Symbole auf Bedrock**: Ursache im Code belegt (EM setzt nur `item_model` auf Smaragd/
+  Redstone/Barriere/Banner, Geyser mappt je Grund-Item, RPM rät und führt `elitemobs:ui/*` nur unter Papier; Redstone/
+  Banner filtert RPM ganz). Bridge setzt das Grund-Item für Bedrock in Container-Fenstern auf Papier
+  (`BedrockMenuIcons` + `MenuIconRebaser`, `WINDOW_ITEMS`/`SET_SLOT`, Schalter `phase77.bedrock-menu-icons`).
+  Spec → Plan → inline umgesetzt, Abschluss-Review ohne Critical/Important, in-game abgenommen, gemergt `d171b4a`.
+  Upstream-Entwurf `em-menu-icons-paper-base-bedrock.md` (zum Posten).
+- **Waffen/Rüstungen auf Bedrock geprüft:** Stufen-Gear (ab Item-Level 20) läuft — Icons, Hand, getragen. Einzig der
+  Klassen-Stab war Vanilla-Speer (RPM kannte `*_spear` nicht).
+- **MagmaGuy-Welle 02.10.** (EM 10.9.8, FMM 2.12.6, RPM 2.4.6, BS 2.7.7): Stab-Problem upstream gelöst (FMM deklariert
+  Grund-Items per `rspm_item_bases/`, RPM liest sie) — auf Bedrock bestätigt. Bridge gegen die Welle geprüft
+  (Reflection-Ziele per `javap` unverändert, pom gehoben `c8fc6c9`), Upgrade TestServer01 über `plugins/update/`,
+  Proxy holte RPM selbst, ein Neustart. 105 Tests.
