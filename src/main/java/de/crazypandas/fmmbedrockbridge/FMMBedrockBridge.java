@@ -6,6 +6,8 @@ import de.crazypandas.fmmbedrockbridge.commands.FMMBridgeCommand;
 import de.crazypandas.fmmbedrockbridge.tracker.FMMEntityTracker;
 import org.bukkit.plugin.java.JavaPlugin;
 
+import java.util.List;
+import java.util.Set;
 import java.util.logging.Logger;
 
 /**
@@ -24,6 +26,9 @@ public class FMMBedrockBridge extends JavaPlugin {
 
     private static FMMBedrockBridge instance;
     private static Logger log;
+    // Phase 7.7 — read once in onEnable; the rule runs for every inventory packet.
+    private static volatile List<String> phase77Prefixes = List.of();
+    private static volatile Set<String> phase77Excludes = Set.of();
 
     private boolean floodgateAvailable = false;
     private boolean fmmAvailable = false;
@@ -50,6 +55,10 @@ public class FMMBedrockBridge extends JavaPlugin {
         }
 
         saveDefaultConfig();
+        phase77Prefixes = List.copyOf(getConfig().getStringList("phase77.item-model-prefixes"));
+        phase77Excludes = Set.copyOf(getConfig().getStringList("phase77.exclude-models"));
+        log.info("Phase 7.7: Bedrock menu icons enabled=" + isPhase77MenuIconsEnabled()
+                + ", prefixes=" + phase77Prefixes + ", excludes=" + phase77Excludes.size());
 
         entityTracker = new FMMEntityTracker(null);
         bridge = new BedrockEntityBridge(floodgateAvailable, entityTracker);
@@ -241,6 +250,19 @@ public class FMMBedrockBridge extends JavaPlugin {
     public static boolean isPhase76HideSlotBackgrounds() {
         FMMBedrockBridge plugin = instance;
         return plugin != null && plugin.getConfig().getBoolean("phase76.hide-slot-backgrounds", true);
+    }
+
+    public static boolean isPhase77MenuIconsEnabled() {
+        FMMBedrockBridge plugin = instance;
+        return plugin != null && plugin.getConfig().getBoolean("phase77.bedrock-menu-icons", true);
+    }
+
+    public static List<String> getPhase77Prefixes() {
+        return phase77Prefixes;
+    }
+
+    public static Set<String> getPhase77Excludes() {
+        return phase77Excludes;
     }
 
     public static boolean isPhase74Enabled() {

@@ -5,14 +5,20 @@ import com.github.retrooper.packetevents.event.PacketListenerAbstract;
 import com.github.retrooper.packetevents.event.PacketListenerPriority;
 import com.github.retrooper.packetevents.event.PacketSendEvent;
 import com.github.retrooper.packetevents.protocol.packettype.PacketType;
+import com.github.retrooper.packetevents.protocol.item.ItemStack;
 import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerBossBar;
 import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerOpenWindow;
+import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerSetSlot;
+import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerWindowItems;
 import de.crazypandas.fmmbedrockbridge.FMMBedrockBridge;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 import org.bukkit.entity.Player;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 import java.util.logging.Logger;
 
@@ -22,6 +28,7 @@ import java.util.logging.Logger;
  *    via first-match heuristic, leaving our styled bridge BossBar visible.
  *  - Phase 7.1d: hides the mob's own name for Bedrock where FMM shows a nameplate.
  *  - Phase 7.6: rewrites EliteMobs' menu titles for Bedrock (background markers).
+ *  - Phase 7.7: puts EliteMobs' menu icons on paper for Bedrock (Geyser custom-item mapping).
  */
 public class PacketInterceptor {
 
@@ -68,6 +75,13 @@ public class PacketInterceptor {
                     rewriteMenuTitle(event);
                 }
 
+                // Phase 7.7 — EliteMobs menu icons for Bedrock
+                if ((event.getPacketType() == PacketType.Play.Server.WINDOW_ITEMS
+                        || event.getPacketType() == PacketType.Play.Server.SET_SLOT)
+                        && Boolean.TRUE.equals(isBedrock(playerObj))) {
+                    rebaseMenuIcons(event);
+                }
+
                 // Phase 7.1a — BOSS_EVENT suppress for Bedrock players
                 if (event.getPacketType() == PacketType.Play.Server.BOSS_BAR) {
                     handleBossEvent(event, playerObj);
@@ -103,6 +117,48 @@ public class PacketInterceptor {
             FMMBedrockBridge.debugLog("[PHASE76] menu title rewritten for Bedrock: '" + rewritten + "'");
         } catch (Throwable t) {
             FMMBedrockBridge.debugLog("[PHASE76] title rewrite failed: " + t);
+        }
+    }
+
+    /**
+     * Phase 7.7 — puts EliteMobs' menu icons on paper for Bedrock, so ResourcePackManager's Geyser
+     * mapping (registered under paper) applies. Only container windows; the player's own inventory
+     * (window 0) and the cursor (-1) are never touched. Unchanged packets are not re-encoded.
+     */
+    private void rebaseMenuIcons(PacketSendEvent event) {
+        if (!FMMBedrockBridge.isPhase77MenuIconsEnabled()) return;
+        List<String> prefixes = FMMBedrockBridge.getPhase77Prefixes();
+        Set<String> excludes = FMMBedrockBridge.getPhase77Excludes();
+        try {
+            if (event.getPacketType() == PacketType.Play.Server.WINDOW_ITEMS) {
+                WrapperPlayServerWindowItems wrapper = new WrapperPlayServerWindowItems(event);
+                if (wrapper.getWindowId() <= 0) return;
+                List<ItemStack> items = wrapper.getItems();
+                List<ItemStack> out = new ArrayList<>(items.size());
+                int changed = 0;
+                for (ItemStack item : items) {
+                    ItemStack rebased = MenuIconRebaser.rebase(item, prefixes, excludes);
+                    if (rebased != item) changed++;
+                    out.add(rebased);
+                }
+                if (changed == 0) return;
+                wrapper.setItems(out);
+                event.markForReEncode(true);
+                FMMBedrockBridge.debugLog("[PHASE77] rebased " + changed
+                        + " menu icon(s) for Bedrock in window " + wrapper.getWindowId());
+            } else {
+                WrapperPlayServerSetSlot wrapper = new WrapperPlayServerSetSlot(event);
+                if (wrapper.getWindowId() <= 0) return;
+                ItemStack item = wrapper.getItem();
+                ItemStack rebased = MenuIconRebaser.rebase(item, prefixes, excludes);
+                if (rebased == item) return;
+                wrapper.setItem(rebased);
+                event.markForReEncode(true);
+                FMMBedrockBridge.debugLog("[PHASE77] rebased 1 menu icon(s) for Bedrock in window "
+                        + wrapper.getWindowId());
+            }
+        } catch (Throwable t) {
+            FMMBedrockBridge.debugLog("[PHASE77] icon rebase failed: " + t);
         }
     }
 

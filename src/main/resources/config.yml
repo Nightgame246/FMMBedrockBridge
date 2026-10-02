@@ -159,3 +159,18 @@ phase76:
   # Graue Slot-Kästchen in solchen Menüs ausblenden, wie Java es durch das Bild tut. Items und
   # Auswahl bleiben sichtbar. Auf false, falls ein Menü ohne Kästchen schwer bedienbar ist.
   hide-slot-backgrounds: true
+
+# Phase 7.7 — EliteMobs-Menü-Symbole auf Bedrock
+#
+# EliteMobs setzt seine Button-Symbole auf Smaragd, Redstone, Barriere oder Banner. Geyser ordnet
+# Custom-Items je Grund-Item zu, und ResourcePackManager hat die Symbole nur unter Papier gemappt
+# (Redstone und Banner kann Geyser gar nicht überschreiben). Die Bridge setzt das Grund-Item für
+# Bedrock deshalb auf Papier; das Symbol selbst bleibt gleich. Java ist nie betroffen.
+#
+# Auf false, sobald EliteMobs/RPM/Geyser das selbst lösen — dann ist alles wie vorher.
+# Änderungen an den Listen brauchen einen Neustart.
+phase77:
+  bedrock-menu-icons: true
+  item-model-prefixes: ["elitemobs:ui/", "nightbreak:ui/"]
+  # Liegen bei RPM unter Helmen statt Papier — auf Papier würden sie kaputtgehen.
+  exclude-models: ["elitemobs:ui/redcrown", "elitemobs:ui/yellowcrown"]
