@@ -587,7 +587,7 @@ Expected: BUILD SUCCESS. Note the produced jar path: `target/FMMBedrockBridge-0.
 ```bash
 scp -i ~/.ssh/id_ed25519 \
   target/FMMBedrockBridge-0.1.0-SNAPSHOT-*.jar \
-  amp@mc.crazypandas.de:/home/amp/.ampdata/instances/TestServer01/Minecraft/plugins/FMMBedrockBridge.jar
+  $MC_SSH:$INSTANCES/TestServer01/Minecraft/plugins/FMMBedrockBridge.jar
 ```
 
 (If multiple timestamped jars exist in `target/`, pass the newest explicitly.)
@@ -595,8 +595,8 @@ scp -i ~/.ssh/id_ed25519 \
 - [ ] **Step 3: Remove the now-defunct spike block from the live server config (tidy-up)**
 
 ```bash
-ssh -i ~/.ssh/id_ed25519 amp@mc.crazypandas.de \
-  'CFG=/home/amp/.ampdata/instances/TestServer01/Minecraft/plugins/FMMBedrockBridge/config.yml; \
+ssh -i ~/.ssh/id_ed25519 $MC_SSH \
+  'CFG=$INSTANCES/TestServer01/Minecraft/plugins/FMMBedrockBridge/config.yml; \
    sed -i "/^# SPIKE (Phase 7.3/,/debug-titles: false/d; /^spike:/,/debug-titles: false/d" "$CFG"; \
    echo "--- spike refs remaining: ---"; grep -n spike "$CFG" || echo none'
 ```
@@ -610,8 +610,8 @@ Not `/reload` — it stalls on EliteMobs/magmacore init. This step is performed 
 - [ ] **Step 5: Verify boot + registration in the fresh log**
 
 ```bash
-ssh -i ~/.ssh/id_ed25519 amp@mc.crazypandas.de \
-  'LOG=/home/amp/.ampdata/instances/TestServer01/Minecraft/logs/latest.log; \
+ssh -i ~/.ssh/id_ed25519 $MC_SSH \
+  'LOG=$INSTANCES/TestServer01/Minecraft/logs/latest.log; \
    grep -nE "Enabling FMMBedrockBridge|Phase 7.3:|Done \(" "$LOG" | tail -10'
 ```
 

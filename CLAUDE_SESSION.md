@@ -1193,7 +1193,7 @@ FMM **2.10.2**, EM **10.7.3**, RPM **2.3.0**, BetterStructures **2.6.3** (+ Eter
 - **FMM 2.10.2** unkritisch (1.20.2-Spawn-Fix, MagmaCore).
 
 ### Server-Backup TestServer01
-`/home/amp/backups/TestServer01-20260728-2211/` — 1,8 GB zstd (2,98 GB / 26.051 Einträge, Integrität geprüft): paper-JARs unkomprimiert, `plugins.tar.zst`, `server-configs.tar.gz`, `MANIFEST.txt` (alle Plugin-Versionen), `SHA256SUMS`.
+`~/backups/TestServer01-20260728-2211/` — 1,8 GB zstd (2,98 GB / 26.051 Einträge, Integrität geprüft): paper-JARs unkomprimiert, `plugins.tar.zst`, `server-configs.tar.gz`, `MANIFEST.txt` (alle Plugin-Versionen), `SHA256SUMS`.
 
 ### Claude Code auf dem Server
 Fabi wollte Claude auf dem Server, gestartet als **root**, weil „die AMP-Console komisch ist". **Missverständnis aufgelöst:** die AMP-Web-Console ist keine Shell, sondern der stdin des Minecraft-Servers — deshalb gehen dort nur Server-Befehle. Der Systemuser `amp` hat eine normale bash (diese Session arbeitet die ganze Zeit damit). Root bringt nichts dazu; `amp` ist ohnehin in der **docker-Gruppe** und damit faktisch root-äquivalent. Der Claude-Installer weigert sich zudem selbst, unter `sudo` zu laufen.

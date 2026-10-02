@@ -472,10 +472,10 @@ git commit -m "docs(phase77): Upstream-Entwurf und Arbeitsstand"
 - [ ] **Step 2: Backup + Tausch** (nach Freigabe)
 
 ```bash
-P=.ampdata/instances/TestServer01/Minecraft/plugins
-ssh amp@mc.crazypandas.de "cp $P/FMMBedrockBridge.jar $P/FMMBedrockBridge.jar.bak-$(date +%Y%m%d)-pre77 && sha256sum $P/FMMBedrockBridge.jar"
-scp target/FMMBedrockBridge-*.jar amp@mc.crazypandas.de:$P/FMMBedrockBridge.jar
-ssh amp@mc.crazypandas.de "sha256sum $P/FMMBedrockBridge.jar"
+P=$INSTANCES/TestServer01/Minecraft/plugins
+ssh $MC_SSH "cp $P/FMMBedrockBridge.jar $P/FMMBedrockBridge.jar.bak-$(date +%Y%m%d)-pre77 && sha256sum $P/FMMBedrockBridge.jar"
+scp target/FMMBedrockBridge-*.jar $MC_SSH:$P/FMMBedrockBridge.jar
+ssh $MC_SSH "sha256sum $P/FMMBedrockBridge.jar"
 sha256sum target/FMMBedrockBridge-*.jar
 ```
 
@@ -486,7 +486,7 @@ Expected: beide sha256 der neuen JAR gleich. (Falls `target/` mehrere JARs enth√
 - [ ] **Step 4: Fabi startet TestServer01 neu; Boot-Log pr√ºfen**
 
 ```bash
-ssh amp@mc.crazypandas.de "grep -E 'Phase 7.7|PHASE77|FMMBedrockBridge.*(ERROR|Exception)' .ampdata/instances/TestServer01/Minecraft/logs/latest.log | tail -20"
+ssh $MC_SSH "grep -E 'Phase 7.7|PHASE77|FMMBedrockBridge.*(ERROR|Exception)' $INSTANCES/TestServer01/Minecraft/logs/latest.log | tail -20"
 ```
 
 Expected: `Phase 7.7: Bedrock menu icons enabled=true, prefixes=[elitemobs:ui/, nightbreak:ui/], excludes=2`, keine Exceptions.

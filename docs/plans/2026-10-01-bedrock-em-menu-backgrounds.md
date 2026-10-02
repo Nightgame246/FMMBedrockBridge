@@ -884,7 +884,7 @@ git commit -m "feat(phase76): Generator fuer das Bedrock-Pack FMMBridge-EliteMob
 
 ```bash
 mkdir -p target/bedrock-menus
-scp "amp@mc.crazypandas.de:.ampdata/instances/TestServer01/Minecraft/plugins/ResourcePackManager/output/ResourcePackManager_RSP.zip" target/bedrock-menus/RSP.zip
+scp "$MC_SSH:$INSTANCES/TestServer01/Minecraft/plugins/ResourcePackManager/output/ResourcePackManager_RSP.zip" target/bedrock-menus/RSP.zip
 python3 tools/bedrock-menus/generate.py target/bedrock-menus/RSP.zip
 ```
 

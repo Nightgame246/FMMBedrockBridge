@@ -594,7 +594,7 @@ These steps need the live server and a Bedrock client — run with Fabi (do not 
 1. SCP the jar:
    ```bash
    scp target/FMMBedrockBridge-0.1.0-SNAPSHOT-*.jar \
-       amp@mc.crazypandas.de:/home/amp/.ampdata/instances/TestServer01/Minecraft/plugins/FMMBedrockBridge.jar
+       $MC_SSH:$INSTANCES/TestServer01/Minecraft/plugins/FMMBedrockBridge.jar
    ```
 2. Fabi does a full **stop→start** of TestServer01 via AMP (NOT `/reload` — it stalls on EM/magmacore init).
 3. Verify boot log: `Done (Xs)!` and `Phase 7.3: Bedrock menu dialog-reroute registered (status=true, quest=true)`.

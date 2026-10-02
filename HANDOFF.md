@@ -9,6 +9,10 @@
 >
 > Server-/Betriebswissen: `../server-tools/SERVER-STATE.md` (gemeinsam mit dem Server-Claude).
 >
+> 🔒 **Dieses Repo ist öffentlich.** Befehle nennen den Server nur über Platzhalter: `$MC_SSH` = SSH-Ziel
+> (Benutzer@Host), `$INSTANCES` = Wurzel der AMP-Instanzen. Die echten Werte stehen nur im privaten
+> Workspace-Repo (`../CLAUDE.md`, „Server-Setup"). Nie echte Host-/Pfadangaben hier einchecken.
+>
 > 🔴 **Die Historie dieses Repos wurde am 09.09.2026 neu geschrieben und das GitHub-Repo
 > gelöscht + neu angelegt. ALLE Commit-SHAs sind anders.** Ein älterer Klon teilt mit dem
 > Remote keinen Commit mehr und lässt sich nicht pullen — er muss weg und frisch geklont
@@ -573,7 +577,7 @@ Fabi in-game: „sah alles gut aus, eine Leiste pro Boss."
 - **Neue Upstream-Releases** (Fabi aus dem MagmaGuy-Discord): FMM **2.10.2**, EM **10.7.3**, RPM **2.3.0**, BetterStructures **2.6.3**. ⚠️ **Der Source dieser Builds ist nicht auf GitHub** — `references/` zeigt FMM/RPM/EM weiter auf 2.10.1 / 2.2.2 / 10.7.2 (letzter Push 28.06.). Nicht im Code gegenprüfbar, nur live gegen die JARs.
 - **Geyser-Kopplung entdeckt:** RPM 2.3.0 fixt „Bedrock custom-entity bridge for **Geyser 2.11**"; GeyserModelEngine hat parallel `fix/geyser-2.11-sync` gemerged. Zwei Projekte, derselbe Bruch. **Proxy01 läuft auf Geyser `2.10.1-b1175`** (per SSH verifiziert) → trifft uns noch nicht, aber **Geyser nicht hochziehen, solange RPM auf 2.2.2 steht** (sonst Pig-Fallback auf Bedrock).
 - **EM 10.7.3 berührt unseren Rest-Scope** — beides Risiko, kein Gewinn: „Proximity boss bars no longer flicker/reorder" trifft unsere First-Match-Heuristik (`PacketInterceptor.java:120-145`, 7.1a); „NPC role tags auf Bedrock (`bedrockNPCRoleYOffset`)" kann mit `BedrockNametagController` doppeln (7.1b).
-- **Vollbackup TestServer01:** `/home/amp/backups/TestServer01-20260728-2211/` (1,8 GB zstd, Integrität geprüft, Manifest mit allen Plugin-Versionen).
+- **Vollbackup TestServer01:** `~/backups/TestServer01-20260728-2211/` (1,8 GB zstd, Integrität geprüft, Manifest mit allen Plugin-Versionen).
 - **Claude Code auf dem Server installiert** — 2.1.220 als User `amp` (nicht root; die AMP-Web-Console ist keine Shell, sondern Server-stdin — `amp` hat eine normale bash). Login steht noch aus, RCON bewusst aus.
 - **Neu im Repo: `server-tools/`** (Commit `f1dd00c`) — `plugin-update-check.sh`, `backup-testserver.sh`, `server-CLAUDE.md` (→ `~/.claude/CLAUDE.md`), README mit vier dokumentierten API-Fallstricken.
 - **Update-Lage TestServer01:** Paper 113 → 130, Floodgate b132 → b138, EssentialsX/FAWE/LuckPerms/Skript/packetevents ebenfalls veraltet. ProtocolLib ist ein Dev-Build **neuer** als der Release — nicht downgraden (LibsDisguises braucht ihn).
@@ -716,8 +720,8 @@ Was von der Bridge **vielleicht** noch übrig bleibt (zu prüfen!):
 > ```bash
 > export JAVA_HOME=/usr/lib/jvm/java-25-openjdk    # PFLICHT, sonst "Ungültige Klassendatei"
 > # FMM/EM liegen NICHT im magmaguy-Maven-Repo → vom Server holen:
-> scp 'amp@mc.crazypandas.de:.ampdata/instances/TestServer01/Minecraft/plugins/[PP] Free Minecraft Models (MODRINTH).jar' /tmp/fmm.jar
-> scp 'amp@mc.crazypandas.de:.ampdata/instances/TestServer01/Minecraft/plugins/[PP] EliteMobs (MODRINTH).jar' /tmp/em.jar
+> scp '$MC_SSH:$INSTANCES/TestServer01/Minecraft/plugins/[PP] Free Minecraft Models (MODRINTH).jar' /tmp/fmm.jar
+> scp '$MC_SSH:$INSTANCES/TestServer01/Minecraft/plugins/[PP] EliteMobs (MODRINTH).jar' /tmp/em.jar
 > mvn install:install-file -Dfile=/tmp/fmm.jar -DgroupId=com.magmaguy -DartifactId=FreeMinecraftModels -Dversion=2.11.1 -Dpackaging=jar
 > mvn install:install-file -Dfile=/tmp/em.jar  -DgroupId=com.magmaguy -DartifactId=EliteMobs           -Dversion=10.8.0 -Dpackaging=jar
 > bash verify-both-apis.sh

@@ -45,8 +45,8 @@ elite-items:
 - [ ] **Step 2: Remove the stale bridge artifacts on Proxy01**
 
 ```bash
-rm /home/amp/.ampdata/instances/Proxy01/Minecraft/plugins/Geyser-Velocity/custom_mappings/em_bridge_mappings.json
-rm /home/amp/.ampdata/instances/Proxy01/Minecraft/plugins/Geyser-Velocity/packs/em_bridge_pack.mcpack
+rm $INSTANCES/Proxy01/Minecraft/plugins/Geyser-Velocity/custom_mappings/em_bridge_mappings.json
+rm $INSTANCES/Proxy01/Minecraft/plugins/Geyser-Velocity/packs/em_bridge_pack.mcpack
 ```
 
 - [ ] **Step 3: Restart backend + proxy** (Fabi, via AMP — full stop/start, not `/reload`).
@@ -422,13 +422,13 @@ Commit with: `git commit -m "docs(upstream): EM banner UI items invisible on Bed
 
 ```bash
 scp target/FMMBedrockBridge-0.1.0-SNAPSHOT-*.jar \
-  amp@mc.crazypandas.de:/home/amp/.ampdata/instances/TestServer01/Minecraft/plugins/FMMBedrockBridge.jar
+  $MC_SSH:$INSTANCES/TestServer01/Minecraft/plugins/FMMBedrockBridge.jar
 ```
 
 - [ ] **Step 2: Delete the orphaned generated dir on TestServer01**
 
 ```bash
-ssh amp@mc.crazypandas.de "rm -rf /home/amp/.ampdata/instances/TestServer01/Minecraft/plugins/FMMBedrockBridge/bedrock-pack"
+ssh $MC_SSH "rm -rf $INSTANCES/TestServer01/Minecraft/plugins/FMMBedrockBridge/bedrock-pack"
 ```
 (The Proxy01 artifacts were already removed in Task A.)
 
@@ -437,7 +437,7 @@ ssh amp@mc.crazypandas.de "rm -rf /home/amp/.ampdata/instances/TestServer01/Mine
 - [ ] **Step 4: Boot-log verification**
 
 ```bash
-ssh amp@mc.crazypandas.de "grep -iE 'FMMBedrockBridge|ItemScanner|Phase 7.2b|Maintenance|Phase 7.3|Phase 7.1c' /home/amp/.ampdata/instances/TestServer01/Minecraft/logs/latest.log"
+ssh $MC_SSH "grep -iE 'FMMBedrockBridge|ItemScanner|Phase 7.2b|Maintenance|Phase 7.3|Phase 7.1c' $INSTANCES/TestServer01/Minecraft/logs/latest.log"
 ```
 Expected: bridge enables; **no** `[ItemScanner]`, `[Phase 7.2b]`, or maintenance lines;
 `Phase 7.1c` and `Phase 7.3 … reroute registered` still present; no exceptions.

@@ -1135,9 +1135,9 @@ With:
         var paths = plugin.getMaintenanceArtifactPaths();
         sender.sendMessage("§6── Re-Deploy-Anleitung ──");
         sender.sendMessage("§71. SCP Mini-Pack auf Proxy01:");
-        sender.sendMessage("§f   scp " + paths.mcpackPath() + " amp@<proxy>:" + paths.proxyPackTargetDir() + "/");
+        sender.sendMessage("§f   scp " + paths.mcpackPath() + " $MC_SSH:" + paths.proxyPackTargetDir() + "/");
         sender.sendMessage("§72. SCP Geyser-Mappings auf Proxy01:");
-        sender.sendMessage("§f   scp " + paths.mappingsJsonPath() + " amp@<proxy>:" + paths.proxyMappingsTargetDir() + "/");
+        sender.sendMessage("§f   scp " + paths.mappingsJsonPath() + " $MC_SSH:" + paths.proxyMappingsTargetDir() + "/");
         sender.sendMessage("§73. Proxy01 neu starten (Geyser scannt mappings beim Boot)");
         sender.sendMessage("§74. Auf Backend: §e/fmmbridge maintenance mark-deployed");
     }
@@ -1338,8 +1338,8 @@ Append these methods inside `FMMBedrockBridge` class (before the closing brace):
         return new MaintenanceArtifactPaths(
                 mcpackPath != null ? mcpackPath.toAbsolutePath().toString() : "(not generated)",
                 mappingsJsonPath != null ? mappingsJsonPath.toAbsolutePath().toString() : "(not generated)",
-                "/home/amp/.ampdata/instances/Proxy01/Minecraft/plugins/Geyser-Velocity/packs",
-                "/home/amp/.ampdata/instances/Proxy01/Minecraft/plugins/Geyser-Velocity/custom_mappings"
+                "$INSTANCES/Proxy01/Minecraft/plugins/Geyser-Velocity/packs",
+                "$INSTANCES/Proxy01/Minecraft/plugins/Geyser-Velocity/custom_mappings"
         );
     }
 
@@ -1424,12 +1424,12 @@ Die Bridge generiert beim Boot zwei Artefakte unter `plugins/FMMBedrockBridge/be
 
 ```bash
 # Pack zum Proxy
-scp /home/amp/.ampdata/instances/TestServer01/Minecraft/plugins/FMMBedrockBridge/bedrock-pack/em_bridge_pack.mcpack \
-    amp@mc.crazypandas.de:/home/amp/.ampdata/instances/Proxy01/Minecraft/plugins/Geyser-Velocity/packs/
+scp $INSTANCES/TestServer01/Minecraft/plugins/FMMBedrockBridge/bedrock-pack/em_bridge_pack.mcpack \
+    $MC_SSH:$INSTANCES/Proxy01/Minecraft/plugins/Geyser-Velocity/packs/
 
 # Mappings zum Proxy
-scp /home/amp/.ampdata/instances/TestServer01/Minecraft/plugins/FMMBedrockBridge/bedrock-pack/em_bridge_mappings.json \
-    amp@mc.crazypandas.de:/home/amp/.ampdata/instances/Proxy01/Minecraft/plugins/Geyser-Velocity/custom_mappings/
+scp $INSTANCES/TestServer01/Minecraft/plugins/FMMBedrockBridge/bedrock-pack/em_bridge_mappings.json \
+    $MC_SSH:$INSTANCES/Proxy01/Minecraft/plugins/Geyser-Velocity/custom_mappings/
 
 # Proxy neustarten (Geyser registriert Custom-Items beim Boot)
 # Anschließend auf Backend:
@@ -1476,14 +1476,14 @@ Expected: All tests green (PackHashCalculatorTest, MaintenanceStateStoreTest, Ma
 
 Run:
 ```bash
-ssh amp@mc.crazypandas.de "cp /home/amp/.ampdata/instances/Proxy01/Minecraft/plugins/Geyser-Velocity/custom_mappings/rspm_geyser_mappings.json /home/amp/jar-backups/2026-05-31-pre-update/"
+ssh $MC_SSH "cp $INSTANCES/Proxy01/Minecraft/plugins/Geyser-Velocity/custom_mappings/rspm_geyser_mappings.json ~/jar-backups/2026-05-31-pre-update/"
 ```
 
 - [ ] **Step 4: SCP Bridge JAR to Backend**
 
 Run:
 ```bash
-scp target/FMMBedrockBridge-0.1.0-SNAPSHOT-*.jar amp@mc.crazypandas.de:/home/amp/.ampdata/instances/TestServer01/Minecraft/plugins/FMMBedrockBridge.jar
+scp target/FMMBedrockBridge-0.1.0-SNAPSHOT-*.jar $MC_SSH:$INSTANCES/TestServer01/Minecraft/plugins/FMMBedrockBridge.jar
 ```
 
 - [ ] **Step 5: Ask Fabi to restart TestServer01**
@@ -1497,7 +1497,7 @@ Bridge generiert beim Boot:
 
 Run:
 ```bash
-ssh amp@mc.crazypandas.de "ls -la /home/amp/.ampdata/instances/TestServer01/Minecraft/plugins/FMMBedrockBridge/bedrock-pack/em_bridge*"
+ssh $MC_SSH "ls -la $INSTANCES/TestServer01/Minecraft/plugins/FMMBedrockBridge/bedrock-pack/em_bridge*"
 ```
 Expected: beide Files vorhanden, Pack non-zero, JSON ≥ 1 KB
 
@@ -1505,9 +1505,9 @@ Expected: beide Files vorhanden, Pack non-zero, JSON ≥ 1 KB
 
 Run:
 ```bash
-ssh amp@mc.crazypandas.de "python3 -c \"
+ssh $MC_SSH "python3 -c \"
 import json
-d = json.load(open('/home/amp/.ampdata/instances/TestServer01/Minecraft/plugins/FMMBedrockBridge/bedrock-pack/em_bridge_mappings.json'))
+d = json.load(open('$INSTANCES/TestServer01/Minecraft/plugins/FMMBedrockBridge/bedrock-pack/em_bridge_mappings.json'))
 print('format_version:', d['format_version'])
 emerald = d['items'].get('minecraft:emerald', [])
 print('emerald entries:', len(emerald))
@@ -1521,10 +1521,10 @@ Expected: format_version 2, ≥ 12 emerald entries (BagOfCoin, AnvilHammer, Whit
 
 Run:
 ```bash
-scp amp@mc.crazypandas.de:/home/amp/.ampdata/instances/TestServer01/Minecraft/plugins/FMMBedrockBridge/bedrock-pack/em_bridge_pack.mcpack /tmp/
-scp amp@mc.crazypandas.de:/home/amp/.ampdata/instances/TestServer01/Minecraft/plugins/FMMBedrockBridge/bedrock-pack/em_bridge_mappings.json /tmp/
-scp /tmp/em_bridge_pack.mcpack amp@mc.crazypandas.de:/home/amp/.ampdata/instances/Proxy01/Minecraft/plugins/Geyser-Velocity/packs/
-scp /tmp/em_bridge_mappings.json amp@mc.crazypandas.de:/home/amp/.ampdata/instances/Proxy01/Minecraft/plugins/Geyser-Velocity/custom_mappings/
+scp $MC_SSH:$INSTANCES/TestServer01/Minecraft/plugins/FMMBedrockBridge/bedrock-pack/em_bridge_pack.mcpack /tmp/
+scp $MC_SSH:$INSTANCES/TestServer01/Minecraft/plugins/FMMBedrockBridge/bedrock-pack/em_bridge_mappings.json /tmp/
+scp /tmp/em_bridge_pack.mcpack $MC_SSH:$INSTANCES/Proxy01/Minecraft/plugins/Geyser-Velocity/packs/
+scp /tmp/em_bridge_mappings.json $MC_SSH:$INSTANCES/Proxy01/Minecraft/plugins/Geyser-Velocity/custom_mappings/
 ```
 
 - [ ] **Step 9: Ask Fabi to restart Proxy01**
@@ -1533,7 +1533,7 @@ Geyser registriert beim Boot alle Custom-Items aus `custom_mappings/em_bridge_ma
 
 Verify Proxy Boot Log:
 ```bash
-ssh amp@mc.crazypandas.de "grep -iE 'em_bridge|bridge_em|custom item' /home/amp/.ampdata/instances/Proxy01/Minecraft/logs/latest.log | head -20"
+ssh $MC_SSH "grep -iE 'em_bridge|bridge_em|custom item' $INSTANCES/Proxy01/Minecraft/logs/latest.log | head -20"
 ```
 Expected: Geyser meldet erfolgreiche Registration der `bridge_em:*` Identifiers
 
@@ -1554,9 +1554,9 @@ Output erwartet: `§a✓ Aktueller Pack-Hash als deployed markiert. Drift-Flag g
 
 Drift simulieren um Op-Chat-Notification zu testen:
 ```bash
-ssh amp@mc.crazypandas.de "python3 -c \"
+ssh $MC_SSH "python3 -c \"
 import json
-p = '/home/amp/.ampdata/instances/TestServer01/Minecraft/plugins/FMMBedrockBridge/maintenance-state.json'
+p = '$INSTANCES/TestServer01/Minecraft/plugins/FMMBedrockBridge/maintenance-state.json'
 d = json.load(open(p))
 d['deployedHash'] = 'simulated_old_hash_aabbccdd'
 json.dump(d, open(p, 'w'), indent=2)
