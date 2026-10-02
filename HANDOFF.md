@@ -1,6 +1,6 @@
 # HANDOFF — FMMBedrockBridge
 
-> Arbeitsstand **dieses Plugins**. Stand: **2026-10-02**  ·  Branch: **`feat/phase77-menu-icons`** (Phase 7.7, gebaut, in-game offen) — `main` hat 7.4 und 7.6
+> Arbeitsstand **dieses Plugins**. Stand: **2026-10-02**  ·  Branch: **`main`** — Phase 7.7 am 02.10. abgenommen und gemergt (7.4, 7.6, 7.7 auf `main`)
 >
 > ⚠️ **Der Einstieg steht eine Ebene höher: `../HANDOFF.md`.**
 > Dort liegen Bootstrap, Session-Ende-Protokoll, Build-Vorbereitung am neuen PC und die
@@ -178,9 +178,9 @@ EM 10.9.0 und 10.9.5 identisch.
 nur klickbare Chat-Buttons, keinen Dialog; dort ist die Kiste für Bedrock die bessere Wahl.
 Quest-Dialog-BossBar, Patrol-Editor, HUD, Wormhole-Marker sind keine Menüs.
 
-### Phase 7.7 — EliteMobs-Menü-Symbole auf Bedrock (gebaut 02.10.2026, in-game offen)
+### Phase 7.7 — EliteMobs-Menü-Symbole auf Bedrock (abgenommen und nach `main` gemergt 02.10.2026)
 
-Branch `feat/phase77-menu-icons`. Spec `docs/specs/2026-10-02-bedrock-em-menu-icons-design.md`, Plan `docs/plans/2026-10-02-bedrock-em-menu-icons.md`.
+Spec `docs/specs/2026-10-02-bedrock-em-menu-icons-design.md`, Plan `docs/plans/2026-10-02-bedrock-em-menu-icons.md`.
 Bedrock zeigte Vanilla-Items (Smaragd, Redstone, Barriere, Banner) statt EMs Symbolen. Ursache: EM setzt
 nur `item_model` auf beliebige Grund-Items, Geyser mappt je Grund-Item, RPM hat die Symbole nur unter Papier
 registriert (Redstone/Banner kann Geyser gar nicht). Die Bridge setzt das Grund-Item für Bedrock in
@@ -188,7 +188,13 @@ Container-Fenstern auf Papier (`BedrockMenuIcons` + `MenuIconRebaser`, `WINDOW_I
 - **Rückweg:** `phase77.bedrock-menu-icons: false`. Listen `item-model-prefixes`/`exclude-models` (Neustart).
 - **Upstream:** `docs/upstream-bugs/em-menu-icons-paper-base-bedrock.md` (ersetzt die zwei alten Banner-/
   BaseItemResolver-Entwürfe) — setzt EM das um, Schalter aus.
-- **Offen:** In-game-Abnahme (Symbole + Buttons bedienbar). Kronen bewusst ausgenommen (bei RPM unter Helmen).
+- **Abnahme 02.10.** (Bedrock am PC, TestServer01): Reparieren, Kaufen/Verkaufen, Verschrotter, Entbindung —
+  Pfeil-Kisten, Amboss, Geldbeutel, Hand mit Münzen kommen an, **alle Buttons funktionieren**, Log ohne
+  `[PHASE77] … failed`. Screenshots `../references/screenshots/alt/2026-10-02_phase77-em-symbole-bedrock/`.
+- **Kein Fund, sondern so gewollt:** grüne/rote Fahne im Entbindungsmenü zeigt Java genauso (EM hat dort kein
+  Symbol); das Abbrechen-X trägt kein EM-Modell (nicht umgebaut) — Vanilla-Barriere, auf jeder Edition anders gezeichnet.
+- Kronen bewusst ausgenommen (bei RPM unter Helmen). Zurückgestellte Kleinigkeiten M1–M5 aus der Abschluss-Review
+  (u. a. Kommentar in `config.yml`: auch der Schalter braucht Neustart).
 
 ### Phase 7.6 — EliteMobs-Menü-Hintergründe auf Bedrock (abgenommen und nach `main` gemergt 01.10.2026, `9e7ba4a`)
 
