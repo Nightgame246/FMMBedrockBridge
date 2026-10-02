@@ -158,7 +158,7 @@ Geyser würde es weiterleiten, bekommt es aber nie. **Nicht in der Bridge repari
 die Hotbar-Tasten, nach EliteMobs' eigener Zweitbelegung (`ClassAbilityGestureState.selectHotbar`,
 in den Artefakten 10.9.0 und 10.9.5 per `javap` belegt).
 
-### Phase 7.3c — Classes-Menü als Formular (27.09., in-game offen)
+### Phase 7.3c — Classes-Menü als Formular (27.09., in-game abgenommen 30.09.)
 
 Befund aus dem Spieltest: `/em` kam als Formular, der Klassen-Knopf darin als **Kiste**.
 EliteMobs baut jede Seite des Klassenmenüs zweimal (Dialog + Kiste) und wählt pro Aufruf in
@@ -215,7 +215,7 @@ der Config-Block. Der Schalter in der Server-Config ist danach wirkungslos.
 entfernt wurden sie beim Stopp; nach einem Absturz könnten verwaiste in der Welt von TestServer01
 stehen — schwebender HP-Text ohne Mob. Das gab es schon vorher, der Ausbau ändert daran nichts.
 
-### Phase 7.1d — nur EIN Name über Bossen auf Bedrock (umgebaut 30.09., in-game offen)
+### Phase 7.1d — nur EIN Name über Bossen auf Bedrock (umgebaut 30.09., in-game abgenommen 01.10.)
 
 Bedrock zeigte über Evoker-Bossen „Evoker". Erste Fassung (27.09., `ab5914f`) hat den Namen des
 Mobs umbenannt — Spieltest 30.09.: danach stand der richtige Name **zweimal** über dem Boss.
@@ -258,7 +258,7 @@ Reflection-Ziele** unverändert da sind: `PlayerStatusScreenDialog.showPlayerSta
 ✅ **Zwei HP-Balken geklärt (01.10.):** EMs Anzeige erreicht Bedrock, 7.1b ist ausgebaut (Abschnitt oben).
 
 
-Reihenfolge von Fabi, Details in `../HANDOFF.md` („NÄCHSTE SITZUNG"): **1.** Spieltest des JARs
+Reihenfolge von Fabi, Details in `../HANDOFF.md` („NÄCHSTE SITZUNG"): ✅ **1.** Spieltest des JARs
 `ab5914f` (7.1d Nametag, 7.3c Klassenmenü, 7.4 leere Ausdauer) · **2.** Upgrade inkl.
 PacketEvents 2.14.0, dann Bridge gegen 2.14.0 bauen · **3.** Plan für Custom-GUIs auf Bedrock
 (Vorbild NitroSetups).
