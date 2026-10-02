@@ -269,6 +269,15 @@ Debug: `[PHASE71D] entity … : hid '…' for Bedrock` einmal pro Mob.
   mindestens 2.14.0 hat — TestServer01 und Survival01 haben 2.13.0. Für einen Zwischen-Deploy
   wie am 27.09. die Version im pom kurz auf 2.13.0 setzen, bauen, pom zurücksetzen.
 
+### MagmaGuy-Welle vom 02.10.2026 — geprüft am 02.10.
+
+EM **10.9.8** · FMM **2.12.6** · RPM **2.4.6** · BS **2.7.7**. pom auf EM 10.9.8 / FMM 2.12.6 gehoben (Maven-Artefakte
+**byte-identisch** mit Modrinth, SHA-512 verglichen), beide API-Generationen grün (105 Tests). `javap -p` aller
+Reflection-Ziele 10.9.7 ↔ 10.9.8 verglichen: **unverändert** (einzige Abweichung: neue Methode
+`scaleClassesForDebugLoadout`); FMM `ModeledEntity.underlyingEntity` unverändert.
+**Kein Fix wird überflüssig:** Menü-Symbol-Grund-Items und `CustomModelAdder` unverändert (7.7 bleibt), `setPluginName`
+unverändert (7.1d bleibt). EM schreibt **keine** `rspm_item_bases`-Deklarationen, nur FMM (für Stäbe/Zauberstäbe).
+
 ### MagmaGuy-Welle vom 29.09.2026 — geprüft am 30.09.
 
 EM **10.9.7** · FMM **2.12.5** · RPM **2.4.5** · BS **2.7.6**. pom auf EM 10.9.7 / FMM 2.12.5 gehoben,

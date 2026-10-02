@@ -73,7 +73,7 @@
         <dependency>
             <groupId>com.magmaguy</groupId>
             <artifactId>FreeMinecraftModels</artifactId>
-            <version>2.12.5</version>
+            <version>2.12.6</version>
             <scope>provided</scope>
             <exclusions>
                 <!-- These are shaded into the FMM jar at build time but still
@@ -133,7 +133,7 @@
         <dependency>
             <groupId>com.magmaguy</groupId>
             <artifactId>EliteMobs</artifactId>
-            <version>10.9.7</version>
+            <version>10.9.8</version>
             <scope>provided</scope>
         </dependency>
 
