@@ -1,5 +1,8 @@
 # [EM / RPM] Banner-based UI icons invisible on Bedrock — Geyser cannot apply custom-item-v2 to banner base items
 
+> ⚠️ **Überholt am 02.10.2026** — EliteMobs nutzt inzwischen `item_model` statt Custom-Model-Data; neue Ursache und Fassung: `em-menu-icons-paper-base-bedrock.md`. Nicht mehr posten.
+
+
 **Status:** DRAFT — not yet posted upstream
 **Repos:** MagmaGuy/EliteMobs, MagmaGuy/ResourcePackManager (either can fix)
 **Versions:** EliteMobs 10.5.0, ResourcePackManager 2.0.2, Geyser-Velocity 2.10.x

@@ -1,5 +1,8 @@
 # [RPM] `BaseItemResolver` misses legacy `models/item/<base>.json` overrides → EM UI items don't render on Bedrock
 
+> ⚠️ **Überholt am 02.10.2026** — EliteMobs nutzt inzwischen `item_model` statt Custom-Model-Data; neue Ursache und Fassung: `em-menu-icons-paper-base-bedrock.md`. Nicht mehr posten.
+
+
 **Repo:** MagmaGuy/ResourcePackManager
 **Version:** 2.0.1 (Network-Mode)
 **Related:** EliteMobs 10.4.0, Geyser-Velocity 2.10.0
