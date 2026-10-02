@@ -178,6 +178,17 @@ EM 10.9.0 und 10.9.5 identisch.
 nur klickbare Chat-Buttons, keinen Dialog; dort ist die Kiste für Bedrock die bessere Wahl.
 Quest-Dialog-BossBar, Patrol-Editor, HUD, Wormhole-Marker sind keine Menüs.
 
+### Waffen und Rüstungen auf Bedrock — geprüft 02.10.2026 (kein Bridge-Thema)
+
+In-game verglichen (Screenshots `../references/screenshots/alt/2026-10-02_waffen-ruestung-bedrock/`) und RPM-Mapping
+auf Proxy01 gelesen: **Stufen-Gear (Bronze … Ultimatium) funktioniert auf Bedrock** — Icons, Waffen in der Hand,
+getragene Rüstung am eigenen Körper und von Java aus gesehen. Skins gibt es laut EM erst **ab Item-Level 20**
+(darunter auch auf Java vanilla). Testen: `/em skill setAll .<Bedrockname> 130`.
+**Einziger Fund:** die Klassenwaffe „Advanced Staff of Wonders" ist auf Bedrock ein Vanilla-Holzspeer — EM baut sie auf
+`WOODEN_SPEAR`, RPM mappt `…/fmm_default_arcane_staff` nur unter `stick`, unter `*_spear` steht kein einziger Eintrag.
+Upstream-Entwurf `docs/upstream-bugs/rpm-spear-base-items-class-staff-bedrock.md`. **Kein Bridge-Workaround** (Speere
+haben in 26.x Client-Verhalten). Zauberstab unbetroffen (FMM hat dafür kein Modell → Lohenrute auf beiden Editionen).
+
 ### Phase 7.7 — EliteMobs-Menü-Symbole auf Bedrock (abgenommen und nach `main` gemergt 02.10.2026)
 
 Spec `docs/specs/2026-10-02-bedrock-em-menu-icons-design.md`, Plan `docs/plans/2026-10-02-bedrock-em-menu-icons.md`.
