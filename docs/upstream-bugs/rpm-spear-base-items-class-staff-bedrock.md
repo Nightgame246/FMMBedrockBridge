@@ -1,6 +1,8 @@
 # [RPM / EliteMobs] Advanced Staff of Wonders renders as a vanilla wooden spear on Bedrock — no Geyser mapping under `*_spear`
 
-**Status:** DRAFT — not yet posted upstream
+> ✅ **Upstream gelöst am 02.10.2026, bevor wir posten konnten** — FMM 2.12.6 schreibt `assets/<ns>/rspm_item_bases/<pfad>.json` mit dem echten Grund-Item, RPM 2.4.6 liest das (`BaseItemResolver.declaredBaseItems`, Commit `3a2de40`). Changelog: *„wands and staves show their models on Bedrock"*. **Nicht posten.** Nach dem Upgrade auf Bedrock gegenprüfen.
+
+**Status:** OBSOLETE — fixed upstream (FMM 2.12.6 + RPM 2.4.6), never posted
 **Channel:** MagmaGuy's **Discord, Suggestions forum** (not GitHub). Copy-ready text at the end.
 **Repos:** MagmaGuy/ResourcePackManager (primary), MagmaGuy/EliteMobs, MagmaGuy/FreeMinecraftModels
 **Versions:** EliteMobs 10.9.7, FreeMinecraftModels 2.12.5, ResourcePackManager 2.4.5, Geyser-Velocity 2.11.x, Paper 26.2

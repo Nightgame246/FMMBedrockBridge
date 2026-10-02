@@ -3,7 +3,7 @@
 **Status:** DRAFT — not yet posted upstream
 **Channel:** MagmaGuy's **Discord, Suggestions forum** (not GitHub). Copy-ready text at the end.
 **Repos:** MagmaGuy/EliteMobs (primary), MagmaGuy/ResourcePackManager (alternative fix)
-**Versions:** EliteMobs 10.9.7, ResourcePackManager 2.4.5, Geyser-Velocity 2.11.x, Paper 26.2
+**Versions:** EliteMobs 10.9.7/10.9.8, ResourcePackManager 2.4.5/2.4.6, Geyser-Velocity 2.11.x, Paper 26.2
 **Supersedes:** `em-banner-ui-items-bedrock.md`, `rpm-baseitemresolver-legacy-override-gap.md`
 (both written for the old custom-model-data icons)
 **Our workaround:** FMMBedrockBridge Phase 7.7 (`BedrockMenuIcons`, `MenuIconRebaser`)
@@ -42,9 +42,10 @@ under helmets) and all `nightbreak:ui/*` models under `minecraft:paper`.
 the menu config defaults or by forcing it in `CustomModelAdder.addCustomModel` for UI models. Java
 looks identical (the `item_model` decides), Bedrock picks up RPM's existing paper mappings.
 
-**Alternative in RPM:** a way for plugins to declare the base item(s) of an `item_model`
-(the explicit-base path exists already, but only for legacy custom-model-data). Would still not help
-redstone and banners.
+**Alternative (since RPM 2.4.6):** EliteMobs could write `assets/elitemobs/rspm_item_bases/ui/<icon>.json`
+(`{"base_items": ["minecraft:emerald"]}`) like FreeMinecraftModels 2.12.6 does for its staves. That fixes
+emerald and barrier, but **not redstone and banners** — RPM still filters those out
+(`GeyserBaseItemCompatibility`). So `PAPER` as base stays the complete fix.
 
 ## Our workaround
 
