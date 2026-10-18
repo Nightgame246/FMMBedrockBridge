@@ -2011,3 +2011,11 @@ Utility kam nachweislich über die Taste. Actionbar-Hinweis laut Fabi korrekt.
   Grund-Items per `rspm_item_bases/`, RPM liest sie) — auf Bedrock bestätigt. Bridge gegen die Welle geprüft
   (Reflection-Ziele per `javap` unverändert, pom gehoben `c8fc6c9`), Upgrade TestServer01 über `plugins/update/`,
   Proxy holte RPM selbst, ein Neustart. 105 Tests.
+
+## Session: 2026-10-18
+
+- **MagmaGuy-Welle 17.10.** (EM 10.9.10, FMM 2.12.9, RPM 2.4.7, BS 2.7.9) geprüft: Reflection-Ziele per `javap` unverändert,
+  pom gehoben, beide API-Generationen grün (105 Tests), Artefakte byte-identisch mit Modrinth. Kein Code geändert.
+  Offen (in-game): EMs neue Option `allowDialogMenusForBedrockPlayers` könnte 7.3/7.3b/7.4 ersetzen (A/B-Test),
+  Bossbar-Limit vs. 7.1a, Overhead-Balken vs. 7.1b/c, FMM-Nameplates als Passagiere. Details HANDOFF.
+- Server seit 18.10. auf der Unraid-VM (Umbrella-Doku); Rollout der Welle steht aus.

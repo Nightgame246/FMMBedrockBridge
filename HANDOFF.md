@@ -273,6 +273,28 @@ Debug: `[PHASE71D] entity … : hid '…' for Bedrock` einmal pro Mob.
   mindestens 2.14.0 hat — TestServer01 und Survival01 haben 2.13.0. Für einen Zwischen-Deploy
   wie am 27.09. die Version im pom kurz auf 2.13.0 setzen, bauen, pom zurücksetzen.
 
+### MagmaGuy-Welle vom 17.10.2026 — geprüft am 18.10.
+
+EM **10.9.10** · FMM **2.12.9** · RPM **2.4.7** · BS **2.7.9** (EM 10.9.9 und FMM 2.12.7/2.12.8 nur im Maven-Repo, nie auf
+Modrinth). pom auf EM 10.9.10 / FMM 2.12.9 gehoben, Maven-Artefakte **byte-identisch** mit Modrinth (SHA-512), beide
+API-Generationen grün (105 Tests). `javap -p` aller Reflection-Ziele 10.9.8 ↔ 10.9.10 und 2.12.6 ↔ 2.12.9: **unverändert**
+(inkl. `QuestInventoryMenu$QuestDirectory/$QuestInventory`, `ActionBarCompositor$Source`, FMM `underlyingEntity`).
+FMM benennt `updateBedrockAnimation(String)` → `updateBedrockAnimations(String,String)` um — nutzen wir nicht.
+
+**Server-Stand 18.10.:** netzweit noch EM 10.9.8 / FMM 2.12.6 / RPM 2.4.6 / BS 2.7.7 — Rollout steht aus.
+
+**Was die Welle für die Bridge bedeutet — nur in-game prüfbar (TestServer01, Java + Bedrock):**
+1. 🔎 **EM `allowDialogMenusForBedrockPlayers` (neu, Standard `false`):** EM gibt Bedrock-Spielern auf Wunsch selbst die
+   Dialog-Fassung von `/em`-, Quest- und Klassenmenü (`MenuPresentation.usesInventoryMenusForBedrock`). Das ist genau, was
+   7.3 / 7.3b / 7.4 per Reroute nachrüsten. Bei `false` ändert sich nichts. **Kandidat für einen A/B-Test:** Option an,
+   Bridge-Reroute aus → wenn EMs eigene Dialoge auf Bedrock gleichwertig sind, werden drei Bridge-Phasen überflüssig.
+2. ⚠️ **EM-Bossbars:** „höchstens drei, ab der zweiten nur von Bossen, die man bekämpft" — 7.1a-Unterdrückung prüfen
+   (10.8.0-Pooling hatte sie schon einmal gebrochen, siehe MagmaGuy-Welle 13.08.).
+3. ⚠️ **EM-Overhead-Lebensbalken laufen auf Java jetzt mit dem Elite, Combat-Labels reiten wieder auf dem Spieler** —
+   7.1b/7.1c (HP-Nametag für Bedrock) auf Dopplung prüfen; Stand 16.08.: EMs Anzeige erreicht Bedrock nicht.
+4. ⚠️ **FMM: Knochen und Nameplates reiten jetzt auf ihrem Entity** (Passagiere) — Bedrock-Modelle/Nameplates ansehen.
+5. EM Lua-Displays zeigen Bedrock einen Rüstungsständer-Ersatz — upstream gelöst, nichts für uns.
+
 ### MagmaGuy-Welle vom 02.10.2026 — geprüft am 02.10.
 
 EM **10.9.8** · FMM **2.12.6** · RPM **2.4.6** · BS **2.7.7**. pom auf EM 10.9.8 / FMM 2.12.6 gehoben (Maven-Artefakte
