@@ -2016,6 +2016,6 @@ Utility kam nachweislich über die Taste. Actionbar-Hinweis laut Fabi korrekt.
 
 - **MagmaGuy-Welle 17.10.** (EM 10.9.10, FMM 2.12.9, RPM 2.4.7, BS 2.7.9) geprüft: Reflection-Ziele per `javap` unverändert,
   pom gehoben, beide API-Generationen grün (105 Tests), Artefakte byte-identisch mit Modrinth. Kein Code geändert.
-  Offen (in-game): EMs neue Option `allowDialogMenusForBedrockPlayers` könnte 7.3/7.3b/7.4 ersetzen (A/B-Test),
-  Bossbar-Limit vs. 7.1a, Overhead-Balken vs. 7.1b/c, FMM-Nameplates als Passagiere. Details HANDOFF.
+  Offen (in-game): EMs neue Option `allowDialogMenusForBedrockPlayers` könnte 7.3/7.3b/7.3c ersetzen (A/B-Test),
+  Bossbar-Limit vs. 7.1a, EMs Overhead-Balken (7.1b seit 01.10. raus), FMM-Nameplates als Passagiere. Details HANDOFF.
 - Server seit 18.10. auf der Unraid-VM (Umbrella-Doku); Rollout der Welle steht aus.

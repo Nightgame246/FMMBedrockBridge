@@ -286,13 +286,16 @@ FMM benennt `updateBedrockAnimation(String)` → `updateBedrockAnimations(String
 **Was die Welle für die Bridge bedeutet — nur in-game prüfbar (TestServer01, Java + Bedrock):**
 1. 🔎 **EM `allowDialogMenusForBedrockPlayers` (neu, Standard `false`):** EM gibt Bedrock-Spielern auf Wunsch selbst die
    Dialog-Fassung von `/em`-, Quest- und Klassenmenü (`MenuPresentation.usesInventoryMenusForBedrock`). Das ist genau, was
-   7.3 / 7.3b / 7.4 per Reroute nachrüsten. Bei `false` ändert sich nichts. **Kandidat für einen A/B-Test:** Option an,
+   7.3 / 7.3b / 7.3c per Reroute nachrüsten (7.4 = Fähigkeits-Eingabe, nicht betroffen). Bei `false` ändert sich nichts. **Kandidat für einen A/B-Test:** Option an,
    Bridge-Reroute aus → wenn EMs eigene Dialoge auf Bedrock gleichwertig sind, werden drei Bridge-Phasen überflüssig.
 2. ⚠️ **EM-Bossbars:** „höchstens drei, ab der zweiten nur von Bossen, die man bekämpft" — 7.1a-Unterdrückung prüfen
    (10.8.0-Pooling hatte sie schon einmal gebrochen, siehe MagmaGuy-Welle 13.08.).
 3. ⚠️ **EM-Overhead-Lebensbalken laufen auf Java jetzt mit dem Elite, Combat-Labels reiten wieder auf dem Spieler** —
-   7.1b/7.1c (HP-Nametag für Bedrock) auf Dopplung prüfen; Stand 16.08.: EMs Anzeige erreicht Bedrock nicht.
-4. ⚠️ **FMM: Knochen und Nameplates reiten jetzt auf ihrem Entity** (Passagiere) — Bedrock-Modelle/Nameplates ansehen.
+   betrifft EMs eigene Anzeige (7.1b ist seit 01.10. ausgebaut, EMs Anzeige erreicht Bedrock); auf Bedrock mitprüfen.
+4. ⚠️ **FMM: Knochen und Nameplates reiten jetzt auf ihrem Entity** (Passagiere) — Bedrock-Modelle ansehen, 7.1d (nur ein Name) prüfen.
+
+**Rollout TestServer01 18.10. 23:27/23:32 durch** (SERVER-STATE (44)), In-game-Test am 19.10. — Anleitung mit A/B-Varianten
+im (privaten) Umbrella-Repo unter `docs/plans/2026-10-19-ingame-test-magmaguy-welle.md`.
 5. EM Lua-Displays zeigen Bedrock einen Rüstungsständer-Ersatz — upstream gelöst, nichts für uns.
 
 ### MagmaGuy-Welle vom 02.10.2026 — geprüft am 02.10.
