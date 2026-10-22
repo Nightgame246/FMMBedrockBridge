@@ -94,8 +94,8 @@ public final class BedrockMenuRerouteListener implements Listener {
             }
             case NONE -> {
                 if (questEnabled && statusInvoker.isEmpty() && EliteMobsHook.isOpenedByQuestMenu()) {
-                    // EM >= 10.9.8 registers the quest chest only after this event returns.
-                    event.setCancelled(true);
+                    // EM >= 10.9.8 registers the quest chest only after this event returns — and
+                    // only if the open succeeded, so it must NOT be cancelled here.
                     rerouteQuestNextTick(player, event.getInventory());
                 }
                 // Otherwise not an EM menu we reroute; leave the inventory untouched.
@@ -104,18 +104,22 @@ public final class BedrockMenuRerouteListener implements Listener {
     }
 
     /**
-     * Phase 7.3b for EliteMobs >= 10.9.8: the open was cancelled, EM has put the chest into its
-     * quest maps by now. Recover it and show the dialog; if that fails, open the chest after all
-     * so the player is never left with nothing.
+     * Phase 7.3b for EliteMobs >= 10.9.8: the chest is open and EM has put it into its quest maps
+     * by now ({@code if (openInventory(...) != null) questDirectories.put(...)} — a cancelled open
+     * is never registered). Recover it, close the chest and show the dialog; if that fails, the
+     * chest simply stays open.
      */
     private void rerouteQuestNextTick(Player player, Inventory inventory) {
         Bukkit.getScheduler().runTask(plugin, () -> {
             if (!player.isOnline()) return;
+            if (player.getOpenInventory().getTopInventory() != inventory) return; // already gone
             Optional<QuestMenuContext> ctx = EliteMobsHook.tryRecoverQuestMenu(inventory);
             boolean shown = false;
             try {
-                shown = ctx.isPresent()
-                        && EliteMobsHook.openNativeQuestDialog(player, ctx.get().quests(), ctx.get().npcEntity());
+                if (ctx.isPresent()) {
+                    player.closeInventory();
+                    shown = EliteMobsHook.openNativeQuestDialog(player, ctx.get().quests(), ctx.get().npcEntity());
+                }
             } catch (Throwable t) {
                 log.warning("[Phase7.3] quest reroute failed for " + player.getName() + ": " + t);
             }
@@ -123,7 +127,7 @@ public final class BedrockMenuRerouteListener implements Listener {
                 log.info("[Phase7.3b] " + player.getName() + " quest chest -> "
                         + (shown ? "dialog" : "chest (not recoverable)"));
             }
-            if (!shown) player.openInventory(inventory);
+            if (ctx.isPresent() && !shown) player.openInventory(inventory);
         });
     }
 
