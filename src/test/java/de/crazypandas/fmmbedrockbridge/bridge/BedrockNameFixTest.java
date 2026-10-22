@@ -1,7 +1,9 @@
 package de.crazypandas.fmmbedrockbridge.bridge;
 
+import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 import org.junit.jupiter.api.Test;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -42,5 +44,15 @@ class BedrockNameFixTest {
     @Test
     void aMobWithoutANameNeedsNothing() {
         assertFalse(BedrockNameFix.hideMobName(null, MODEL_NAME));
+    }
+
+    @Test
+    void theHiddenNameIsAnEmptyNameNotNoName() {
+        // Measured 22.10.2026: with the name removed (Optional.empty()), EliteMobs switching
+        // CustomNameVisible on during combat made Geyser fall back to the entity type name —
+        // Bedrock showed "Wolf" under the model. Geyser only does that when there is NO custom
+        // name (Entity#getDisplayName → standardDisplayName()), so an empty one must be sent.
+        assertTrue(BedrockNameFix.HIDDEN_NAME.isPresent());
+        assertEquals("", PlainTextComponentSerializer.plainText().serialize(BedrockNameFix.HIDDEN_NAME.get()));
     }
 }
