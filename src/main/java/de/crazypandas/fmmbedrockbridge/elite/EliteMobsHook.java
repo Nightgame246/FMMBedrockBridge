@@ -3,6 +3,7 @@ package de.crazypandas.fmmbedrockbridge.elite;
 import com.magmaguy.elitemobs.entitytracker.EntityTracker;
 import com.magmaguy.elitemobs.mobconstructor.EliteEntity;
 import de.crazypandas.fmmbedrockbridge.FMMBedrockBridge;
+import de.crazypandas.fmmbedrockbridge.bridge.RerouteDecision;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
@@ -20,6 +21,9 @@ import java.util.logging.Logger;
  * allowed to touch the internal, [Alpha] {@code advancedcombat} package.
  */
 public final class EliteMobsHook {
+
+    /** EliteMobs' NPC quest chest menu (Phase 7.3b). */
+    private static final String QUEST_MENU_CLASS = "com.magmaguy.elitemobs.quests.menus.QuestInventoryMenu";
 
     private static final Logger log = FMMBedrockBridge.getInstance().getLogger();
 
@@ -172,7 +176,7 @@ public final class EliteMobsHook {
         if (questReflectionInit) return;
         questReflectionInit = true;
         try {
-            Class<?> menu = Class.forName("com.magmaguy.elitemobs.quests.menus.QuestInventoryMenu");
+            Class<?> menu = Class.forName(QUEST_MENU_CLASS);
             questDirectoriesField = menu.getDeclaredField("questDirectories");
             questDirectoriesField.setAccessible(true);
             questInventoriesField = menu.getDeclaredField("questInventories");
@@ -219,6 +223,17 @@ public final class EliteMobsHook {
      * these maps on {@code InventoryCloseEvent}, which never fires for a cancelled open, so
      * without removal the entry would leak.
      */
+    /**
+     * True while EliteMobs' quest menu is opening an inventory — i.e. when called from inside an
+     * {@code InventoryOpenEvent} that {@code QuestInventoryMenu} triggered. Since EM 10.9.8 the
+     * chest is put into the quest maps only <i>after</i> {@code openInventory} returns, so this is
+     * the only way to recognise it at open time; {@link #tryRecoverQuestMenu} works one tick later.
+     */
+    public static boolean isOpenedByQuestMenu() {
+        return StackWalker.getInstance().walk(frames -> RerouteDecision.calledFrom(
+                frames.map(StackWalker.StackFrame::getClassName), QUEST_MENU_CLASS));
+    }
+
     public static java.util.Optional<QuestMenuContext> tryRecoverQuestMenu(
             org.bukkit.inventory.Inventory inventory) {
         if (!isAvailable() || inventory == null) return java.util.Optional.empty();

@@ -28,6 +28,18 @@ public final class RerouteDecision {
     }
 
     /**
+     * Phase 7.3b — whether an inventory open comes from {@code callerClass} (or one of its nested
+     * classes), judged by the class names on the current call stack, innermost first.
+     *
+     * <p>Needed since EliteMobs 10.9.8: {@code QuestInventoryMenu} calls {@code openInventory}
+     * <b>before</b> it puts the chest into its quest maps, so at open time the maps cannot tell.
+     */
+    public static boolean calledFrom(java.util.stream.Stream<String> stackClassNames, String callerClass) {
+        String nested = callerClass + "$";
+        return stackClassNames.anyMatch(name -> name.equals(callerClass) || name.startsWith(nested));
+    }
+
+    /**
      * Phase 7.3c — whether EliteMobs' class menu should render as its dialog instead of the chest.
      *
      * <p>EliteMobs' own rule ({@code MenuPresentation.supportsDialogs}) is

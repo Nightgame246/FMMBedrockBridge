@@ -73,4 +73,29 @@ class RerouteDecisionTest {
     void classRerouteSwitchedOff() {
         assertFalse(RerouteDecision.classMenuUsesDialog(false, true, true, false, true));
     }
+
+    // Phase 7.3b — since EliteMobs 10.9.8 the quest chest is opened BEFORE it is registered in
+    // EM's quest maps, so the open event can only be recognised by who is opening it.
+    private static final String QUEST_MENU = "com.magmaguy.elitemobs.quests.menus.QuestInventoryMenu";
+
+    @Test
+    void anOpenFromEliteMobsQuestMenuIsRecognised() {
+        assertTrue(RerouteDecision.calledFrom(java.util.stream.Stream.of(
+                "de.crazypandas.fmmbedrockbridge.bridge.BedrockMenuRerouteListener",
+                "org.bukkit.craftbukkit.entity.CraftHumanEntity",
+                QUEST_MENU,
+                "com.magmaguy.elitemobs.npcs.NPCInteractions"), QUEST_MENU));
+    }
+
+    @Test
+    void itsNestedClassesCountToo() {
+        assertTrue(RerouteDecision.calledFrom(java.util.stream.Stream.of(QUEST_MENU + "$QuestDirectory"), QUEST_MENU));
+    }
+
+    @Test
+    void otherMenusAreNotQuestMenus() {
+        assertFalse(RerouteDecision.calledFrom(java.util.stream.Stream.of(
+                "com.magmaguy.elitemobs.menus.SellMenu",
+                QUEST_MENU + "Extra"), QUEST_MENU));
+    }
 }

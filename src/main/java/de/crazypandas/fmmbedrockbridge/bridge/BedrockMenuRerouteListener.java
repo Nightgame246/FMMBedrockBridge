@@ -9,6 +9,7 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.inventory.InventoryOpenEvent;
+import org.bukkit.inventory.Inventory;
 
 import java.util.Optional;
 import java.util.function.Consumer;
@@ -92,9 +93,38 @@ public final class BedrockMenuRerouteListener implements Listener {
                         "quest");
             }
             case NONE -> {
-                // Not an EM menu we reroute; leave the inventory untouched.
+                if (questEnabled && statusInvoker.isEmpty() && EliteMobsHook.isOpenedByQuestMenu()) {
+                    // EM >= 10.9.8 registers the quest chest only after this event returns.
+                    event.setCancelled(true);
+                    rerouteQuestNextTick(player, event.getInventory());
+                }
+                // Otherwise not an EM menu we reroute; leave the inventory untouched.
             }
         }
+    }
+
+    /**
+     * Phase 7.3b for EliteMobs >= 10.9.8: the open was cancelled, EM has put the chest into its
+     * quest maps by now. Recover it and show the dialog; if that fails, open the chest after all
+     * so the player is never left with nothing.
+     */
+    private void rerouteQuestNextTick(Player player, Inventory inventory) {
+        Bukkit.getScheduler().runTask(plugin, () -> {
+            if (!player.isOnline()) return;
+            Optional<QuestMenuContext> ctx = EliteMobsHook.tryRecoverQuestMenu(inventory);
+            boolean shown = false;
+            try {
+                shown = ctx.isPresent()
+                        && EliteMobsHook.openNativeQuestDialog(player, ctx.get().quests(), ctx.get().npcEntity());
+            } catch (Throwable t) {
+                log.warning("[Phase7.3] quest reroute failed for " + player.getName() + ": " + t);
+            }
+            if (plugin.getConfig().getBoolean("debug", false)) {
+                log.info("[Phase7.3b] " + player.getName() + " quest chest -> "
+                        + (shown ? "dialog" : "chest (not recoverable)"));
+            }
+            if (!shown) player.openInventory(inventory);
+        });
     }
 
     private void scheduleReroute(Player player, Runnable invoke, String kind) {
