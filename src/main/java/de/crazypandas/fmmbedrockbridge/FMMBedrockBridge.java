@@ -35,7 +35,6 @@ public class FMMBedrockBridge extends JavaPlugin {
 
     private FMMEntityTracker entityTracker;
     private BedrockEntityBridge bridge;
-    private de.crazypandas.fmmbedrockbridge.bridge.ClassMenuReroute classMenuReroute;
 
     @Override
     public void onEnable() {
@@ -90,44 +89,8 @@ public class FMMBedrockBridge extends JavaPlugin {
                     + elitemobsAvailable + ", combat-enabled=" + isPhase71cCombatEnabled() + ")");
         }
 
-        // Phase 7.3 / 7.3b — reroute Bedrock EM chest menus to EM's native MC dialogs so
-        // Geyser renders them as native Bedrock forms. Requires MC >= 1.21.6.
-        // getBukkitVersion() ("1.21.10-R0.1-SNAPSHOT") is always present; McVersions
-        // strips the "-R0.1-SNAPSHOT" suffix before comparing.
-        boolean mc1216 = de.crazypandas.fmmbedrockbridge.bridge.McVersions
-                .isAtLeast(getServer().getBukkitVersion(), 1, 21, 6);
-        boolean statusReroute = getConfig().getBoolean("phase73.bedrock-dialog-reroute", true);
-        boolean questReroute = getConfig().getBoolean("phase73.bedrock-quest-reroute", true);
-        boolean anyReroute = statusReroute || questReroute;
-        if (floodgateAvailable && elitemobsAvailable && mc1216 && anyReroute) {
-            getServer().getPluginManager().registerEvents(
-                    new de.crazypandas.fmmbedrockbridge.bridge.BedrockMenuRerouteListener(
-                            this, bridge.getViewerManager()), this);
-            log.info("Phase 7.3: Bedrock menu dialog-reroute registered (status=" + statusReroute
-                    + ", quest=" + questReroute + ")");
-        } else {
-            log.info("Phase 7.3: reroute NOT registered (floodgate=" + floodgateAvailable
-                    + ", em=" + elitemobsAvailable + ", mc>=1.21.6=" + mc1216
-                    + ", status=" + statusReroute + ", quest=" + questReroute + ")");
-        }
-
-        // Phase 7.3c — EliteMobs' class menu as a dialog for Bedrock. Installed whenever it can
-        // be; the config switch is read per render, so toggling it needs no restart.
-        if (elitemobsAvailable && mc1216) {
-            classMenuReroute = new de.crazypandas.fmmbedrockbridge.bridge.ClassMenuReroute(
-                    bridge.getViewerManager()::isBedrockPlayer);
-            if (classMenuReroute.install()) {
-                log.info("Phase 7.3c: Bedrock class-menu dialog-reroute installed (enabled="
-                        + isPhase73ClassRerouteEnabled() + ")");
-            } else {
-                log.info("Phase 7.3c: class-menu reroute NOT installed ("
-                        + classMenuReroute.unavailableReason() + ")");
-                classMenuReroute = null;
-            }
-        } else {
-            log.info("Phase 7.3c: class-menu reroute NOT installed (em=" + elitemobsAvailable
-                    + ", mc>=1.21.6=" + mc1216 + ")");
-        }
+        // Phase 7.3 / 7.3b / 7.3c (EliteMobs menus as dialogs for Bedrock) were removed on
+        // 25.10.2026: since EliteMobs 10.9.10, allowDialogMenusForBedrockPlayers does it natively.
 
         // Phase 7.4 — sneak-based ability input for Bedrock players.
         // EliteMobs' F-chord cannot be produced by Bedrock clients; see the upstream report.
@@ -180,7 +143,6 @@ public class FMMBedrockBridge extends JavaPlugin {
 
     @Override
     public void onDisable() {
-        if (classMenuReroute != null) classMenuReroute.uninstall();
         if (bridge != null) bridge.shutdown();
         if (entityTracker != null) entityTracker.shutdown();
         log.info("FMMBedrockBridge disabled.");
@@ -235,11 +197,6 @@ public class FMMBedrockBridge extends JavaPlugin {
     public static long getPhase71cDamageTimeoutTicks() {
         FMMBedrockBridge plugin = instance;
         return plugin != null ? plugin.getConfig().getLong("phase71c.damage-timeout-ticks", 0L) : 0L;
-    }
-
-    public static boolean isPhase73ClassRerouteEnabled() {
-        FMMBedrockBridge plugin = instance;
-        return plugin != null && plugin.getConfig().getBoolean("phase73.bedrock-class-reroute", true);
     }
 
     public static boolean isPhase76MenuBackgroundsEnabled() {
