@@ -2019,3 +2019,24 @@ Utility kam nachweislich über die Taste. Actionbar-Hinweis laut Fabi korrekt.
   Offen (in-game): EMs neue Option `allowDialogMenusForBedrockPlayers` könnte 7.3/7.3b/7.3c ersetzen (A/B-Test),
   Bossbar-Limit vs. 7.1a, EMs Overhead-Balken (7.1b seit 01.10. raus), FMM-Nameplates als Passagiere. Details HANDOFF.
 - Server seit 18.10. auf der Unraid-VM (Umbrella-Doku); Rollout der Welle steht aus.
+
+## Session: 2026-10-22 bis 2026-10-25
+
+- **In-game-Test der MagmaGuy-Welle 17.10.** auf TestServer01: Bossbars (7.1a/c), Lebensanzeige, FMM-Modelle,
+  Menüs, Fähigkeiten (7.4) ok.
+- **Fix 7.1d** (`57d1803`): Bedrock zeigte beim Schlagen von Modell-Bossen zusätzlich den Vanilla-Namen („Wolf“).
+  Geyser fällt in `Entity#getDisplayName` auf den Typnamen zurück, wenn kein Custom-Name da ist und EliteMobs im
+  Kampf `CustomNameVisible` einschaltet. Jetzt wird ein leerer Name gesendet statt keiner
+  (`BedrockNameFix.HIDDEN_NAME`). In-game bestätigt.
+- **7.3b-Fixes** (`3a6c2ac`, `d3dd3e7`): EM ≥ 10.9.8 trägt die Quest-Truhe erst nach erfolgreichem `openInventory`
+  ein. Lief, aber die Truhe blitzte kurz auf. Durch den Ausbau gegenstandslos.
+- **A/B-Test** mit EMs `allowDialogMenusForBedrockPlayers: true` und allen `phase73`-Schaltern aus: EMs eigene
+  Formulare für `/em`, Quests (eine und mehrere) und Klassen vollständig, ohne Aufblitzen.
+- **7.3 / 7.3b / 7.3c ausgebaut** (`f93cdfe`): Reroute-Listener, Registry, `RerouteDecision`, `ClassMenuReroute`,
+  `QuestMenuContext`, `McVersions` samt Tests, Dialog-/Quest-Reflection in `EliteMobsHook`, `phase73`-Config.
+  `verify-both-apis.sh` liest die Class-File-Version jetzt an `FMMBedrockBridge.class`. 84 Tests, beide
+  API-Generationen grün. Auf TestServer01 deployt und in-game abgenommen.
+- **Beim Rollout auf weitere Instanzen:** dort `allowDialogMenusForBedrockPlayers: true` in EMs Config setzen,
+  sonst bekommen Bedrock-Spieler wieder Truhen.
+- Offen, upstream: FMM-Modell-NPCs der Abenteurergilde zeigen auf Bedrock den Körper verkehrt herum (Kopf
+  richtig). Nicht die Bridge; FMMs `weightedTurning` ausgeschlossen.

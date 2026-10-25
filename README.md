@@ -18,9 +18,7 @@ The current plugin is a focused **EM↔Bedrock UX-Bridge**.
 | ~~**Phase 7.1b — Combat Nametag**~~ | **Removed on 2026-10-01.** A Bukkit TextDisplay showing HP above bridged mobs for Bedrock only. EliteMobs' own overhead health display (`displayVisualHealthBars` / `displayNumericHealth`) reaches Bedrock clients now — an A/B test on TestServer01 showed health twice with both on, once with ours off. History: git before the removal commit. |
 | **Phase 7.7 — EliteMobs menu icons on Bedrock** | EliteMobs puts its menu icons (`elitemobs:ui/*`, `nightbreak:ui/*`) on emerald, redstone, barrier or banners and draws them via `item_model`. Geyser maps custom items per base item and RPM only registers these icons under paper (redstone and banners Geyser cannot override at all), so Bedrock showed the vanilla items. For Bedrock viewers the bridge rewrites the base item to paper in container `WINDOW_ITEMS`/`SET_SLOT` packets, keeping all components — RPM's existing mapping applies. Player inventory and cursor are never touched. Config: `phase77.bedrock-menu-icons` (+ prefix/exclude lists). Upstream draft: `docs/upstream-bugs/em-menu-icons-paper-base-bedrock.md`. |
 | **Phase 7.6 — EliteMobs menu backgrounds on Bedrock** | EliteMobs draws its menu backgrounds as font glyphs in the chest title (`U+F0E00`–`U+F0F0B`, outside the BMP), which Bedrock shows as boxes over a bare grey chest. For Bedrock viewers the bridge rewrites the title in `OPEN_WINDOW` to invisible BMP markers (`U+E900 + n`, plus `U+E8FF` = hide grey slot cells); the generated pack `FMMBridge-EliteMobsMenus.mcpack` (in Geyser's `packs/`) shows the matching background aligned to the slot grid. Pack built by `tools/bedrock-menus/generate.py` from RPM's merged Java pack — textures never enter this repo. Config: `phase76.bedrock-menu-backgrounds`, `phase76.hide-slot-backgrounds`. Classic UI (PC/console). |
-| **Phase 7.3 — Bedrock Menu Dialog-Reroute** | EM forces Bedrock players to the `/em` chest menu (a bare container grid on Bedrock) even though it already builds the same menu as a native MC dialog for Java 1.21.6+. Geyser now renders MC dialogs as native Bedrock forms, so the bridge cancels the Bedrock chest and triggers EM's `showPlayerStatusDialog` — Bedrock gets a real form, sub-pages cascade natively. Reroute-only (no form-building); registry-extensible to other EM menus. Requires MC ≥ 1.21.6. |
-| **Phase 7.3b — Bedrock NPC Quest-Menu Dialog-Reroute** | Extends Phase 7.3 to EliteMobs' NPC quest menu — the only other Bedrock-forced-to-chest EM menu with a native dialog path (`QuestMenu.generateDialogMenu`). Detection is holder-based (looks the opened chest up in EM's internal `QuestInventoryMenu` maps via reflection) because quest chest titles are dynamic (single-quest title = quest name, multi-quest = literal `"Quests"`). On a hit the chest is cancelled and EM's quest dialog fires next tick → Geyser renders a native Bedrock form. Status-vs-quest precedence + per-flag gating live in `RerouteDecision`; recovered quest context is carried opaquely in `QuestMenuContext`. Config: `phase73.bedrock-quest-reroute: true`. Requires MC ≥ 1.21.6. |
-| **Phase 7.3c — Bedrock Class-Menu Dialog-Reroute** | EliteMobs 10.9's class menu (`/em class`, the Classes button, class trainer NPCs) is built twice — as a dialog and as a chest — and `ClassMenuCoordinator.renderer(player)` picks the chest for every Bedrock player. The bridge swaps the coordinator's chest renderer for a router that sends Bedrock players to EM's dialog renderer instead, so Geyser shows native forms on every page. Only where Bedrock is the *only* reason for the chest (EM's per-player menu style and `onlyUseBedrockMenus` are respected). Config: `phase73.bedrock-class-reroute: true`. Requires MC ≥ 1.21.6. |
+| ~~**Phase 7.3 / 7.3b / 7.3c — Menu Dialog-Reroute**~~ | **Removed on 2026-10-25.** The bridge rerouted EliteMobs' `/em` status, NPC quest and class menus from the Bedrock chest to EM's native dialog (Geyser renders it as a Bedrock form). EliteMobs 10.9.10 does this itself: set `allowDialogMenusForBedrockPlayers: true` in `plugins/EliteMobs/config.yml`. An A/B test on TestServer01 showed EM's own forms complete for all three menus, without the chest flashing up first. **Without that option Bedrock players get chests again.** History: git before the removal commit. |
 
 That's it. No mob rendering, no animation conversion, no 3D item conversion — those are FMM + RPM's job now.
 
@@ -29,7 +27,7 @@ That's it. No mob rendering, no animation conversion, no 3D item conversion — 
 **Backend Server (Paper/Spigot 1.21.x **or** 26.x):**
 - [FreeMinecraftModels](https://github.com/MagmaGuy/FreeMinecraftModels) **2.6.0+** with `sendCustomModelsToBedrockClients: true` in its `config.yml`
 - [ResourcePackManager](https://github.com/MagmaGuy/ResourcePackManager) **2.0.0+** (generates the Bedrock pack, serves it to the proxy via embedded HTTP server)
-- [EliteMobs](https://github.com/MagmaGuy/EliteMobs) (optional — required for BossBar replacement and dialog-reroute). **10.8.0+ recommended:** it pools and re-titles up to four boss bars per player, which the BossBar suppression is built around.
+- [EliteMobs](https://github.com/MagmaGuy/EliteMobs) (optional — required for BossBar replacement and the class abilities; for Bedrock menus as forms set EM's own `allowDialogMenusForBedrockPlayers: true`, 10.9.10+). **10.8.0+ recommended:** it pools and re-titles up to four boss bars per player, which the BossBar suppression is built around.
 - [Floodgate](https://github.com/GeyserMC/Floodgate) (required for Bedrock player detection — its `key.pem` also derives the RPM Network-Mode key)
 - [PacketEvents](https://github.com/retrooper/packetevents) **2.12.1+** on 1.21.x, **2.13.0+** on 26.x (required for packet manipulation)
 
@@ -42,9 +40,9 @@ That's it. No mob rendering, no animation conversion, no 3D item conversion — 
 > ResourcePackManager 2.3.1, Geyser 2.11.1 and PacketEvents 2.13.0.
 >
 > Note that on 26.x `Bukkit.getBukkitVersion()` returns a build/channel string such as
-> `26.2.build.112-stable`. Version gates must tolerate the non-numeric trailing segments —
-> `McVersions` does, and there are tests for it. A gate that does not will silently disable
-> features rather than fail loudly.
+> `26.2.build.112-stable`. Version gates must tolerate the non-numeric trailing segments — a
+> gate that does not will silently disable features rather than fail loudly. (The bridge's own
+> gate, `McVersions`, left with Phase 7.3 on 2026-10-25.)
 
 **Proxy (Velocity/BungeeCord):**
 - [Geyser](https://geysermc.org/)
@@ -140,34 +138,22 @@ phase71c:
 | `bridge/BedrockCombatTrigger` | Bukkit listener: forwards `EliteMobEnterCombatEvent` / `ExitCombatEvent` to controllers |
 | `bridge/BossBarRegistry` | EliteMobs BossBar UUIDs currently suppressed. Membership is temporary — since EM 10.8.0 these are pooled bars that get re-titled, so entries are evicted on REMOVE or on reuse for a title we don't own |
 | `bridge/BossBarUuidResolver` | Reads our own bar's wire UUID off the Bukkit BossBar reflectively, so EM's pooled bars can't be mistaken for ours. Returns null on any failure → legacy heuristic |
-| `bridge/BedrockMenuRerouteListener` | Phase 7.3/7.3b: cancels the Bedrock `/em` chest or NPC quest-chest open and fires EM's native dialog next tick (Geyser → Bedrock form); dispatches status vs quest via `RerouteDecision` |
-| `bridge/MenuRerouteRegistry` | Phase 7.3: title-normalize (strip color codes) + title→dialog-invoker lookup; extensible to more EM menus |
-| `bridge/McVersions` | Pure dotted-version threshold check (gates the reroute on MC ≥ 1.21.6) |
-| `bridge/RerouteDecision` | Phase 7.3b: pure resolver — status-vs-quest precedence + per-flag gating; no side effects |
 | `bridge/BedrockNameFix` | Phase 7.1d: hides the custom name of the mob underneath an FMM-modelled boss for Bedrock viewers when the model carries a real name — FMM draws its own nameplate for Bedrock too, so Bedrock otherwise shows two names (and the mob's is EliteMobs' generic "Evoker"). `phase71d.bedrock-name-fix` |
 | `bridge/BedrockMenuIcons` | Phase 7.7: pure rule — which items (by `item_model` prefix, minus excludes, not already paper) are rebased onto paper for Bedrock |
 | `bridge/MenuIconRebaser` | Phase 7.7: applies the rule to a PacketEvents `ItemStack` — base item paper, same amount and component patches |
 | `bridge/BedrockMenuTitle` | Phase 7.6: pure title rewrite — EliteMobs background glyph → Bedrock marker (`U+E900 + (cp − U+F0E00)`), spacing glyphs and other plane-15/16 characters removed; shares its test cases with the Python generator (`src/test/resources/bedrock-menus/cases.json`) |
-| `bridge/ClassMenuReroute` | Phase 7.3c: EliteMobs' class menu as its dialog for Bedrock. Replaces the chest renderer inside EM's `ClassMenuCoordinator` with a stand-in (dynamic proxy) that hands Bedrock players to EM's own dialog renderer — covers every page, the trainer NPC and every button. Resolved by name; restores the original on disable |
 | `bridge/BedrockAbilityListener` | Phase 7.4: the Bukkit listeners for the sneak controls (sneak start, attack, use, hotbar key) plus quit/death/world-change cleanup; shows the controls hint on a deliberate crouch; Floodgate gate first, then EliteMobs' own preconditions. Reads its config per event |
 | `bridge/BedrockAbilityGesture` | Phase 7.4: pure decision logic — sneak state + click/hotbar key (1/7, 2/8, 3/9, EliteMobs' own numbers) → slot, double-crouch for mobility with a flutter floor, deliberate-crouch detection for the hint. No Bukkit types, unit-testable |
 | `bridge/AdvancedCombatHook` | Phase 7.4: the ONLY class that imports EM's internal, [Alpha] `advancedcombat` package. Runtime gate (`canUseAbilities`) + `fire` into `useAbility`, everything wrapped against LinkageError |
 | `bridge/AdvancedCombatSupport` | Phase 7.4: startup probe for EM's Advanced Combat classes — by name via `Class.forName`, deliberately without an import, so a renamed package cannot take the bridge down at class-load time |
 | `bridge/AbilityFeedback` | Phase 7.4: pure text builder — success line, controls hint (with EliteMobs' 7/8/9 mirror key for the held slot), and the mapping from an EM failure-reason name to the optional plain-text action-bar line (no custom fonts — Bedrock cannot resolve Java font providers) |
 | `bridge/EliteMobsActionBar` | Phase 7.4: publishes that line through EliteMobs' own `ActionBarCompositor` (source `ABILITY_INPUT`, priority 310 vs. the class HUD's 100) instead of writing to the client. Resolved by name like `AdvancedCombatSupport`; falls back to a direct `sendActionBar` when the compositor is gone |
-| `elite/QuestMenuContext` | Phase 7.3b: opaque carrier record for the recovered quest menu context |
-| `elite/EliteMobsHook` | Soft-dep wrapper around EliteMobs' stable API (`com.magmaguy.elitemobs.api.*`); since Phase 7.1c/7.4 no longer the only EM importer — `BedrockCombatTrigger` and `AdvancedCombatHook` import EM too; incl. Phase 7.3 reflection wrappers for EM's native status dialog, and Phase 7.3b `tryRecoverQuestMenu` + `openNativeQuestDialog` reflection into EM's `QuestInventoryMenu` static maps |
+| `elite/EliteMobsHook` | Soft-dep wrapper around EliteMobs' stable API (`com.magmaguy.elitemobs.api.*`); since Phase 7.1c/7.4 no longer the only EM importer — `BedrockCombatTrigger` and `AdvancedCombatHook` import EM too |
 | `commands/FMMBridgeCommand` | `/fmmbridge debug` — shows active controllers, ready Bedrock players, suppressed UUIDs |
 
-25 classes under `src/main/java`. The pre-refactor bridge was 27 classes + a Geyser Extension; both archived under the git tag mentioned above.
+23 classes under `src/main/java`. The pre-refactor bridge was 27 classes + a Geyser Extension; both archived under the git tag mentioned above.
 
 > **Phase 7.2b removed (2026-06-14):** EM 2D UI items (legacy `custom_model_data` overrides on `minecraft:emerald` and similar base items) are now handled natively by ResourcePackManager 2.0.2 via `GenericJavaScanner.scanLegacyCustomModelOverrides` (legacy `→` Bedrock conversion, 10 of 12 EM UI icons). The bridge no longer injects `item_model` or generates/ships an `em_bridge_pack.mcpack`. Known Bedrock/Geyser limitation: the 2 banner-based icons (`green_banner`+CMD31173→`boxinput`, `red_banner`+CMD31173→`boxoutput`, used in EM's enchantment/"Verzauberer" and elite-scroll menus) do **not** render on Bedrock — Geyser cannot apply custom-item-v2 to banner base items (block-entity/pattern-rendered). This is a known upstream-pending gap; see `docs/upstream-bugs/em-banner-ui-items-bedrock.md`.
-
-## Phase 7.3b — Bedrock NPC quest-menu dialog-reroute
-
-Extends Phase 7.3 to EliteMobs' NPC quest menu — the only other Bedrock-forced-to-chest EM menu with a native dialog path (`QuestMenu.generateDialogMenu`). Detection is holder-based: the bridge looks the opened chest up in EM's internal `QuestInventoryMenu` maps (reflection in `EliteMobsHook`) because quest chest titles are dynamic (single-quest title = quest name, multi-quest = literal `"Quests"`). On a hit the chest is cancelled and EM's quest dialog fires next tick → Geyser renders a native Bedrock form. Status-vs-quest precedence + per-flag gating live in `RerouteDecision`; recovered quest context is carried opaquely in `QuestMenuContext`.
-
-Config: `phase73.bedrock-quest-reroute: true` (toggles independently of `bedrock-dialog-reroute`). Requires MC >= 1.21.6. Java players unaffected.
 
 ## Phase 7.4 — Bedrock-Eingabe für EliteMobs' Klassen-Fähigkeiten
 
