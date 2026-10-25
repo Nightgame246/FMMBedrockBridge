@@ -43,6 +43,14 @@ public final class BedrockNameFix {
     /** Entity base metadata: custom name, {@code Optional<Component>}. */
     static final int CUSTOM_NAME_INDEX = 2;
 
+    /**
+     * What the mob's name is replaced with for Bedrock: an <b>empty</b> name, not none. With no
+     * custom name at all, Geyser shows the entity type name ("Wolf") as soon as CustomNameVisible
+     * is on ({@code Entity#getDisplayName} → {@code standardDisplayName()}), and EliteMobs switches
+     * that on during combat — measured in-game on 22.10.2026.
+     */
+    static final Optional<Component> HIDDEN_NAME = Optional.of(Component.empty());
+
     /** What FMM reports for a model nobody named ({@code SkeletonBlueprint.modelName}). */
     static final String FMM_PLACEHOLDER = "Default Name";
 
@@ -114,10 +122,11 @@ public final class BedrockNameFix {
             if (!(entry.getValue() instanceof Optional<?> value)) continue;
             if (value.isEmpty() || !(value.get() instanceof Component name)) continue;
             String mobName = LEGACY.serialize(name);
+            if (mobName.isEmpty()) continue;               // already ours
             if (!hideMobName(mobName, modelName)) continue;
             @SuppressWarnings("unchecked")
             EntityData<Optional<Component>> nameEntry = (EntityData<Optional<Component>>) entry;
-            nameEntry.setValue(Optional.empty());
+            nameEntry.setValue(HIDDEN_NAME);
             changed = true;
             if (logged.add(wrapper.getEntityId())) {
                 FMMBedrockBridge.debugLog("[PHASE71D] entity " + wrapper.getEntityId() + ": hid '"
@@ -142,7 +151,7 @@ public final class BedrockNameFix {
         try {
             WrapperPlayServerEntityMetadata packet = new WrapperPlayServerEntityMetadata(entityId,
                     List.of(new EntityData<>(CUSTOM_NAME_INDEX, EntityDataTypes.OPTIONAL_ADV_COMPONENT,
-                            Optional.<Component>empty())));
+                            HIDDEN_NAME)));
             PacketEvents.getAPI().getPlayerManager().sendPacket(player, packet);
             FMMBedrockBridge.debugLog("[PHASE71D] hid mob name of entity " + entityId
                     + " for " + player.getName());

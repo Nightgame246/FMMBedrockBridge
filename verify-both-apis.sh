@@ -79,7 +79,7 @@ $MVN -q clean package
 JAR=$(ls -t target/FMMBedrockBridge-*.jar | head -1)
 # od padded auf 3 Stellen ("065") -> 10#, sonst wird das als Oktal gelesen bzw.
 # schlaegt der Stringvergleich fehl.
-CLS=$((10#$(unzip -p "$JAR" de/crazypandas/fmmbedrockbridge/bridge/McVersions.class \
+CLS=$((10#$(unzip -p "$JAR" de/crazypandas/fmmbedrockbridge/FMMBedrockBridge.class \
             | od -An -tu1 -j6 -N2 | tr -d ' ')))
 if [ "$CLS" -ne 69 ]; then
   echo "FEHLER: Bytecode-Version $CLS, erwartet 69 (Java 25)." >&2

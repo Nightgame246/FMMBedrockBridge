@@ -1,6 +1,6 @@
 # HANDOFF — FMMBedrockBridge
 
-> Arbeitsstand **dieses Plugins**. Stand: **2026-10-02**  ·  Branch: **`main`** — Phase 7.7 am 02.10. abgenommen und gemergt (7.4, 7.6, 7.7 auf `main`)
+> Arbeitsstand **dieses Plugins**. Stand: **2026-10-25**  ·  Branch: **`main`** — Phase 7.3/7.3b/7.3c am 25.10. ausgebaut (EM 10.9.10 macht Bedrock-Formulare selbst), Fix 7.1d (leerer statt kein Name)
 >
 > ⚠️ **Der Einstieg steht eine Ebene höher: `../HANDOFF.md`.**
 > Dort liegen Bootstrap, Session-Ende-Protokoll, Build-Vorbereitung am neuen PC und die
@@ -35,6 +35,14 @@
 > (1/7 · 2/8 · 3/9) als zweite Geste, weil Rechtsklick in die Luft mit leerer Hand gar kein
 > Paket schickt. Dazu pom auf FMM 2.12.3 / EM 10.9.5 / PacketEvents 2.14.0. Abschnitt
 > „HIER WEITERMACHEN" unten.
+
+> 🔴 **Neu am 25.10.: Phase 7.3 / 7.3b / 7.3c ausgebaut.** EliteMobs 10.9.10 zeigt Bedrock-Spielern
+> `/em`, Quest- und Klassenmenü selbst als Formular, wenn in `plugins/EliteMobs/config.yml`
+> **`allowDialogMenusForBedrockPlayers: true`** steht (A/B-Test auf TestServer01: vollständig, ohne
+> aufblitzende Truhe). **Jede Instanz mit der neuen Bridge braucht diese Option**, sonst bekommen
+> Bedrock-Spieler wieder Truhen. Die Abschnitte zu 7.3/7.3b/7.3c unten sind Historie.
+> Dazu Fix 7.1d: ein **leerer** Name statt keiner, sonst zeigte Geyser im Kampf den Typnamen („Wolf“).
+> Offen, upstream: FMM-Modell-NPCs zeigen auf Bedrock den Körper verkehrt herum (nicht die Bridge).
 
 ### Bedrock-Erkennung — angeglichen am 20.09.2026
 
