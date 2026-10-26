@@ -2047,3 +2047,13 @@ Utility kam nachweislich über die Taste. Actionbar-Hinweis laut Fabi korrekt.
   (`029ad77`), beide API-Generationen grün (84 Tests), Maven-JARs byte-identisch mit Modrinth. Kein Code geändert.
 - Rollout der Welle 17.10. und 26.10. samt Bridge ohne 7.3 auf Survival01 (`allowDialogMenusForBedrockPlayers: true`), in-game ok.
 - Offen, upstream: FMM-Modell-NPCs auf Bedrock mit verdrehtem Körper — auch noch mit FMM 2.13.0.
+
+## Session: 2026-10-27
+
+- **Upstream-Entwürfe** in `docs/upstream-bugs/` (nicht eingereicht, Fabi entscheidet):
+  - `fmm-guild-npc-body-reversed-bedrock.md` — Gilden-NPCs auf Bedrock mit verdrehtem Körper (FMM 2.13.0 / RPM 2.4.8). Bedrock-Geometrie
+    und Idle-Animation ohne Y-Drehung; Verdacht auf den `lean`-Controller (`freeminecraftmodels_lean`, Properties `lean_x/_y/_z`).
+  - `em-translation-key-collision-same-filename.md` — EM-Übersetzungsschlüssel hängen am Dateinamen; gleichnamige Boss/Item/Quest-Configs
+    im Primis-Content teilen sich eine Zeile (nicht Bedrock, hier nur gesammelt).
+  - `em-npc-profession-tostring-not-migrated.md` — alte NPC-Configs mit `profession: CraftProfession{…}` werden nie repariert → Nitwit.
+- Kein Code geändert.
