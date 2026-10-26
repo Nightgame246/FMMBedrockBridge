@@ -2040,3 +2040,10 @@ Utility kam nachweislich über die Taste. Actionbar-Hinweis laut Fabi korrekt.
   sonst bekommen Bedrock-Spieler wieder Truhen.
 - Offen, upstream: FMM-Modell-NPCs der Abenteurergilde zeigen auf Bedrock den Körper verkehrt herum (Kopf
   richtig). Nicht die Bridge; FMMs `weightedTurning` ausgeschlossen.
+
+## Session: 2026-10-26
+
+- **MagmaGuy-Welle 26.10.** (EM 10.9.11, FMM 2.13.0, RPM 2.4.8, BS 2.7.10): Reflection-Ziele per `javap` unverändert, pom gehoben
+  (`029ad77`), beide API-Generationen grün (84 Tests), Maven-JARs byte-identisch mit Modrinth. Kein Code geändert.
+- Rollout der Welle 17.10. und 26.10. samt Bridge ohne 7.3 auf Survival01 (`allowDialogMenusForBedrockPlayers: true`), in-game ok.
+- Offen, upstream: FMM-Modell-NPCs auf Bedrock mit verdrehtem Körper — auch noch mit FMM 2.13.0.
