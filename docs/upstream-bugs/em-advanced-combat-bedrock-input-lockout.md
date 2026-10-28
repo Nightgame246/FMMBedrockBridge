@@ -313,7 +313,10 @@ wie 7.3 und 7.5.
 Zifferntasten, Hotbar nur per LB/RB · 3 passt · 4 wie bei uns (Luft + leere Hand = nichts) · 5 passt · 6 nicht testbar (kein Touch) ·
 7 geht, 1 s nach dem Öffnen ist nichts mehr beeinflusst. 8/9 nicht gesondert gemeldet.
 
-## Discord-Antwort — fertig zum Posten
+## Discord-Antwort — ✅ von Fabi am 28.10.2026 im Thread gepostet
+
+> Offen: MagmaGuys Release abwarten → Survival01 auf das Release, dann Bridge-Phase 7.4 ausbauen.
+> Falls er die Sprung-Idee umsetzt: neuen Build auf TestServer01, Dodge per Springen auf Konsole prüfen.
 
 <!-- BEGIN-ANTWORT -->
 Thanks a lot, this is exactly what was missing! I put the dev build (sha256 matches) on our test server (Paper 26.3) and switched off my own sneak workaround so the two don't fight over the same input. Tested on a real console with a controller:
