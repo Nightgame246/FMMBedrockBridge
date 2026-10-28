@@ -307,22 +307,26 @@ wie 7.3 und 7.5.
 8. **Nebenwirkungen:** normales Ducken beim Bauen/an Kanten löst nichts aus (ohne controls); Absteigen von Reittier, Elytra/Fliegen, Dialog-NPCs ok.
 9. Java-Gegenprobe: F-Steuerung unverändert.
 
-## Discord-Antwort — Entwurf (Ergebnisse in [eckigen Klammern] eintragen)
+## Testergebnis Fabi (28.10., Konsole mit Controller)
+
+1 geht (Konsole: ein Druck = Dauer-Ducken, also Umschalter) · 2 1 s reicht, **Dodge (Mobility) sehr umständlich** — Controller hat keine
+Zifferntasten, Hotbar nur per LB/RB · 3 passt · 4 wie bei uns (Luft + leere Hand = nichts) · 5 passt · 6 nicht testbar (kein Touch) ·
+7 geht, 1 s nach dem Öffnen ist nichts mehr beeinflusst. 8/9 nicht gesondert gemeldet.
+
+## Discord-Antwort — fertig zum Posten
 
 <!-- BEGIN-ANTWORT -->
-Thanks a lot, this is exactly what was missing! I put the dev build (sha256 matches) on our test server on Paper 26.3 and switched off my own sneak workaround so the two don't fight over the same input.
+Thanks a lot, this is exactly what was missing! I put the dev build (sha256 matches) on our test server (Paper 26.3) and switched off my own sneak workaround so the two don't fight over the same input. Tested on a real console with a controller:
 
-Tested on real clients:
-- **Console / controller, hold sneak:** [opens? prompt readable?]
-- **Console, toggle sneak:** [does one tap open it, is 1 s enough to press the second input?]
-- **Attack inside the window:** [signature fires on mob / air / block?]
-- **Use inside the window:** [utility fires on block / air with item / air with empty hand?]
-- **Hotbar 1/2/3 and 7/8/9:** [correct abilities, normal slot switching afterwards?]
-- **Touch (phone/tablet):** [how does it feel?]
-- **`/em class controls` outside EM content + join notice:** [works / seen?]
-- **Side effects** (building, dismounting, flying, NPC dialogue): [none / …]
+- **Opening the window:** works. On console one press of sneak toggles sneaking on and off, so it opens on every toggle. Fine.
+- **1 second:** enough for signature and utility.
+- **Attack inside the window:** signature fires reliably.
+- **Use inside the window:** fires on blocks and with an item. Into the air with an empty hand nothing happens, because Bedrock sends no packet there (same as in my own attempt), so the hotbar route is the only way in that case.
+- **Hotbar 1/2/3 and 7/8/9:** correct abilities, normal slot switching afterwards.
+- **`/em class controls` outside EM content:** works, and the 1 s window is great there: once it closes, nothing else is affected.
+- **Touch:** couldn't test, no touch device.
 
-One note from my own attempt, in case it helps: Geyser delivers a held Bedrock crouch as a flickering start/stop sequence, so on my side counting sneak *events* was unreliable and reading `player.isSneaking()` at click time worked much better. Also, a right-click into the air with an empty hand sends no packet at all, so the hotbar keys are the only way to reach utility in that case. Leaving mobility off the double sneak is a good call; I had it there and it would have clashed with the boots.
+**The one weak spot is mobility (dodge) on a controller.** A controller has no number keys, the hotbar is only cycled with LB/RB, so reaching slot 1 (or 7) inside one second means bumper presses, and it depends on the slot you're holding. For the ability you need fastest, that's very awkward. Idea: inside the open window, map **jump** to mobility for Bedrock. Jump is a single button on every Bedrock input (controller, touch, keyboard), it reaches Paper as a normal jump through Geyser, and it doesn't collide with the boots' double sneak.
 
 I'll switch our live server over as soon as it's in a release. Thanks again!
 <!-- END-ANTWORT -->
