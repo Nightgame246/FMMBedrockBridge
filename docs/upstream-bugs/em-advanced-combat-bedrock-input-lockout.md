@@ -318,7 +318,7 @@ Zifferntasten, Hotbar nur per LB/RB · 3 passt · 4 wie bei uns (Luft + leere Ha
 <!-- BEGIN-ANTWORT -->
 Thanks a lot, this is exactly what was missing! I put the dev build (sha256 matches) on our test server (Paper 26.3) and switched off my own sneak workaround so the two don't fight over the same input. Tested on a real console with a controller:
 
-- **Opening the window:** works. On console one press of sneak toggles sneaking on and off, so it opens on every toggle. Fine.
+- **Opening the window:** works. On console one press of sneak toggles sneaking on, and the window opens then. Fine.
 - **1 second:** enough for signature and utility.
 - **Attack inside the window:** signature fires reliably.
 - **Use inside the window:** fires on blocks and with an item. Into the air with an empty hand nothing happens, because Bedrock sends no packet there (same as in my own attempt), so the hotbar route is the only way in that case.
@@ -326,7 +326,7 @@ Thanks a lot, this is exactly what was missing! I put the dev build (sha256 matc
 - **`/em class controls` outside EM content:** works, and the 1 s window is great there: once it closes, nothing else is affected.
 - **Touch:** couldn't test, no touch device.
 
-**The one weak spot is mobility (dodge) on a controller.** A controller has no number keys, the hotbar is only cycled with LB/RB, so reaching slot 1 (or 7) inside one second means bumper presses, and it depends on the slot you're holding. For the ability you need fastest, that's very awkward. Idea: inside the open window, map **jump** to mobility for Bedrock. Jump is a single button on every Bedrock input (controller, touch, keyboard), it reaches Paper as a normal jump through Geyser, and it doesn't collide with the boots' double sneak.
+**The one weak spot is mobility (dodge) on a controller.** A controller has no number keys, the hotbar is only cycled with LB/RB, so reaching slot 1 (or 7) inside one second means bumper presses, and it depends on the slot you're holding. For the ability you need fastest, that's very awkward. Idea: inside the open window, map **jump** to mobility for Bedrock, so jump means dodge in the window and stays a normal jump outside it. Jump is a single button on every Bedrock input (controller, touch, keyboard), it reaches Paper as a normal jump through Geyser, and it doesn't collide with the boots' double sneak.
 
 I'll switch our live server over as soon as it's in a release. Thanks again!
 <!-- END-ANTWORT -->
