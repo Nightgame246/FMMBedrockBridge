@@ -274,3 +274,55 @@ If a `BEDROCK_*` InputProfile lands, it would need to cover the arming path too,
 
 (Also worth knowing: `AdvancedCombatModule.get()` throws `IllegalStateException` rather than returning null when the system is disabled, while `DungeonCombatRuntime.start()` runs unconditionally. Anything integrating with this should gate on `isInitialized()` first.)
 <!-- END-4 -->
+
+---
+
+# Antwort von MagmaGuy (28.10.2026) und Rückmeldung
+
+**MagmaGuy (halbautomatische Antwort, sinngemäß):** Dev-Build EliteMobs 10.9.11 + `0d199eca5`, `818f18a1d`
+(MagmaCore `9ccd02d`), sha256 `ff91bafa43300ea4…` — geht ins nächste Release:
+
+- Bedrock: **Ducken öffnet das Fähigkeitsfenster für 1 s** (Java: F, 0,6 s).
+- Im Fenster: **Angriff → Signature**, **Benutzen → Utility**, **Hotbar 1/2/3 → Mobility/Signature/Utility**
+  (7/8/9, wenn der Slot schon gehalten wird).
+- Mobility bewusst **nicht** über doppeltes Ducken (Plasma-/Rail-Boots benutzen das).
+- Das Ducken selbst wird nie abgebrochen; ein von einem anderen Plugin abgebrochenes Ducken öffnet nichts.
+- **`/em class controls`** schaltet die Steuerung außerhalb von EM-Inhalten (= unsere zweite Sperre, Nachtrag 4). Beitrittshinweis für Bedrock.
+- HUD: seit Ende September pro Spieler, Bedrock bekommt die Textversion (deshalb Phase 7.5 seit 16.09. ausgebaut).
+- Bitte: Test auf echten Konsolen — Gefühl mit Controller/Touch und Ducken als Umschalter, kommen Angriffe/Benutzen im Fenster an.
+
+**Folge für die Bridge:** Phase 7.4 deckt dasselbe ab (bei uns Mobility zusätzlich über doppeltes Ducken → kollidiert mit
+den Boots). Für den Test auf dem Testserver `phase74.bedrock-abilities: false`. Erscheint das Release, wird 7.4 ausgebaut
+wie 7.3 und 7.5.
+
+## Testliste (Fabi, Bedrock, mit Klasse, leere Hand und mit Waffe)
+
+1. **Konsole/Controller, Ducken halten:** Fenster geht auf? Hinweis/Prompt verständlich (Bedrock-Wortlaut)?
+2. **Konsole, Ducken als Umschalter** (Einstellung „Schleichen umschalten“): einmal tippen → Fenster? Reichen 1 s für die zweite Taste?
+3. Im Fenster **Angriff** auf Mob, in die Luft und auf Block → Signature?
+4. Im Fenster **Benutzen**: auf Block, in die Luft mit Item, in die Luft mit **leerer Hand** (schickt evtl. gar kein Paket — bei uns war das so) → Utility?
+5. Im Fenster **Hotbar 1/2/3** und mit gehaltenem Slot **7/8/9** → Mobility/Signature/Utility; Item-Wechsel danach normal?
+6. **Touch (Handy/Tablet):** dasselbe mit dem Touch-Ducken-Knopf; Hotbar antippen.
+7. **Außerhalb eines Dungeons:** ohne `/em class controls` passiert nichts; danach geht es; Beitrittshinweis gesehen?
+8. **Nebenwirkungen:** normales Ducken beim Bauen/an Kanten löst nichts aus (ohne controls); Absteigen von Reittier, Elytra/Fliegen, Dialog-NPCs ok.
+9. Java-Gegenprobe: F-Steuerung unverändert.
+
+## Discord-Antwort — Entwurf (Ergebnisse in [eckigen Klammern] eintragen)
+
+<!-- BEGIN-ANTWORT -->
+Thanks a lot, this is exactly what was missing! I put the dev build (sha256 matches) on our test server on Paper 26.3 and switched off my own sneak workaround so the two don't fight over the same input.
+
+Tested on real clients:
+- **Console / controller, hold sneak:** [opens? prompt readable?]
+- **Console, toggle sneak:** [does one tap open it, is 1 s enough to press the second input?]
+- **Attack inside the window:** [signature fires on mob / air / block?]
+- **Use inside the window:** [utility fires on block / air with item / air with empty hand?]
+- **Hotbar 1/2/3 and 7/8/9:** [correct abilities, normal slot switching afterwards?]
+- **Touch (phone/tablet):** [how does it feel?]
+- **`/em class controls` outside EM content + join notice:** [works / seen?]
+- **Side effects** (building, dismounting, flying, NPC dialogue): [none / …]
+
+One note from my own attempt, in case it helps: Geyser delivers a held Bedrock crouch as a flickering start/stop sequence, so on my side counting sneak *events* was unreliable and reading `player.isSneaking()` at click time worked much better. Also, a right-click into the air with an empty hand sends no packet at all, so the hotbar keys are the only way to reach utility in that case. Leaving mobility off the double sneak is a good call; I had it there and it would have clashed with the boots.
+
+I'll switch our live server over as soon as it's in a release. Thanks again!
+<!-- END-ANTWORT -->
