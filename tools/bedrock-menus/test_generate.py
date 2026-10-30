@@ -113,6 +113,27 @@ class BuildTest(unittest.TestCase):
             self.assertEqual([0, 0, 5], manifest["header"]["version"])
             self.assertEqual(5, meta["version"])
 
+    def test_invisible_item_for_unusable_slots(self):
+        # Geyser fuellt Felder, die es im Java-Menue nicht gibt (4/5 Reihen), mit unusable-space-block.
+        # Das Pack liefert dafuer ein durchsichtiges Item, das Mapping macht es zu geyser_custom:<name>.
+        with tempfile.TemporaryDirectory() as tmp:
+            meta = {"header_uuid": "a", "module_uuid": "b", "version": 0}
+            out = g.build(java_pack(MINI, MINI_TEX), tmp, meta, {})
+            z = zipfile.ZipFile(out)
+            atlas = json.loads(z.read("textures/item_texture.json"))
+            self.assertEqual("atlas.items", atlas["texture_name"])
+            tex = atlas["texture_data"][g.UNUSABLE_ITEM]["textures"]
+            self.assertIn(tex + ".png", z.namelist())
+            self.assertEqual(b"\x89PNG", z.read(tex + ".png")[:4])
+            mapping = json.load(open(os.path.join(tmp, g.UNUSABLE_MAPPING_FILE)))
+            self.assertEqual(1, mapping["format_version"])
+            entries = mapping["items"][g.UNUSABLE_JAVA_ITEM]
+            self.assertEqual(1, len(entries))
+            self.assertEqual(g.UNUSABLE_ITEM, entries[0]["name"])
+            self.assertEqual(g.UNUSABLE_ITEM, entries[0]["icon"])
+            self.assertIsInstance(entries[0]["custom_model_data"], int)
+            self.assertEqual("geyser_custom:fmmbridge_unusable", "geyser_custom:" + g.UNUSABLE_ITEM)
+
     def test_writes_known_backgrounds_for_the_bridge(self):
         with tempfile.TemporaryDirectory() as tmp:
             known = os.path.join(tmp, "known-backgrounds.txt")

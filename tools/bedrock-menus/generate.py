@@ -2,7 +2,7 @@
 """Phase 7.6 — baut das Bedrock-Pack FMMBridge-EliteMobsMenus aus dem Java-Pack von RPM.
 
 Aufruf:  python3 tools/bedrock-menus/generate.py <ResourcePackManager_RSP.zip>
-Ausgabe: target/bedrock-menus/FMMBridge-EliteMobsMenus.mcpack (+ last-run.json)
+Ausgabe: target/bedrock-menus/FMMBridge-EliteMobsMenus.mcpack (+ fmmbridge-unusable.json fuer Geysers custom_mappings, last-run.json)
 Erhoeht die Version in tools/bedrock-menus/pack-meta.json — danach committen.
 
 Die Texturen gehoeren MagmaGuy und duerfen nie ins (oeffentliche) Repo. Nur Standardbibliothek.
@@ -23,6 +23,13 @@ KNOWN_SPACING = {0xF0EF1, 0xF0EF5}          # muss BedrockMenuTitle.SPACING_CODE
 # exakt darunter. Vermutlich verrechnet Java die Abstands-Glyphen anders als hier angenommen.
 JAVA_IMAGE_X_FROM_SLOTS = -15
 BEDROCK_GRID = {"large": (7, 10), "small": (7, 9)}
+# Geyser fuellt Felder, die es im Java-Menue nicht gibt (Bedrock kennt nur 3 und 6 Reihen, EliteMobs'
+# Waffenauswahl hat 4), mit `unusable-space-block` — Standard ist eine Barriere. Dieses durchsichtige Item
+# ersetzt sie: Geyser-Config `unusable-space-block: geyser_custom:fmmbridge_unusable`, Mapping-Datei nach
+# Geyser-Velocity/custom_mappings/. Das Java-Item kommt im Spiel nicht vor, das Mapping greift also nie anderswo.
+UNUSABLE_ITEM = "fmmbridge_unusable"
+UNUSABLE_JAVA_ITEM = "minecraft:structure_void"
+UNUSABLE_MAPPING_FILE = "fmmbridge-unusable.json"
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.abspath(os.path.join(HERE, "..", ".."))
 
@@ -161,6 +168,14 @@ def build(java_zip, out_dir, meta, overrides, known_file=None):
             z.writestr(f"font/glyph_{page}.png", glyph)
         for m in menus:
             z.writestr(f"textures/ui/fmmbridge_em/{m.texture_name}.png", m.png)
+        z.writestr(f"textures/items/{UNUSABLE_ITEM}.png", transparent_png(16))
+        z.writestr("textures/item_texture.json", json.dumps({
+            "resource_pack_name": "fmmbridge_em", "texture_name": "atlas.items",
+            "texture_data": {UNUSABLE_ITEM: {"textures": f"textures/items/{UNUSABLE_ITEM}"}}}, indent=1))
+    with open(os.path.join(out_dir, UNUSABLE_MAPPING_FILE), "w") as f:
+        json.dump({"format_version": 1, "items": {UNUSABLE_JAVA_ITEM: [
+            {"name": UNUSABLE_ITEM, "icon": UNUSABLE_ITEM, "display_name": " ", "custom_model_data": 7600001}]}},
+            f, indent=1)
     _report(out_dir, menus)
     if known_file:
         write_known(menus, known_file)
