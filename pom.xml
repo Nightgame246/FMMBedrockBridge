@@ -73,7 +73,7 @@
         <dependency>
             <groupId>com.magmaguy</groupId>
             <artifactId>FreeMinecraftModels</artifactId>
-            <version>2.13.0</version>
+            <version>2.14.0</version>
             <scope>provided</scope>
             <exclusions>
                 <!-- These are shaded into the FMM jar at build time but still
@@ -126,14 +126,13 @@
             </exclusions>
         </dependency>
 
-        <!-- EliteMobs (soft-dep). Imported in EliteMobsHook (api.* + mobconstructor),
-             BedrockCombatTrigger (api.* combat events) and AdvancedCombatHook.
-             AdvancedCombatHook is the ONLY class allowed to name the internal, [Alpha]
-             package com.magmaguy.elitemobs.advancedcombat — keep it that way. -->
+        <!-- EliteMobs (soft-dep). Imported in EliteMobsHook (api.* + mobconstructor) and
+             BedrockCombatTrigger (api.* combat events). Nothing here names the internal
+             package com.magmaguy.elitemobs.advancedcombat any more (Phase 7.4 removed 30.10.2026). -->
         <dependency>
             <groupId>com.magmaguy</groupId>
             <artifactId>EliteMobs</artifactId>
-            <version>10.9.11</version>
+            <version>10.9.12</version>
             <scope>provided</scope>
         </dependency>
 

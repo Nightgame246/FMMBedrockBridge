@@ -1,6 +1,6 @@
 # HANDOFF — FMMBedrockBridge
 
-> Arbeitsstand **dieses Plugins**. Stand: **2026-10-25**  ·  Branch: **`main`** — Phase 7.3/7.3b/7.3c am 25.10. ausgebaut (EM 10.9.10 macht Bedrock-Formulare selbst), Fix 7.1d (leerer statt kein Name)
+> Arbeitsstand **dieses Plugins**. Stand: **2026-10-30**  ·  Branch: **`main`** — Phase 7.4 am 30.10. ausgebaut (EliteMobs 10.9.12 hat eine eigene Bedrock-Klassensteuerung), pom EM 10.9.12 / FMM 2.14.0
 >
 > ⚠️ **Der Einstieg steht eine Ebene höher: `../HANDOFF.md`.**
 > Dort liegen Bootstrap, Session-Ende-Protokoll, Build-Vorbereitung am neuen PC und die
@@ -31,6 +31,9 @@
 > während die Bridge ihn für Java hielt — dann bekommt er **von keiner Seite** Eingabe.
 > Abschnitt „Bedrock-Erkennung" unten.
 
+> 🔴 **Neu am 30.10.: Phase 7.4 ausgebaut.** EliteMobs 10.9.12 macht die Bedrock-Klassensteuerung selbst
+> (Ducken → Fähigkeitsfenster, Angriff/Benutzen/Springen, `/em class controls`). Die Abschnitte zu 7.4 unten sind Historie.
+>
 > 🟢 **Neu am 27.09.: Phase 7.4 ist in-game abgenommen** — Schleichen + Hotbar-Taste
 > (1/7 · 2/8 · 3/9) als zweite Geste, weil Rechtsklick in die Luft mit leerer Hand gar kein
 > Paket schickt. Dazu pom auf FMM 2.12.3 / EM 10.9.5 / PacketEvents 2.14.0. Abschnitt

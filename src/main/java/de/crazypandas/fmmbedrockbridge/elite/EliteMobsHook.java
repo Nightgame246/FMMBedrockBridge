@@ -15,9 +15,8 @@ import java.util.logging.Logger;
  * (or false) when EliteMobs is not installed or its API broke between versions —
  * callers must null-check rather than relying on exceptions.
  *
- * <p>Not the only EliteMobs importer any more: {@code bridge.BedrockCombatTrigger} listens to
- * EM's combat events, and {@code bridge.AdvancedCombatHook} (Phase 7.4) is the single class
- * allowed to touch the internal, [Alpha] {@code advancedcombat} package.
+ * <p>Not the only EliteMobs importer: {@code bridge.BedrockCombatTrigger} listens to EM's combat
+ * events. Nothing touches the internal {@code advancedcombat} package since Phase 7.4 was removed.
  */
 public final class EliteMobsHook {
 

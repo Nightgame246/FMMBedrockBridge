@@ -2057,3 +2057,12 @@ Utility kam nachweislich über die Taste. Actionbar-Hinweis laut Fabi korrekt.
     im Primis-Content teilen sich eine Zeile (nicht Bedrock, hier nur gesammelt).
   - `em-npc-profession-tostring-not-migrated.md` — alte NPC-Configs mit `profession: CraftProfession{…}` werden nie repariert → Nitwit.
 - Kein Code geändert.
+
+## Session: 2026-10-28 bis 2026-10-30
+
+- **MagmaGuy hat auf den Upstream-Report vom 11.09. reagiert**: zwei Dev-Builds, Konsolentest durch Fabi, unser Vorschlag
+  „Springen im Fenster = Mobility“ übernommen. Release **EliteMobs 10.9.12** (29.10.) enthält die Bedrock-Klassensteuerung.
+- **Phase 7.4 ausgebaut** (Branch `feat/remove-74`): `BedrockAbilityListener`, `BedrockAbilityGesture`, `AdvancedCombatHook`,
+  `AdvancedCombatSupport`, `AbilityFeedback`, `EliteMobsActionBar` samt Tests, `phase74`-Config und die Getter im Hauptklasse.
+  `BedrockDetection` bleibt (nutzt `ViewerManager`). pom auf **EM 10.9.12 / FMM 2.14.0**. 53 Tests, beide API-Generationen grün,
+  JAR 94 → 59 KB. Auf den Instanzen war 7.4 schon seit 28.10. (TestServer01) bzw. 30.10. (Survival01) per Config aus.
