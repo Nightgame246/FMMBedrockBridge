@@ -19,6 +19,7 @@ The current plugin is a focused **EM↔Bedrock UX-Bridge**.
 | **Phase 7.7 — EliteMobs menu icons on Bedrock** | EliteMobs puts its menu icons (`elitemobs:ui/*`, `nightbreak:ui/*`) on emerald, redstone, barrier or banners and draws them via `item_model`. Geyser maps custom items per base item and RPM only registers these icons under paper (redstone and banners Geyser cannot override at all), so Bedrock showed the vanilla items. For Bedrock viewers the bridge rewrites the base item to paper in container `WINDOW_ITEMS`/`SET_SLOT` packets, keeping all components — RPM's existing mapping applies. Player inventory and cursor are never touched. Config: `phase77.bedrock-menu-icons` (+ prefix/exclude lists). Upstream draft: `docs/upstream-bugs/em-menu-icons-paper-base-bedrock.md`. |
 | **Phase 7.6 — EliteMobs menu backgrounds on Bedrock** | EliteMobs draws its menu backgrounds as font glyphs in the chest title (`U+F0E00`–`U+F0F0B`, outside the BMP), which Bedrock shows as boxes over a bare grey chest. For Bedrock viewers the bridge rewrites the title in `OPEN_WINDOW` to invisible BMP markers (`U+E900 + n`, plus `U+E8FF` = hide grey slot cells); the generated pack `FMMBridge-EliteMobsMenus.mcpack` (in Geyser's `packs/`) shows the matching background aligned to the slot grid. Pack built by `tools/bedrock-menus/generate.py` from RPM's merged Java pack — textures never enter this repo. Config: `phase76.bedrock-menu-backgrounds`, `phase76.hide-slot-backgrounds`. Classic UI (PC/console). |
 | ~~**Phase 7.3 / 7.3b / 7.3c — Menu Dialog-Reroute**~~ | **Removed on 2026-10-25.** The bridge rerouted EliteMobs' `/em` status, NPC quest and class menus from the Bedrock chest to EM's native dialog (Geyser renders it as a Bedrock form). EliteMobs 10.9.10 does this itself: set `allowDialogMenusForBedrockPlayers: true` in `plugins/EliteMobs/config.yml`. An A/B test on TestServer01 showed EM's own forms complete for all three menus, without the chest flashing up first. **Without that option Bedrock players get chests again.** History: git before the removal commit. |
+| ~~**Phase 7.4 — Bedrock ability input**~~ | **Removed on 2026-10-30.** Sneak-based input for EliteMobs' Advanced Combat abilities, whose F-chord Bedrock cannot produce. EliteMobs 10.9.12 ships its own Bedrock controls (sneak opens the ability window; attack/use/jump; `/em class controls` outside EM content), built after our upstream report and console test. History: git before the removal commit. |
 
 That's it. No mob rendering, no animation conversion, no 3D item conversion — those are FMM + RPM's job now.
 
@@ -142,73 +143,22 @@ phase71c:
 | `bridge/BedrockMenuIcons` | Phase 7.7: pure rule — which items (by `item_model` prefix, minus excludes, not already paper) are rebased onto paper for Bedrock |
 | `bridge/MenuIconRebaser` | Phase 7.7: applies the rule to a PacketEvents `ItemStack` — base item paper, same amount and component patches |
 | `bridge/BedrockMenuTitle` | Phase 7.6: pure title rewrite — EliteMobs background glyph → Bedrock marker (`U+E900 + (cp − U+F0E00)`), spacing glyphs and other plane-15/16 characters removed; shares its test cases with the Python generator (`src/test/resources/bedrock-menus/cases.json`) |
-| `bridge/BedrockAbilityListener` | Phase 7.4: the Bukkit listeners for the sneak controls (sneak start, attack, use, hotbar key) plus quit/death/world-change cleanup; shows the controls hint on a deliberate crouch; Floodgate gate first, then EliteMobs' own preconditions. Reads its config per event |
-| `bridge/BedrockAbilityGesture` | Phase 7.4: pure decision logic — sneak state + click/hotbar key (1/7, 2/8, 3/9, EliteMobs' own numbers) → slot, double-crouch for mobility with a flutter floor, deliberate-crouch detection for the hint. No Bukkit types, unit-testable |
-| `bridge/AdvancedCombatHook` | Phase 7.4: the ONLY class that imports EM's internal, [Alpha] `advancedcombat` package. Runtime gate (`canUseAbilities`) + `fire` into `useAbility`, everything wrapped against LinkageError |
-| `bridge/AdvancedCombatSupport` | Phase 7.4: startup probe for EM's Advanced Combat classes — by name via `Class.forName`, deliberately without an import, so a renamed package cannot take the bridge down at class-load time |
-| `bridge/AbilityFeedback` | Phase 7.4: pure text builder — success line, controls hint (with EliteMobs' 7/8/9 mirror key for the held slot), and the mapping from an EM failure-reason name to the optional plain-text action-bar line (no custom fonts — Bedrock cannot resolve Java font providers) |
-| `bridge/EliteMobsActionBar` | Phase 7.4: publishes that line through EliteMobs' own `ActionBarCompositor` (source `ABILITY_INPUT`, priority 310 vs. the class HUD's 100) instead of writing to the client. Resolved by name like `AdvancedCombatSupport`; falls back to a direct `sendActionBar` when the compositor is gone |
-| `elite/EliteMobsHook` | Soft-dep wrapper around EliteMobs' stable API (`com.magmaguy.elitemobs.api.*`); since Phase 7.1c/7.4 no longer the only EM importer — `BedrockCombatTrigger` and `AdvancedCombatHook` import EM too |
+| `elite/EliteMobsHook` | Soft-dep wrapper around EliteMobs' stable API (`com.magmaguy.elitemobs.api.*`); since Phase 7.1c not the only EM importer — `BedrockCombatTrigger` imports EM too |
 | `commands/FMMBridgeCommand` | `/fmmbridge debug` — shows active controllers, ready Bedrock players, suppressed UUIDs |
 
-23 classes under `src/main/java`. The pre-refactor bridge was 27 classes + a Geyser Extension; both archived under the git tag mentioned above.
+17 classes under `src/main/java`. The pre-refactor bridge was 27 classes + a Geyser Extension; both archived under the git tag mentioned above.
 
 > **Phase 7.2b removed (2026-06-14):** EM 2D UI items (legacy `custom_model_data` overrides on `minecraft:emerald` and similar base items) are now handled natively by ResourcePackManager 2.0.2 via `GenericJavaScanner.scanLegacyCustomModelOverrides` (legacy `→` Bedrock conversion, 10 of 12 EM UI icons). The bridge no longer injects `item_model` or generates/ships an `em_bridge_pack.mcpack`. Known Bedrock/Geyser limitation: the 2 banner-based icons (`green_banner`+CMD31173→`boxinput`, `red_banner`+CMD31173→`boxoutput`, used in EM's enchantment/"Verzauberer" and elite-scroll menus) do **not** render on Bedrock — Geyser cannot apply custom-item-v2 to banner base items (block-entity/pattern-rendered). This is a known upstream-pending gap; see `docs/upstream-bugs/em-banner-ui-items-bedrock.md`.
 
-## Phase 7.4 — Bedrock-Eingabe für EliteMobs' Klassen-Fähigkeiten
+## ~~Phase 7.4 — Bedrock-Eingabe für EliteMobs' Klassen-Fähigkeiten~~ (ausgebaut am 30.10.2026)
 
-EliteMobs 10.9.0 bindet die drei Fähigkeits-Slots seines Advanced Combat System an einen
-F-Chord (`F,F` / `F+LMB` / `F+RMB`). `F` ist der Offhand-Tausch — **den gibt es auf Bedrock
-nicht**, weder auf Controller noch auf Touch. Bedrock- und Konsolenspieler können dort ohne
-diese Phase keine einzige aktive Fähigkeit auslösen.
-
-Die Bridge übersetzt den Chord auf Schleichen:
-
-| Geste | Fähigkeit |
-|---|---|
-| Schleichen, Schleichen | Mobility |
-| Schleichen + Angriff | Signature |
-| Schleichen + Benutzen | Utility |
-
-Scharf ist die Steuerung nur dann, wenn EliteMobs selbst auf die Eingabe reagieren würde. Das
-Gate spiegelt bewusst EMs eigene Vorbedingungen, statt breiter zu sein als sie:
-`AdvancedCombatModule.isInitialized()` → `mechanicsActive(player)` (aktive Klasse **und**
-eingeschalteter Control-Mode) → Dungeon/Match oder aktiver Kampf-Tag. Normales Schleichen beim
-Bauen löst damit nichts aus, und eine Geste, die EM ohnehin verwerfen würde, kostet den Spieler
-weder Schlag noch Interaktion — das auslösende Event wird erst gecancelt, wenn EM die Eingabe
-tatsächlich angenommen hat. Java-Spieler sind nicht betroffen und behalten EMs
-Originalsteuerung.
-
-> ⚠️ **Praktische Grenze: Dungeons und Matches.** Außerhalb davon verlangt EMs
-> `mechanicsActive` die Mitgliedschaft in `ClassControlMode.outsideEnabled` — dieser Opt-in
-> entsteht **nur** durch einen F-Doppeltipp beim Schleichen, und genau diese Eingabe kann
-> Bedrock nicht erzeugen. **Phase 7.4 ist damit faktisch auf Dungeons und Matches beschränkt.**
-> In der offenen Welt bleibt die Steuerung stumm — korrekt, aber wirkungslos. Der eigentliche
-> Fix muss upstream kommen; siehe den Report unten.
-
-**Voraussetzungen:** EliteMobs **10.9.0+** mit eingeschaltetem Advanced Combat System und
-Floodgate. Fehlen EMs Advanced-Combat-Klassen, registriert sich die Phase beim Start gar nicht
-erst und schreibt den Grund ins Log. Sind sie da, registriert sie sich — ob sie wirkt,
-entscheidet danach das Laufzeit-Gate oben (System aus, keine Klasse gewählt oder außerhalb von
-Dungeon/Match ⇒ stumm). Die übrige Bridge läuft in jedem Fall normal weiter.
-
-Konfiguration: Block `phase74` in der `config.yml`. Der Startwert für `chord-max-ticks` (40 =
-2 s) ist bewusst großzügiger als EMs 12 Ticks und im Spieltest zu justieren. Alle vier Werte
-werden **pro Event** aus der Config gelesen (wie in jeder anderen Phase), nicht beim Registrieren
-eingefroren — ein erneutes Laden der Config reicht also aus. Einen eigenen Reload-Befehl hat die
-Bridge noch nicht; bis dahin ist ein Plugin-Reload der Weg.
-`phase74.feedback` steht **seit 16.09.2026 standardmäßig auf `true`**. Vorher war es `false`,
-weil die Meldung per `player.sendActionBar()` direkt an den Client ging und dort binnen ein, zwei
-Ticks von EliteMobs' Klassen-HUD überschrieben wurde: EM hält die Actionbar seit 10.9.0 über
-`ActionBarCompositor` dauerhaft belegt (`CLASS_HUD` persistent, Keepalive alle 40 Ticks) und
-rendert bei jeder HP-Änderung sofort neu — im Kampf also praktisch jeden Tick. Die Rückmeldung
-geht jetzt durch denselben Compositor (`Source.ABILITY_INPUT`), der nach Priorität schlichtet
-statt nach „wer schrieb zuletzt": 310 gegen 100, Lebensdauer 40 Ticks. Genau der Fall, den EMs
-eigene Klassendoku beschreibt — *„combat feedback can cover it temporarily without destroying
-it"*. Siehe `bridge/EliteMobsActionBar`.
-
-- Design: `docs/specs/2026-09-11-bedrock-ability-input-design.md`
-- Upstream gemeldet: `docs/upstream-bugs/em-advanced-combat-bedrock-input-lockout.md`
+EliteMobs 10.9.0 band die Klassen-Fähigkeiten an einen F-Chord, den Bedrock nicht erzeugen kann; die Bridge
+übersetzte ihn von September bis Oktober auf Schleichen (+ Angriff/Benutzen/Hotbar-Taste). Nach unserem
+Upstream-Report (`docs/upstream-bugs/em-advanced-combat-bedrock-input-lockout.md`) und einem Konsolentest macht
+**EliteMobs 10.9.12** das selbst: Ducken öffnet für 1 s das Fähigkeitsfenster, Angriff = Signature,
+Benutzen = Utility, **Springen = Mobility** (unser Vorschlag), Hotbar 1/2/3 bzw. 7/8/9; außerhalb von EM-Inhalten
+schaltet `/em class controls` die Steuerung ein. Ein alter `phase74:`-Block in der Config wird ignoriert.
+Design der alten Phase: `docs/specs/2026-09-11-bedrock-ability-input-design.md`. Historie: git vor dem Ausbau-Commit.
 
 ## Server tooling
 
