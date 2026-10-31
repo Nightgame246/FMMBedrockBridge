@@ -1,6 +1,6 @@
 # [EliteMobs] Skill menu closes on Bedrock when re-entering a weapon type
 
-**Status:** Entwurf 30.10.2026, zum Posten bei Fabi (MagmaGuys Discord, Suggestions/Bugs — gleicher Kanal wie
+**Status:** ✅ gepostet von Fabi am 31.10.2026 — Antwort von MagmaGuy offen (MagmaGuys Discord, Suggestions/Bugs — gleicher Kanal wie
 `em-advanced-combat-bedrock-input-lockout.md`).
 **Version:** EliteMobs 10.9.12 (Modrinth), Paper 26.3, Velocity + Geyser 2.12.1 / Floodgate.
 **Screenshots (lokal, nicht im Repo):** `references/screenshots/alt/2026-10-30_em-skillmenue-bedrock/`.
