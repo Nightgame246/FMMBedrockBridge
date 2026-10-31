@@ -1,9 +1,10 @@
 # [FMM/RPM] Adventurer's Guild model NPCs: body faces backwards on Bedrock, head is correct
 
-> **Status (2026-10-31):** Discord-Fassung unten, zum Posten bei Fabi (MagmaGuys Discord, gleicher Kanal wie
+> **Status (2026-10-31):** ✅ von Fabi gepostet (31.10.), Fehler vorher in-game mit FMM 2.14.0 / RPM 2.4.9 bestätigt —
+> Antwort von MagmaGuy offen. (MagmaGuys Discord, gleicher Kanal wie
 > `em-skill-menu-bedrock-reopen-closes.md`). Erstmals gesehen 2026-10-25 (FMM 2.12.9 / RPM 2.4.7), unverändert mit
-> FMM 2.13.0 / RPM 2.4.8; seit der Welle 30.10. laufen FMM 2.14.0 / RPM 2.4.9 / EM 10.9.12 — **vor dem Posten prüft Fabi
-> in-game, dass es dort noch so aussieht.** Nicht von der Bridge verursacht — die fasst die Ausrichtung von
+> FMM 2.13.0 / RPM 2.4.8; seit der Welle 30.10. laufen FMM 2.14.0 / RPM 2.4.9 / EM 10.9.12 — Fabi hat es dort
+> am 31.10. unverändert gesehen. Nicht von der Bridge verursacht — die fasst die Ausrichtung von
 > FMM-Modellen seit Mai 2026 nicht mehr an (Bridge-Variante A/B ohne Unterschied); Gegenprobe mit FMM
 > `weightedTurning: false` ohne Wirkung. Screenshots liegen im (privaten) Umbrella unter
 > `references/screenshots/alt/2026-10-25_gilden-npcs-verdreht/{bedrock,java}.png` — beim Posten anhängen.
