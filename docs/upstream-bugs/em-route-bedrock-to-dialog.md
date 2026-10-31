@@ -1,3 +1,6 @@
+> ✅ **ERLEDIGT — NICHT MEHR EINREICHEN.** Seit EliteMobs 10.9.10 (`allowDialogMenusForBedrockPlayers: true`) macht EM das selbst;
+> Bridge 7.3 wurde am 25.10.2026 ausgebaut.
+
 # [EliteMobs] Route Bedrock players to the native Dialog menu (Geyser now renders dialogs)
 
 **Repo:** MagmaGuy/EliteMobs

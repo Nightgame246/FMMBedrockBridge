@@ -1,6 +1,9 @@
 # [EliteMobs] Translation keys collide when a boss, item and quest share a file name
 
-> **Status (2026-10-27):** Entwurf, nicht eingereicht. Gefunden beim Einspielen unserer deutschen Übersetzung
+> ✅ **ERLEDIGT — NICHT MEHR EINREICHEN (31.10.2026).** EliteMobs 10.9.12 schlüsselt Übersetzungen nach `text.<hash>` des
+> Textes statt nach Dateiname; die Beispiele unten stehen auf Survival01 jetzt in getrennten Zeilen.
+>
+> **Alter Status (2026-10-27):** Entwurf, nicht eingereicht. Gefunden beim Einspielen unserer deutschen Übersetzung
 > für den Content vom 26.10. (EM 10.9.11). Betrifft jede Sprache, nicht nur Deutsch, und hat mit Bedrock nichts
 > zu tun — liegt hier nur, weil alle Upstream-Entwürfe hier gesammelt werden. Unsere Übersetzung selbst:
 > Umbrella `server-config/elitemobs/`.
